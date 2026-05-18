@@ -119,6 +119,12 @@ export const ACCOUNT_BAR = {
   open: 3,
 };
 
+// TradingConfigNode.current_phase — Phase 1.1 invariant per v3 §15.
+// Source of truth when Step D activates: polled accountBar.current_phase
+// from useNeo4jPoll. Until then, hardcoded constant so the Section E.1
+// badge selector has a value to read.
+export const CURRENT_PHASE = 'Paper';
+
 export const EQUITY_CURVE = {
   start: 10000,
   end: 11847,

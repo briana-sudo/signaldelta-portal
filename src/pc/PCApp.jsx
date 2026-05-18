@@ -6,10 +6,11 @@ import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
 import {
   SCANNER_ASSETS, POSITIONS, WEEKLY_WATERFALL,
   RETURNS_MATRIX, RULES_ADDED, RULES_FOOT, TICKER, ACCOUNT_BAR,
-  KERNEL_COUNTS, LOGO_SVG, TRADE_DEMO_SEQUENCE,
+  KERNEL_COUNTS, LOGO_SVG, TRADE_DEMO_SEQUENCE, CURRENT_PHASE,
 } from '../lib/placeholders.js';
 import { buildEquityCurveSvg } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
+import { computeBadge } from '../lib/performanceBadge.js';
 import TradeOverlay from './TradeOverlay.jsx';
 
 const MODES = ['live', 'training', 'combined'];
@@ -84,7 +85,7 @@ function Header({ clock, mode, setMode }) {
       <div className="hdr-mid">
         <div className="pill"><div className="dot dot-green" />SYSTEM ACTIVE</div>
         <div className="pill"><div className="dot dot-cyan" />PAPER TRADING</div>
-        <div className="sim-tag">SIMULATED PERFORMANCE</div>
+        <PerformanceBadge mode={mode} />
         <div className="mode-toggle">
           {MODES.map((m) => (
             <div
@@ -137,7 +138,7 @@ function AccountBar({ pollSecs, pollPulse, bootstrap }) {
         <span className="aval c">{bootstrap ? 0 : a.open}</span>
       </div>
       <div className="acct-divider" />
-      <MiniWaterfall />
+      <MiniWaterfall bootstrap={bootstrap} />
       <div className="acct-divider" />
       <div className="poll-ind">
         <div className={'poll-ring' + (pollPulse ? ' active' : '')}><div className="poll-fill" /></div>
@@ -147,10 +148,15 @@ function AccountBar({ pollSecs, pollPulse, bootstrap }) {
   );
 }
 
-function MiniWaterfall() {
+function MiniWaterfall({ bootstrap }) {
+  // Section E (updated): waterfall reads WeeklyContextNode.system_weekly_pnl_pct
+  // filtered by phase. Under LIVE in Phase 1.1 no live weekly contexts exist,
+  // so the panel renders empty (baseline only). Under TRAINING/COMBINED the
+  // paper-trading weekly bars render and animate in.
   const wrapRef = useRef(null);
   const [heights, setHeights] = useState(() => WEEKLY_WATERFALL.map(() => 2));
   useEffect(() => {
+    if (bootstrap) return;
     const wrap = wrapRef.current;
     if (!wrap) return;
     const barH = wrap.clientHeight - 20;
@@ -164,7 +170,17 @@ function MiniWaterfall() {
         });
       }, 80 + i * 100);
     });
-  }, []);
+  }, [bootstrap]);
+  if (bootstrap) {
+    return (
+      <div className="acct-wf" ref={wrapRef}>
+        <div className="acct-wf-baseline" />
+        <div style={{ flex: 1, textAlign: 'center', alignSelf: 'center', color: 'var(--w3)', fontFamily: 'var(--mono)', fontSize: '7px', letterSpacing: '1px' }}>
+          — AWAITING LIVE WEEKLY CONTEXTS —
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="acct-wf" ref={wrapRef}>
       <div className="acct-wf-baseline" />
@@ -183,6 +199,13 @@ function MiniWaterfall() {
       ))}
     </div>
   );
+}
+
+function PerformanceBadge({ mode }) {
+  // Section E.1 — regulatory disclosure. Resolves on every mode change so the
+  // displayed text always matches the active phase × mode combination.
+  const { text, tone } = useMemo(() => computeBadge(CURRENT_PHASE, mode), [mode]);
+  return <div className={'sim-tag t-' + tone}>{text}</div>;
 }
 
 function Main({ mode, events }) {

@@ -6,10 +6,11 @@ import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
 import {
   SCANNER_ASSETS, POSITIONS, WEEKLY_WATERFALL,
   RETURNS_MATRIX, RULES_ADDED, RULES_FOOT, ACCOUNT_BAR,
-  KERNEL_COUNTS, LOGO_SVG, TRADE_DEMO_SEQUENCE,
+  KERNEL_COUNTS, LOGO_SVG, TRADE_DEMO_SEQUENCE, CURRENT_PHASE,
 } from '../lib/placeholders.js';
 import { buildEquityCurveSvg } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
+import { computeBadge } from '../lib/performanceBadge.js';
 
 const MODES = ['live', 'training', 'combined'];
 const DEFAULT_MODE = 'training';
@@ -67,7 +68,7 @@ export default function MobileApp() {
 
   return (
     <div className="mobile-shell">
-      <MobileHeader clock={clock} />
+      <MobileHeader clock={clock} mode={mode} />
       <ModeToggle mode={mode} setMode={setMode} />
       <MobileAccountBar pollSecs={pollSecs} pollPulse={pollPulse} bootstrap={bootstrap} />
       <div className="tab-wrap">
@@ -82,7 +83,12 @@ export default function MobileApp() {
   );
 }
 
-function MobileHeader({ clock }) {
+function MobileHeader({ clock, mode }) {
+  // Section E.1 — collapsed badge surface. Dot color follows the same
+  // selector as the PC badge (amber for paper, green for live, split for
+  // mixed COMBINED state). Title attribute carries the long-form text for
+  // hover/long-press inspection (Phase 4 tap-to-expand deferred).
+  const { text, dot } = useMemo(() => computeBadge(CURRENT_PHASE, mode), [mode]);
   return (
     <div className="hdr">
       <div className="logo">
@@ -93,7 +99,7 @@ function MobileHeader({ clock }) {
         </div>
       </div>
       <div className="hdr-right">
-        <div className="status-dot" title="System Active · Paper Trading" />
+        <div className={'status-dot dot-' + dot} title={text} />
         <div className="clock">{clock}</div>
       </div>
     </div>
@@ -240,9 +246,9 @@ function DeskTab({ bootstrap, eventsCount }) {
       <div className="panel wf-panel">
         <div className="ptitle">
           <span><span className="ptitle-bar" />WEEKLY P&amp;L</span>
-          <span className="ptitle-r">6 WEEKS · CUR W6</span>
+          <span className="ptitle-r">{bootstrap ? 'AWAITING LIVE WEEKLY CONTEXTS' : '6 WEEKS · CUR W6'}</span>
         </div>
-        <MobileWaterfall />
+        <MobileWaterfall bootstrap={bootstrap} />
       </div>
     </>
   );
@@ -280,10 +286,12 @@ function MobileEquitySvg({ bootstrap }) {
   );
 }
 
-function MobileWaterfall() {
+function MobileWaterfall({ bootstrap }) {
+  // Section E (updated): phase-filtered. Empty bars under LIVE in Phase 1.1.
   const wrapRef = useRef(null);
   const [heights, setHeights] = useState(() => WEEKLY_WATERFALL.map(() => 2));
   useEffect(() => {
+    if (bootstrap) return;
     const wrap = wrapRef.current;
     if (!wrap) return;
     const barH = wrap.clientHeight - 22;
@@ -297,7 +305,17 @@ function MobileWaterfall() {
         });
       }, 80 + i * 100);
     });
-  }, []);
+  }, [bootstrap]);
+  if (bootstrap) {
+    return (
+      <div className="wf-wrap" ref={wrapRef}>
+        <div className="wf-baseline" />
+        <div style={{ flex: 1, textAlign: 'center', alignSelf: 'center', color: 'var(--w3)', fontFamily: 'var(--mono)', fontSize: '8px', letterSpacing: '1px' }}>
+          — AWAITING LIVE WEEKLY CONTEXTS —
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="wf-wrap" ref={wrapRef}>
       <div className="wf-baseline" />

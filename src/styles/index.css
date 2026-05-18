@@ -86,7 +86,16 @@ body::after {
 .pc-shell .dot { width:5px; height:5px; border-radius:50%; }
 .pc-shell .dot-green { background:var(--green); box-shadow:0 0 6px var(--green); animation:pdot 2s ease-in-out infinite; }
 .pc-shell .dot-cyan { background:var(--cyan); box-shadow:0 0 6px var(--cyan); }
-.pc-shell .sim-tag { font-family:var(--mono); font-size:8px; letter-spacing:2px; color:var(--amber); border:1px solid var(--amber); padding:2px 8px; background:var(--amber2); }
+/* Performance badge — Section E.1 tones. Phase 1.1 always renders .t-amber
+   (current_phase = 'Paper'). Other tones activate when the engine writes a
+   new TradingConfigNode.current_phase value. */
+.pc-shell .sim-tag { font-family:var(--mono); font-size:8px; letter-spacing:2px; padding:2px 8px; border:1px solid var(--amber); color:var(--amber); background:var(--amber2); display:inline-flex; align-items:center; gap:5px; }
+.pc-shell .sim-tag.t-amber { color:var(--amber); border-color:var(--amber); background:var(--amber2); }
+.pc-shell .sim-tag.t-green { color:var(--green); border-color:var(--green); background:var(--green2); }
+.pc-shell .sim-tag.t-split { color:var(--amber); border-color:var(--amber); background:var(--amber2); }
+.pc-shell .sim-tag.t-split::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 5px var(--green); animation:pdot 2s ease-in-out infinite; }
+.pc-shell .sim-tag.t-green-amber { color:var(--green); border-color:var(--green); background:var(--green2); }
+.pc-shell .sim-tag.t-green-amber::after { content:''; width:6px; height:6px; border-radius:50%; background:var(--amber); box-shadow:0 0 5px var(--amber); }
 
 .pc-shell .mode-toggle { display:flex; align-items:center; gap:0; border:1px solid var(--border); background:var(--navy3); }
 .pc-shell .mode-pill { font-family:var(--mono); font-size:8px; letter-spacing:2px; padding:3px 9px; color:var(--w3); cursor:pointer; border-right:1px solid var(--border); transition:all .2s; user-select:none; }
@@ -336,7 +345,12 @@ body::after {
 .mobile-shell .ls { font-family:var(--disp); font-weight:900; font-size:16px; letter-spacing:2.5px; color:var(--white); }
 .mobile-shell .ld { font-family:var(--disp); font-weight:900; font-size:16px; letter-spacing:2.5px; color:var(--cyan); }
 .mobile-shell .hdr-right { display:flex; align-items:center; gap:10px; }
-.mobile-shell .status-dot { width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); animation:pdot 2s ease-in-out infinite; }
+/* Status dot mirrors the PC badge tone selector — Section E.1.
+   Phase 1.1 always renders .dot-amber (current_phase = 'Paper'). */
+.mobile-shell .status-dot { width:7px; height:7px; border-radius:50%; animation:pdot 2s ease-in-out infinite; }
+.mobile-shell .status-dot.dot-amber { background:var(--amber); box-shadow:0 0 6px var(--amber); }
+.mobile-shell .status-dot.dot-green { background:var(--green); box-shadow:0 0 6px var(--green); }
+.mobile-shell .status-dot.dot-split { background:linear-gradient(90deg, var(--amber) 0 50%, var(--green) 50% 100%); box-shadow:0 0 6px rgba(255,171,0,0.6), 0 0 6px rgba(0,230,118,0.6); }
 .mobile-shell .clock { font-family:var(--mono); font-size:11px; color:var(--cyan); letter-spacing:1.5px; }
 
 .mobile-shell .mode-toggle { display:flex; height:30px; flex-shrink:0; border-bottom:1px solid var(--border); background:var(--navy2); }
