@@ -1,0 +1,136 @@
+:root {
+  --navy:   #060d18;
+  --navy2:  #0a1525;
+  --navy3:  #0e1c30;
+  --navy4:  #13243e;
+  --cyan:   #00c2ff;
+  --cyan2:  rgba(0, 194, 255, 0.18);
+  --cyan3:  rgba(0, 194, 255, 0.07);
+  --green:  #00e676;
+  --green2: rgba(0, 230, 118, 0.15);
+  --red:    #ff3d57;
+  --red2:   rgba(255, 61, 87, 0.14);
+  --amber:  #ffab00;
+  --amber2: rgba(255, 171, 0, 0.14);
+  --white:  #ddeeff;
+  --w2:     #7a9bb8;
+  --w3:     #3d6080;
+  --border: rgba(0, 194, 255, 0.10);
+  --mono:   'Share Tech Mono', monospace;
+  --disp:   'Barlow Condensed', sans-serif;
+  --body:   'Barlow', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--navy);
+  color: var(--white);
+  font-family: var(--body);
+  display: flex;
+  flex-direction: column;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.025) 3px,
+    rgba(0, 0, 0, 0.025) 4px
+  );
+}
+
+#root {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.boot-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 32px;
+}
+
+.boot-logo {
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+}
+
+.ls {
+  font-family: var(--disp);
+  font-weight: 900;
+  font-size: 48px;
+  letter-spacing: 6px;
+  color: var(--white);
+}
+
+.ld {
+  font-family: var(--disp);
+  font-weight: 900;
+  font-size: 48px;
+  letter-spacing: 6px;
+  color: var(--cyan);
+}
+
+.boot-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--w3);
+  letter-spacing: 3px;
+  border: 1px solid var(--border);
+  padding: 4px 12px;
+  text-transform: uppercase;
+}
+
+.boot-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--w2);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.dot-cyan {
+  background: var(--cyan);
+  box-shadow: 0 0 6px var(--cyan);
+  animation: pdot 2s ease-in-out infinite;
+}
+
+@keyframes pdot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
