@@ -1,5 +1,14 @@
-// Deterministic-ish equity curve generation matching the locked HTML baseline.
-// Step D replaces this with a real EquitySnapshotNode time series (D1 Cypher).
+// Equity curve SVG path builders.
+//
+// `buildEquityCurveSvgFromSeries` consumes the live D1 series (Cypher
+// equity_curve_series) — array of { date, equity } points returned by
+// dataAdapter.adaptEquityCurve. Falls back to null when fewer than 2
+// points are available; the panel renders an "AWAITING LIVE EQUITY
+// SERIES" message in that case.
+//
+// `buildEquityCurveSvg` is the placeholder-driven builder used pre-
+// live-data wiring (Step C). Retained for the bootstrap path and as
+// a reference for the canonical shape.
 import { EQUITY_CURVE } from './placeholders.js';
 
 export function buildEquityCurveSvg({ width = 600, height = 80, showBaselineLabel = true }) {
@@ -36,4 +45,36 @@ export function buildEquityCurveSvg({ width = 600, height = 80, showBaselineLabe
   const peakY = y(peak);
 
   return { d, fillD, baseY, endX, endY, peakX, peakY, width, height, showBaselineLabel };
+}
+
+export function buildEquityCurveSvgFromSeries(points, { width = 600, height = 80 } = {}) {
+  if (!Array.isArray(points) || points.length < 2) return null;
+  const equities = points.map((p) => Number(p.equity) || 0);
+  const start = equities[0];
+  const minV = Math.min(...equities) * 0.995;
+  const maxV = Math.max(...equities) * 1.005;
+  const safeRange = Math.max(maxV - minV, 1);
+  const N = equities.length;
+  const x = (i) => (i / Math.max(N - 1, 1)) * width;
+  const y = (v) => height - ((v - minV) / safeRange) * height;
+  const baseY = y(start);
+
+  let d = '';
+  equities.forEach((v, i) => {
+    d += (i === 0 ? 'M' : 'L') + x(i).toFixed(2) + ',' + y(v).toFixed(2) + ' ';
+  });
+  const fillD = d + `L${width},${baseY} L0,${baseY} Z`;
+  const peakVal = Math.max(...equities);
+  const peakIdx = equities.indexOf(peakVal);
+  return {
+    d,
+    fillD,
+    baseY,
+    endX: x(N - 1),
+    endY: y(equities[N - 1]),
+    peakX: x(peakIdx),
+    peakY: y(peakVal),
+    width,
+    height,
+  };
 }

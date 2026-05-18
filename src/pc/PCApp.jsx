@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
 import { useAccountDrift, usePositionDrift, useTickerWobble } from '../lib/useDrift.js';
-import { useEventFeed } from '../lib/useEventFeed.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
 import {
-  SCANNER_ASSETS, POSITIONS, WEEKLY_WATERFALL,
-  RETURNS_MATRIX, RULES_ADDED, RULES_FOOT, TICKER, ACCOUNT_BAR,
-  KERNEL_COUNTS, LOGO_SVG, TRADE_DEMO_SEQUENCE, CURRENT_PHASE,
+  SCANNER_ASSETS, WEEKLY_WATERFALL, TICKER, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
 } from '../lib/placeholders.js';
-import { buildEquityCurveSvg } from '../lib/equityCurve.js';
+import {
+  adaptAccountBar, adaptWeeklyWaterfall, adaptPositions, adaptEvents,
+  adaptWinRate, adaptSharpe, adaptLane2, adaptConviction,
+  adaptEquityCurve, adaptEquityHeader,
+  adaptRulesThisWeek, adaptRulesFoot,
+} from '../lib/dataAdapter.js';
+import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
 import TradeOverlay from './TradeOverlay.jsx';
@@ -23,55 +26,68 @@ const barClr = (s) => {
   if (s >= 20) return 'var(--amber)';
   return 'var(--w3)';
 };
-const nowHHMM = () => {
-  const n = new Date();
-  return [n.getHours(), n.getMinutes()].map((v) => String(v).padStart(2, '0')).join(':');
-};
 
-export default function PCApp() {
+export default function PCApp({ data, error, loading }) {
   const clock = useClock();
   const { secs: pollSecs, pulse: pollPulse } = usePollCountdown();
   const [mode, setMode] = useState(DEFAULT_MODE);
-  const bootstrap = shouldRenderBootstrap(mode);
+  // Trade overlay trigger slot reserved for the future real-event watcher
+  // (will compare consecutive poll results and fire on new TRADE_OPENED /
+  // TRADE_CLOSED entries — Section G real wiring, separate task).
+  const [overlayTrigger] = useState(null);
 
-  const { events, pushEvent, pushSyncEvent } = useEventFeed({
-    randomIntervalMs: 8000,
-    cap: 8,
-    enabled: !bootstrap,
-  });
-
-  // Trade overlay demo sequence (Step G): fires once on mount in non-LIVE modes.
-  const [overlayTrigger, setOverlayTrigger] = useState(null);
-  useEffect(() => {
-    if (bootstrap) return; // LIVE mode shows no trades in Phase 1.1
-    const timers = TRADE_DEMO_SEQUENCE.map((step, i) =>
-      setTimeout(() => {
-        pushEvent({ ...step.event, t: nowHHMM() });
-        setOverlayTrigger({ ...step.overlay, fireKey: Date.now() + i });
-      }, step.delay),
-    );
-    return () => timers.forEach(clearTimeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bootstrap]);
-
-  // 60s poll-tick event: push a DATA SYNC event into the feed on each rollover.
-  useEffect(() => {
-    if (pollPulse && !bootstrap) pushSyncEvent();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pollPulse, bootstrap]);
+  // Live phase comes from data.accountBar.current_phase when available;
+  // falls back to the hardcoded constant until the first poll lands.
+  const liveAccountBar = adaptAccountBar(data);
+  const currentPhase = liveAccountBar?.currentPhase || CURRENT_PHASE;
 
   return (
     <div className="pc-shell">
-      <Header clock={clock} mode={mode} setMode={setMode} />
-      <AccountBar pollSecs={pollSecs} pollPulse={pollPulse} bootstrap={bootstrap} />
-      <Main mode={mode} events={events} />
+      {error && <ErrorBanner error={error} />}
+      <Header clock={clock} mode={mode} setMode={setMode} currentPhase={currentPhase} />
+      <AccountBar
+        pollSecs={pollSecs}
+        pollPulse={pollPulse}
+        mode={mode}
+        liveAccountBar={liveAccountBar}
+        liveWeeklyWaterfall={adaptWeeklyWaterfall(data)}
+      />
+      <Main mode={mode} data={data} />
       <Ticker />
       <TradeOverlay trigger={overlayTrigger} />
+      {/* loading hint: visible while first poll is in flight */}
+      {loading && !data && !error && <LoadingBadge />}
     </div>
   );
 }
 
-function Header({ clock, mode, setMode }) {
+function ErrorBanner({ error }) {
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000,
+      background: 'rgba(255,61,87,0.92)', color: '#fff',
+      fontFamily: 'var(--mono)', fontSize: '10px', letterSpacing: '1px',
+      padding: '6px 12px', borderBottom: '1px solid var(--red)',
+    }}>
+      PROXY ERROR · {error.message || String(error)}
+    </div>
+  );
+}
+
+function LoadingBadge() {
+  return (
+    <div style={{
+      position: 'fixed', bottom: 32, right: 12, zIndex: 999,
+      background: 'var(--navy3)', border: '1px solid var(--border)',
+      color: 'var(--cyan)', fontFamily: 'var(--mono)', fontSize: '9px',
+      letterSpacing: '2px', padding: '4px 10px',
+    }}>
+      CONNECTING TO ENGINE…
+    </div>
+  );
+}
+
+function Header({ clock, mode, setMode, currentPhase }) {
   return (
     <div className="hdr">
       <div className="logo">
@@ -84,8 +100,8 @@ function Header({ clock, mode, setMode }) {
       </div>
       <div className="hdr-mid">
         <div className="pill"><div className="dot dot-green" />SYSTEM ACTIVE</div>
-        <div className="pill"><div className="dot dot-cyan" />PAPER TRADING</div>
-        <PerformanceBadge mode={mode} />
+        <div className="pill"><div className="dot dot-cyan" />{currentPhase === 'Paper' ? 'PAPER TRADING' : currentPhase.toUpperCase()}</div>
+        <PerformanceBadge mode={mode} currentPhase={currentPhase} />
         <div className="mode-toggle">
           {MODES.map((m) => (
             <div
@@ -101,25 +117,31 @@ function Header({ clock, mode, setMode }) {
   );
 }
 
-function AccountBar({ pollSecs, pollPulse, bootstrap }) {
-  const a = ACCOUNT_BAR;
+function PerformanceBadge({ mode, currentPhase }) {
+  const { text, tone } = useMemo(() => computeBadge(currentPhase, mode), [mode, currentPhase]);
+  return <div className={'sim-tag t-' + tone}>{text}</div>;
+}
+
+function AccountBar({ pollSecs, pollPulse, mode, liveAccountBar, liveWeeklyWaterfall }) {
+  const bootstrap = shouldRenderBootstrap(mode) || !liveAccountBar;
+  const capitalBase = liveAccountBar?.capitalBase ?? 10000;
   const { av, ap } = useAccountDrift({
-    initialValue: a.currentValue,
-    initialPnl: a.todayPnl,
+    initialValue: liveAccountBar?.currentValue ?? capitalBase,
+    initialPnl: liveAccountBar?.todayPnl ?? 0,
     enabled: !bootstrap,
   });
-  const totalReturnPct = ((av - a.capitalBase) / a.capitalBase) * 100;
+  const totalReturnPct = capitalBase ? ((av - capitalBase) / capitalBase) * 100 : 0;
   const valFmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sign = (v) => (v >= 0 ? '+' : '');
   const cls = (v) => (v >= 0 ? 'g' : 'r');
 
   return (
     <div className="acct">
-      <div className="aitem"><span className="alabel">Capital Base</span><span className="aval">${a.capitalBase.toLocaleString()}</span></div>
+      <div className="aitem"><span className="alabel">Capital Base</span><span className="aval">${capitalBase.toLocaleString()}</span></div>
       <div className="aitem"><span className="alabel">Current Value</span>
         {bootstrap
           ? <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>
-          : <span className={'aval ' + cls(av - a.capitalBase)}>${valFmt(av)}</span>}
+          : <span className={'aval ' + cls(av - capitalBase)}>${valFmt(av)}</span>}
       </div>
       <div className="aitem"><span className="alabel">Total Return</span>
         {bootstrap
@@ -132,13 +154,13 @@ function AccountBar({ pollSecs, pollPulse, bootstrap }) {
           : <span className={'aval ' + cls(ap)}>{sign(ap)}${Math.abs(ap).toFixed(2)}</span>}
       </div>
       <div className="aitem"><span className="alabel">Trades</span>
-        <span className="aval c">{bootstrap ? 0 : a.trades}</span>
+        <span className="aval c">{bootstrap ? 0 : (liveAccountBar?.trades ?? 0)}</span>
       </div>
       <div className="aitem"><span className="alabel">Open</span>
-        <span className="aval c">{bootstrap ? 0 : a.open}</span>
+        <span className="aval c">{bootstrap ? 0 : (liveAccountBar?.open ?? 0)}</span>
       </div>
       <div className="acct-divider" />
-      <MiniWaterfall bootstrap={bootstrap} />
+      <MiniWaterfall mode={mode} liveWeeklyWaterfall={liveWeeklyWaterfall} />
       <div className="acct-divider" />
       <div className="poll-ind">
         <div className={'poll-ring' + (pollPulse ? ' active' : '')}><div className="poll-fill" /></div>
@@ -148,20 +170,22 @@ function AccountBar({ pollSecs, pollPulse, bootstrap }) {
   );
 }
 
-function MiniWaterfall({ bootstrap }) {
+function MiniWaterfall({ mode, liveWeeklyWaterfall }) {
   // Section E (updated): waterfall reads WeeklyContextNode.system_weekly_pnl_pct
-  // filtered by phase. Under LIVE in Phase 1.1 no live weekly contexts exist,
-  // so the panel renders empty (baseline only). Under TRAINING/COMBINED the
-  // paper-trading weekly bars render and animate in.
+  // filtered by phase. Empty under LIVE in Phase 1.1 (no live weekly contexts
+  // exist) OR when the query returns no rows yet.
   const wrapRef = useRef(null);
-  const [heights, setHeights] = useState(() => WEEKLY_WATERFALL.map(() => 2));
+  const series = liveWeeklyWaterfall;
+  const bootstrap = shouldRenderBootstrap(mode) || !series;
+  const data = series ?? WEEKLY_WATERFALL; // fallback shape for layout sizing
+  const [heights, setHeights] = useState(() => data.map(() => 2));
   useEffect(() => {
     if (bootstrap) return;
     const wrap = wrapRef.current;
     if (!wrap) return;
     const barH = wrap.clientHeight - 20;
     const maxP = 7;
-    WEEKLY_WATERFALL.forEach((w, i) => {
+    data.forEach((w, i) => {
       setTimeout(() => {
         setHeights((prev) => {
           const next = [...prev];
@@ -170,7 +194,7 @@ function MiniWaterfall({ bootstrap }) {
         });
       }, 80 + i * 100);
     });
-  }, [bootstrap]);
+  }, [bootstrap, data]);
   if (bootstrap) {
     return (
       <div className="acct-wf" ref={wrapRef}>
@@ -184,7 +208,7 @@ function MiniWaterfall({ bootstrap }) {
   return (
     <div className="acct-wf" ref={wrapRef}>
       <div className="acct-wf-baseline" />
-      {WEEKLY_WATERFALL.map((w, i) => (
+      {data.map((w, i) => (
         <div className="acct-wf-col" key={w.w}>
           <div
             className="acct-wf-pct"
@@ -201,42 +225,37 @@ function MiniWaterfall({ bootstrap }) {
   );
 }
 
-function PerformanceBadge({ mode }) {
-  // Section E.1 — regulatory disclosure. Resolves on every mode change so the
-  // displayed text always matches the active phase × mode combination.
-  const { text, tone } = useMemo(() => computeBadge(CURRENT_PHASE, mode), [mode]);
-  return <div className={'sim-tag t-' + tone}>{text}</div>;
-}
-
-function Main({ mode, events }) {
+function Main({ mode, data }) {
   return (
     <div className="main">
       <div className="col-scanner">
         <ScannerPanel mode={mode} />
       </div>
       <div className="col-center">
-        <PositionsPanel mode={mode} />
-        <EquityCurvePanel mode={mode} />
-        <EventFeedPanel events={events} mode={mode} />
+        <PositionsPanel mode={mode} data={data} />
+        <EquityCurvePanel mode={mode} data={data} />
+        <EventFeedPanel mode={mode} data={data} />
       </div>
       <div className="col-metrics">
-        <MetricsPanel mode={mode} />
+        <MetricsPanel mode={mode} data={data} />
         <KernelPanel />
       </div>
       <div className="col-extra">
-        <ReturnsMatrixPanel mode={mode} />
-        <RulesAddedPanel />
+        <ReturnsMatrixPanel mode={mode} data={data} />
+        <RulesAddedPanel mode={mode} data={data} />
       </div>
     </div>
   );
 }
 
 function ScannerPanel({ mode }) {
+  // Scanner stays in cosmetic-animation mode per Phase 1.1 reconciliation —
+  // composite scores are computed in-memory by §4 and not exposed in §14.
+  // When a §4 amendment lands a per-asset score node, this swaps to live.
   const bootstrap = shouldRenderBootstrap(mode);
   const [rows, setRows] = useState(() =>
     SCANNER_ASSETS.map((a) => ({ ...a, score: 0, bar: 0, evaluating: false })),
   );
-
   useEffect(() => {
     if (bootstrap) return;
     let stepTimer = null;
@@ -268,7 +287,6 @@ function ScannerPanel({ mode }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bootstrap]);
-
   const rowClass = (a) => {
     if (bootstrap) return 'srow';
     if (a.fired) return 'srow fired';
@@ -276,12 +294,11 @@ function ScannerPanel({ mode }) {
     if (a.score >= 65) return 'srow thresh';
     return 'srow';
   };
-
   return (
     <div className="panel p-scanner">
       <div className="ptitle">
         <span><span className="ptitle-bar" />SIGNAL SCANNER</span>
-        <span className="ptitle-r">847 ASSETS</span>
+        <span className="ptitle-r">{SCANNER_ASSETS.length} ASSETS</span>
       </div>
       <div className="scanner-list">
         {rows.map((a) => (
@@ -304,15 +321,17 @@ function ScannerPanel({ mode }) {
   );
 }
 
-function PositionsPanel({ mode }) {
-  const bootstrap = shouldRenderBootstrap(mode);
-  const offsets = usePositionDrift(POSITIONS, { enabled: !bootstrap });
+function PositionsPanel({ mode, data }) {
+  const livePositions = adaptPositions(data);
+  const bootstrap = shouldRenderBootstrap(mode) || !livePositions;
+  const positions = livePositions ?? [];
+  const offsets = usePositionDrift(positions, { enabled: !bootstrap });
 
   return (
     <div className="panel p-positions">
       <div className="ptitle">
         <span><span className="ptitle-bar" />OPEN POSITIONS</span>
-        <span className="ptitle-r">{bootstrap ? 'AWAITING LIVE TRADES' : '3 ACTIVE · P&L LIVE'}</span>
+        <span className="ptitle-r">{bootstrap ? 'AWAITING LIVE TRADES' : `${positions.length} ACTIVE · P&L LIVE`}</span>
       </div>
       <table className="pos-table">
         <thead>
@@ -326,15 +345,17 @@ function PositionsPanel({ mode }) {
         <tbody>
           {bootstrap ? (
             <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING LIVE TRADES —</td></tr>
-          ) : POSITIONS.map((p, i) => {
+          ) : positions.map((p, i) => {
             const offset = offsets[i] ?? 0;
             const pv = p.pnl + offset;
-            const pp = p.pnlPct + (offset / p.entry) * 100;
+            const pp = p.pnlPct + (p.entry ? (offset / p.entry) * 100 : 0);
             const cur = p.cur + offset * 0.01;
+            const range = p.target - p.entry;
+            const progPct = range ? Math.max(0, Math.min(100, ((cur - p.entry) / range) * 100)) : 0;
             const pos = pv >= 0;
             const clr = pos ? 'var(--green)' : 'var(--red)';
             return (
-              <tr key={p.asset}>
+              <tr key={p.requestId || p.asset}>
                 <td><span className="passet">{p.asset}</span></td>
                 <td><span className={'ptrack ' + p.track}>{p.tl}</span></td>
                 <td><span className={'pconv ' + p.conv}>{p.cl}</span></td>
@@ -343,8 +364,8 @@ function PositionsPanel({ mode }) {
                 <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--red)' }}>{p.stop.toLocaleString()}</td>
                 <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--green)' }}>{p.target.toLocaleString()}</td>
                 <td className="prog-wrap">
-                  <div className="prog-bg"><div className="prog-fill" style={{ width: p.prog + '%', background: clr }} /></div>
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: 'var(--w3)', marginTop: '2px' }}>{p.prog}% TO TARGET</div>
+                  <div className="prog-bg"><div className="prog-fill" style={{ width: progPct + '%', background: clr }} /></div>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: 'var(--w3)', marginTop: '2px' }}>{progPct.toFixed(0)}% TO TARGET</div>
                 </td>
                 <td>
                   <div className="ppnl" style={{ color: clr }}>{pos ? '+' : ''}${Math.abs(pv).toFixed(2)}</div>
@@ -360,19 +381,27 @@ function PositionsPanel({ mode }) {
   );
 }
 
-function EquityCurvePanel({ mode }) {
-  const bootstrap = shouldRenderBootstrap(mode);
-  const svg = useMemo(() => buildEquityCurveSvg({ width: 600, height: 80 }), []);
-  // PEAK/DD/TWR always combined per reconciliation D1 (independent of mode toggle)
+function EquityCurvePanel({ mode, data }) {
+  const series = adaptEquityCurve(data);
+  const header = adaptEquityHeader(data);
+  const bootstrap = shouldRenderBootstrap(mode) || !series;
+  const svg = useMemo(
+    () => (bootstrap ? null : buildEquityCurveSvgFromSeries(series, { width: 600, height: 80 })),
+    [bootstrap, series],
+  );
   const subscript = mode !== 'combined' ? <span style={{ fontSize: '6px', color: 'var(--w3)', marginLeft: '2px' }}>(combined)</span> : null;
+  const peakFmt = header?.peak ? `$${Math.round(header.peak).toLocaleString()}` : '—';
+  const ddFmt = header?.drawdownPct != null ? `${header.drawdownPct.toFixed(2)}%` : '—';
+  const twrFmt = header?.twrPct != null ? `${header.twrPct >= 0 ? '+' : ''}${header.twrPct.toFixed(2)}%` : '—';
+
   return (
     <div className="panel eq-panel">
       <div className="eq-head">
         <span className="eq-title"><span className="ptitle-bar" />EQUITY CURVE</span>
         <span className="eq-stats">
-          <span className="lbl">PEAK</span><span className="g">$12,114</span>
-          <span className="lbl">DRAWDOWN</span><span className="r">-2.20%</span>
-          <span className="lbl">TWR</span><span>+18.47%</span>{subscript}
+          <span className="lbl">PEAK</span><span className="g">{peakFmt}</span>
+          <span className="lbl">DRAWDOWN</span><span className="r">{ddFmt}</span>
+          <span className="lbl">TWR</span><span>{twrFmt}</span>{subscript}
         </span>
       </div>
       <div className="eq-svg-wrap">
@@ -383,11 +412,11 @@ function EquityCurvePanel({ mode }) {
               <stop offset="100%" stopColor="rgba(0,230,118,0)" />
             </linearGradient>
           </defs>
-          <line x1="0" y1={svg.baseY} x2={svg.width} y2={svg.baseY}
-            stroke="rgba(255,171,0,0.4)" strokeWidth="0.6" strokeDasharray="3,3" />
-          <text x="4" y={svg.baseY - 3} fontFamily="Share Tech Mono" fontSize="6" fill="var(--amber)" opacity="0.6">$10K BASE</text>
-          {!bootstrap && (
+          {svg && (
             <>
+              <line x1="0" y1={svg.baseY} x2={svg.width} y2={svg.baseY}
+                stroke="rgba(255,171,0,0.4)" strokeWidth="0.6" strokeDasharray="3,3" />
+              <text x="4" y={svg.baseY - 3} fontFamily="Share Tech Mono" fontSize="6" fill="var(--amber)" opacity="0.6">$10K BASE</text>
               <path d={svg.fillD} fill="url(#eqGradPos)" stroke="none" />
               <path d={svg.d} fill="none" stroke="var(--green)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
               <circle cx={svg.endX} cy={svg.endY} r="2.5" fill="var(--green)">
@@ -405,19 +434,21 @@ function EquityCurvePanel({ mode }) {
   );
 }
 
-function EventFeedPanel({ events, mode }) {
-  const bootstrap = shouldRenderBootstrap(mode);
+function EventFeedPanel({ mode, data }) {
+  const liveEvents = adaptEvents(data);
+  const bootstrap = shouldRenderBootstrap(mode) || !liveEvents;
+  const events = liveEvents ?? [];
   return (
     <div className="panel p-events">
       <div className="ptitle">
         <span><span className="ptitle-bar" />SYSTEM EVENT FEED</span>
-        <span className="ptitle-r">{bootstrap ? '0 EVENTS TODAY' : `${events.length} EVENTS TODAY`}</span>
+        <span className="ptitle-r">{bootstrap ? '0 EVENTS' : `${events.length} EVENTS`}</span>
       </div>
       <div className="event-feed">
         {bootstrap ? (
           <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '12px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING LIVE EVENTS —</div>
-        ) : events.slice(0, 8).map((e, i) => (
-          <div className={'ev ' + e.cls} key={i}>
+        ) : events.slice(0, 8).map((e) => (
+          <div className={'ev ' + e.cls} key={e.eventId || (e.t + e.text)}>
             <span className="ev-icon">{e.icon}</span>
             <span className="ev-time">{e.t}</span>
             <span className="ev-text">{e.text}</span>
@@ -429,8 +460,18 @@ function EventFeedPanel({ events, mode }) {
   );
 }
 
-function MetricsPanel({ mode }) {
-  const bootstrap = shouldRenderBootstrap(mode);
+function MetricsPanel({ mode, data }) {
+  const liveMode = mode === 'live';
+  const winRate = adaptWinRate(data);
+  const sharpe = adaptSharpe(data);
+  const conviction = adaptConviction(data);
+  // Lane 2 is always OFFLINE in Phase 1.1 regardless of data; placeholder
+  // amber treatment is the correct state per Section A.
+
+  const wrBoot = liveMode || !winRate;
+  const srBoot = liveMode || !sharpe;
+  const ctBoot = liveMode || !conviction;
+
   return (
     <div className="panel p-waterfall">
       <div className="ptitle"><span><span className="ptitle-bar" />SYSTEM METRICS</span></div>
@@ -439,25 +480,25 @@ function MetricsPanel({ mode }) {
       <div className="mc">
         <div className="mc-left">
           <div className="mc-label">WIN RATE</div>
-          {bootstrap ? (
+          {wrBoot ? (
             <>
               <div className="mc-value dim" style={{ color: 'var(--w3)' }}>—%</div>
-              <div className="mc-sub">AWAITING FIRST LIVE TRADE</div>
+              <div className="mc-sub">AWAITING FIRST CLOSED TRADE</div>
             </>
           ) : (
             <>
-              <div className="mc-value g">68.4%</div>
-              <div className="mc-sub">169 wins / 247 trades</div>
+              <div className="mc-value g">{winRate.pct.toFixed(1)}%</div>
+              <div className="mc-sub">{winRate.wins} wins / {winRate.total} trades</div>
             </>
           )}
         </div>
         <svg className="mc-arc" width="56" height="34" viewBox="0 0 56 34" overflow="visible">
           <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" strokeLinecap="round" />
-          {!bootstrap && (
+          {!wrBoot && (
             <>
               <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="var(--green)" strokeWidth="5" strokeLinecap="round"
-                strokeDasharray="75.4" strokeDashoffset="24.3" opacity="0.9" />
-              <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--green)">68.4%</text>
+                strokeDasharray="75.4" strokeDashoffset={(1 - winRate.pct / 100) * 75.4} opacity="0.9" />
+              <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--green)">{winRate.pct.toFixed(1)}%</text>
             </>
           )}
         </svg>
@@ -467,37 +508,39 @@ function MetricsPanel({ mode }) {
       <div className="mc">
         <div className="mc-left">
           <div className="mc-label">SHARPE RATIO</div>
-          {bootstrap ? (
+          {srBoot ? (
             <>
               <div className="mc-value dim" style={{ color: 'var(--w3)' }}>—</div>
               <div className="mc-sub">AWAITING FIRST WEEKLY SR</div>
             </>
           ) : (
             <>
-              <div className="mc-value c">2.31</div>
+              <div className="mc-value c">{sharpe.sr.toFixed(2)}</div>
               <div className="mc-sub">target ≥ 1.0 · phase 3 gate</div>
             </>
           )}
         </div>
         <svg className="mc-arc" width="56" height="34" viewBox="0 0 56 34" overflow="visible">
           <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" strokeLinecap="round" />
-          {!bootstrap && (
+          {!srBoot && (
             <>
               <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="var(--cyan)" strokeWidth="5" strokeLinecap="round"
-                strokeDasharray="75.4" strokeDashoffset="9" opacity="0.9" />
-              <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--cyan)">2.31</text>
+                strokeDasharray="75.4" strokeDashoffset={Math.max(0, (1 - Math.min(sharpe.sr / 3, 1)) * 75.4)} opacity="0.9" />
+              <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--cyan)">{sharpe.sr.toFixed(2)}</text>
             </>
           )}
         </svg>
       </div>
 
-      {/* LANE 2 OFFLINE (Phase 1) — always OFFLINE regardless of mode toggle */}
+      {/* LANE 2 OFFLINE — Phase 1.1 invariant */}
       <div className="mc mc-delta offline">
         <div className="mc-left">
           <div className="mc-label" style={{ color: 'var(--amber)', letterSpacing: '3px' }}>LANE 2 Δ DELTA</div>
           <div className="mc-value dim" style={{ fontSize: '18px', color: 'var(--amber)' }}>OFFLINE</div>
           <div className="mc-sub" style={{ color: 'var(--amber)', opacity: 0.75 }}>lane2_enabled = false · scaffold mode</div>
-          <div className="mc-sub" style={{ color: 'var(--w3)', marginTop: '3px' }}>0 / 200 PREDICTIONS RESOLVED</div>
+          <div className="mc-sub" style={{ color: 'var(--w3)', marginTop: '3px' }}>
+            {data?.lane2 ? `${data.lane2.resolved_count || 0} / 200 PREDICTIONS RESOLVED` : '0 / 200 PREDICTIONS RESOLVED'}
+          </div>
         </div>
         <svg className="mc-arc" width="56" height="40" viewBox="0 0 56 40" overflow="visible">
           <path d="M4,36 A24,24 0 0,1 52,36" fill="none" stroke="rgba(255,171,0,0.10)" strokeWidth="7" strokeLinecap="round" />
@@ -512,30 +555,22 @@ function MetricsPanel({ mode }) {
       <div className="mc">
         <div className="mc-left">
           <div className="mc-label">CONVICTION TIERS</div>
-          {bootstrap ? (
+          {ctBoot ? (
             <>
               <div className="mc-value dim" style={{ color: 'var(--w3)', fontSize: '18px' }}>— PENDING</div>
               <div className="mc-sub">AWAITING FIRST TRADE</div>
             </>
           ) : (
             <>
-              <div className="mc-value" style={{ color: 'var(--amber)', fontSize: '18px' }}>MAX 41%</div>
-              <div className="mc-sub">High 33% · Std 26% · sizing ×1.5 / ×1.25 / ×1.0</div>
+              <div className="mc-value" style={{ color: 'var(--amber)', fontSize: '18px' }}>{conviction.dominantLabel} {conviction.dominantPct.toFixed(0)}%</div>
+              <div className="mc-sub">High {conviction.high.toFixed(0)}% · Std {conviction.std.toFixed(0)}% · sizing ×1.5 / ×1.25 / ×1.0</div>
             </>
           )}
         </div>
         <svg width="56" height="56" viewBox="0 0 56 56" style={{ flexShrink: 0 }}>
           <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="7" />
-          {!bootstrap && (
-            <>
-              <circle cx="28" cy="28" r="22" fill="none" stroke="var(--w3)" strokeWidth="7"
-                strokeDasharray="35.9 102.1" strokeDashoffset="0" transform="rotate(-90 28 28)" />
-              <circle cx="28" cy="28" r="22" fill="none" stroke="var(--cyan)" strokeWidth="7"
-                strokeDasharray="45.6 92.4" strokeDashoffset="-35.9" transform="rotate(-90 28 28)" />
-              <circle cx="28" cy="28" r="22" fill="none" stroke="var(--amber)" strokeWidth="7"
-                strokeDasharray="56.5 81.5" strokeDashoffset="-81.5" transform="rotate(-90 28 28)" />
-              <text x="28" y="31" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--amber)">41%</text>
-            </>
+          {!ctBoot && (
+            <ConvictionDonut conviction={conviction} />
           )}
         </svg>
       </div>
@@ -543,7 +578,28 @@ function MetricsPanel({ mode }) {
   );
 }
 
+function ConvictionDonut({ conviction }) {
+  // Circumference ≈ 138.23. Each segment occupies (pct/100) of the circumference.
+  const C = 2 * Math.PI * 22;
+  const stdLen = (conviction.std / 100) * C;
+  const hiLen = (conviction.high / 100) * C;
+  const maxLen = (conviction.max / 100) * C;
+  return (
+    <>
+      <circle cx="28" cy="28" r="22" fill="none" stroke="var(--w3)" strokeWidth="7"
+        strokeDasharray={`${stdLen} ${C - stdLen}`} strokeDashoffset="0" transform="rotate(-90 28 28)" />
+      <circle cx="28" cy="28" r="22" fill="none" stroke="var(--cyan)" strokeWidth="7"
+        strokeDasharray={`${hiLen} ${C - hiLen}`} strokeDashoffset={-stdLen} transform="rotate(-90 28 28)" />
+      <circle cx="28" cy="28" r="22" fill="none" stroke="var(--amber)" strokeWidth="7"
+        strokeDasharray={`${maxLen} ${C - maxLen}`} strokeDashoffset={-(stdLen + hiLen)} transform="rotate(-90 28 28)" />
+      <text x="28" y="31" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--amber)">{Math.round(conviction.max)}%</text>
+    </>
+  );
+}
+
 function KernelPanel() {
+  // Phase 1.1: Three.js scene renders the 5-cluster INITIALIZING placeholder
+  // regardless of data wiring (IndicatorNodes don't exist until Phase 4).
   const canvasRef = useRef(null);
   const [counts, setCounts] = useState({ nodes: KERNEL_COUNTS.nodes, edges: KERNEL_COUNTS.edges });
   useEffect(() => {
@@ -583,86 +639,41 @@ function KernelPanel() {
 }
 
 function ReturnsMatrixPanel({ mode }) {
-  const bootstrap = shouldRenderBootstrap(mode);
-  const m = RETURNS_MATRIX;
-
-  if (bootstrap) {
-    return (
-      <div className="panel p-returns">
-        <div className="ptitle">
-          <span><span className="ptitle-bar" />RETURNS BY DOMAIN</span>
-          <span className="ptitle-r">3×3</span>
-        </div>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--w3)', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px', textAlign: 'center', padding: '12px' }}>
-          — AWAITING LIVE TRADES —
-        </div>
-      </div>
-    );
-  }
-
+  // Returns matrix needs 16 per-poll queries (3×3 cells + 3 Σ-rows + 3 Σ-cols
+  // + 1 Σ-corner) per Section D2. Not added to the 14-query per-poll set in
+  // this iteration — bootstrap state until the Σ-batch is wired in a follow-up.
+  void mode;
   return (
     <div className="panel p-returns">
       <div className="ptitle">
         <span><span className="ptitle-bar" />RETURNS BY DOMAIN</span>
         <span className="ptitle-r">3×3</span>
       </div>
-      <div className="matrix">
-        <div className="matrix-grid">
-          <div />
-          <div className="matrix-h">CON</div>
-          <div className="matrix-h">MOD</div>
-          <div className="matrix-h">AGG</div>
-          <div className="matrix-h sigma">Σ</div>
-          {m.rows.map((row) => (
-            <RowRender key={row.label} row={row} />
-          ))}
-          <div className="matrix-rh sigma">Σ</div>
-          {m.colSigma.map((c, i) => (
-            <div className="matrix-cell sigma-row" key={i}>
-              <div className="mc-r g big">+{c.ret.toFixed(1)}%</div>
-              <div className="mc-s">SR <span className="c">{c.sr.toFixed(2)}</span></div>
-            </div>
-          ))}
-          <div className="matrix-cell sigma-corner">
-            <div className="mc-r g big">+{m.total.ret.toFixed(2)}%</div>
-            <div className="mc-s c">TOTAL</div>
-          </div>
-        </div>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--w3)', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px', textAlign: 'center', padding: '12px' }}>
+        — AWAITING LIVE RETURNS MATRIX —
       </div>
     </div>
   );
 }
 
-function RowRender({ row }) {
-  return (
-    <>
-      <div className="matrix-rh">{row.label}</div>
-      {row.cells.map((c, i) => (
-        <div className="matrix-cell" key={i}>
-          <div className={'mc-w' + (c.wp >= 60 ? ' g' : '')}>{c.wp}%</div>
-          <div className="mc-s">SR <span className="c">{c.sr.toFixed(2)}</span></div>
-          <div className="mc-r g">+{c.ret.toFixed(1)}%</div>
-        </div>
-      ))}
-      <div className="matrix-cell sigma-col">
-        <div className="mc-r g big">+{row.sigma.ret.toFixed(1)}%</div>
-        <div className="mc-s">SR <span className="c">{row.sigma.sr.toFixed(2)}</span></div>
-      </div>
-    </>
-  );
-}
+function RulesAddedPanel({ mode, data }) {
+  const rules = adaptRulesThisWeek(data);
+  const foot = adaptRulesFoot(data);
+  const bootstrap = shouldRenderBootstrap(mode) || (!rules && !foot);
 
-function RulesAddedPanel() {
-  // Rules are system-wide (written by §11 learning loop), not phase-filtered.
   return (
     <div className="panel p-rules">
       <div className="ptitle">
         <span><span className="ptitle-bar" />RULES ADDED THIS WEEK</span>
-        <span className="ptitle-r">CYCLE {RULES_FOOT.cycle}</span>
+        <span className="ptitle-r">CYCLE {foot?.cycle ?? 0}</span>
       </div>
       <div className="rules-list">
-        {RULES_ADDED.map((r, i) => (
-          <div className={'rule-row sec-' + r.sec.toLowerCase()} key={i}>
+        {bootstrap || !rules ? (
+          <div style={{ flex: 1, textAlign: 'center', color: 'var(--w3)', padding: '12px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>
+            — AWAITING LIVE RULES —
+          </div>
+        ) : rules.map((r, i) => (
+          <div className={'rule-row sec-' + r.sec.toLowerCase()} key={r.ruleId || i}>
             <div className={'rule-badge sec-' + r.sec.toLowerCase()}>{r.sec}</div>
             <div className="rule-day">{r.day}</div>
             <div className="rule-text">{r.text.map((part, j) =>
@@ -671,7 +682,7 @@ function RulesAddedPanel() {
           </div>
         ))}
         <div className="rules-foot">
-          {RULES_FOOT.thisWeek} RULES · CYCLE <span>{RULES_FOOT.cycle}</span> · TOTAL <span>{RULES_FOOT.total}</span>
+          {foot?.thisWeek ?? 0} RULES · CYCLE <span>{foot?.cycle ?? 0}</span> · TOTAL <span>{foot?.total ?? 0}</span>
         </div>
       </div>
     </div>
@@ -680,7 +691,6 @@ function RulesAddedPanel() {
 
 function Ticker() {
   const tick = useTickerWobble(TICKER);
-  // Apply ±0.1% wobble per item per tick (cosmetic per Portal Spec)
   const wobbled = useMemo(() => TICKER.map((t, i) => {
     const seed = Math.sin((tick + 1) * (i + 1) * 0.37);
     const wobble = seed * 0.001;

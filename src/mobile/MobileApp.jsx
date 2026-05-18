@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
 import { useAccountDrift, usePositionDrift } from '../lib/useDrift.js';
-import { useEventFeed } from '../lib/useEventFeed.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
 import {
-  SCANNER_ASSETS, POSITIONS, WEEKLY_WATERFALL,
-  RETURNS_MATRIX, RULES_ADDED, RULES_FOOT, ACCOUNT_BAR,
-  KERNEL_COUNTS, LOGO_SVG, TRADE_DEMO_SEQUENCE, CURRENT_PHASE,
+  SCANNER_ASSETS, WEEKLY_WATERFALL, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
 } from '../lib/placeholders.js';
-import { buildEquityCurveSvg } from '../lib/equityCurve.js';
+import {
+  adaptAccountBar, adaptWeeklyWaterfall, adaptPositions, adaptEvents,
+  adaptWinRate, adaptSharpe, adaptConviction,
+  adaptEquityCurve, adaptEquityHeader,
+  adaptRulesThisWeek, adaptRulesFoot,
+} from '../lib/dataAdapter.js';
+import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
 
@@ -29,66 +32,78 @@ const barClr = (s) => {
   if (s >= 20) return 'var(--amber)';
   return 'var(--w3)';
 };
-const nowHHMM = () => {
-  const n = new Date();
-  return [n.getHours(), n.getMinutes()].map((v) => String(v).padStart(2, '0')).join(':');
-};
 
-export default function MobileApp() {
+export default function MobileApp({ data, error, loading }) {
   const clock = useClock();
   const { secs: pollSecs, pulse: pollPulse } = usePollCountdown();
   const [mode, setMode] = useState(DEFAULT_MODE);
   const [tab, setTab] = useState('desk');
   const [kernelOpen, setKernelOpen] = useState(false);
-  const bootstrap = shouldRenderBootstrap(mode);
 
-  const { events, pushEvent, pushSyncEvent } = useEventFeed({
-    randomIntervalMs: 10000,
-    cap: 12,
-    enabled: !bootstrap,
-  });
-
-  // Step G — mobile-side: trade demo events fire into feed only (NO overlay).
-  // Per reconciliation Section G: PC renders modal + adds to feed; mobile only adds.
-  useEffect(() => {
-    if (bootstrap) return;
-    const timers = TRADE_DEMO_SEQUENCE.map((step) =>
-      setTimeout(() => {
-        pushEvent({ ...step.event, t: nowHHMM() });
-      }, step.delay),
-    );
-    return () => timers.forEach(clearTimeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bootstrap]);
-
-  useEffect(() => {
-    if (pollPulse && !bootstrap) pushSyncEvent();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pollPulse, bootstrap]);
+  const liveAccountBar = adaptAccountBar(data);
+  const currentPhase = liveAccountBar?.currentPhase || CURRENT_PHASE;
+  const liveEvents = adaptEvents(data);
 
   return (
     <div className="mobile-shell">
-      <MobileHeader clock={clock} mode={mode} />
+      {error && <MobileErrorBanner error={error} />}
+      <MobileHeader clock={clock} mode={mode} currentPhase={currentPhase} />
       <ModeToggle mode={mode} setMode={setMode} />
-      <MobileAccountBar pollSecs={pollSecs} pollPulse={pollPulse} bootstrap={bootstrap} />
+      <MobileAccountBar
+        pollSecs={pollSecs}
+        pollPulse={pollPulse}
+        mode={mode}
+        liveAccountBar={liveAccountBar}
+      />
       <div className="tab-wrap">
-        <div className={'tab-content' + (tab === 'desk' ? ' active' : '')}><DeskTab bootstrap={bootstrap} eventsCount={events.length} /></div>
-        <div className={'tab-content' + (tab === 'scan' ? ' active' : '')}><ScanTab bootstrap={bootstrap} /></div>
-        <div className={'tab-content' + (tab === 'system' ? ' active' : '')}><SystemTab bootstrap={bootstrap} onOpenKernel={() => setKernelOpen(true)} /></div>
-        <div className={'tab-content' + (tab === 'data' ? ' active' : '')}><DataTab events={events} bootstrap={bootstrap} /></div>
+        <div className={'tab-content' + (tab === 'desk' ? ' active' : '')}>
+          <DeskTab mode={mode} data={data} eventsCount={liveEvents?.length ?? 0} />
+        </div>
+        <div className={'tab-content' + (tab === 'scan' ? ' active' : '')}>
+          <ScanTab mode={mode} />
+        </div>
+        <div className={'tab-content' + (tab === 'system' ? ' active' : '')}>
+          <SystemTab mode={mode} data={data} onOpenKernel={() => setKernelOpen(true)} />
+        </div>
+        <div className={'tab-content' + (tab === 'data' ? ' active' : '')}>
+          <DataTab mode={mode} data={data} liveEvents={liveEvents} />
+        </div>
       </div>
       <TabBar tab={tab} setTab={setTab} />
       <KernelOverlay open={kernelOpen} onClose={() => setKernelOpen(false)} />
+      {loading && !data && !error && <MobileLoadingBadge />}
     </div>
   );
 }
 
-function MobileHeader({ clock, mode }) {
-  // Section E.1 — collapsed badge surface. Dot color follows the same
-  // selector as the PC badge (amber for paper, green for live, split for
-  // mixed COMBINED state). Title attribute carries the long-form text for
-  // hover/long-press inspection (Phase 4 tap-to-expand deferred).
-  const { text, dot } = useMemo(() => computeBadge(CURRENT_PHASE, mode), [mode]);
+function MobileErrorBanner({ error }) {
+  return (
+    <div style={{
+      position: 'sticky', top: 0, zIndex: 10000,
+      background: 'rgba(255,61,87,0.92)', color: '#fff',
+      fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px',
+      padding: '6px 12px', textAlign: 'center',
+    }}>
+      PROXY ERROR · {error.message || String(error)}
+    </div>
+  );
+}
+
+function MobileLoadingBadge() {
+  return (
+    <div style={{
+      position: 'fixed', bottom: 70, right: 12, zIndex: 999,
+      background: 'var(--navy3)', border: '1px solid var(--border)',
+      color: 'var(--cyan)', fontFamily: 'var(--mono)', fontSize: '9px',
+      letterSpacing: '2px', padding: '4px 10px',
+    }}>
+      CONNECTING…
+    </div>
+  );
+}
+
+function MobileHeader({ clock, mode, currentPhase }) {
+  const { text, dot } = useMemo(() => computeBadge(currentPhase, mode), [mode, currentPhase]);
   return (
     <div className="hdr">
       <div className="logo">
@@ -120,21 +135,26 @@ function ModeToggle({ mode, setMode }) {
   );
 }
 
-function MobileAccountBar({ pollSecs, pollPulse, bootstrap }) {
-  const a = ACCOUNT_BAR;
-  const { av, ap } = useAccountDrift({ initialValue: a.currentValue, initialPnl: a.todayPnl, enabled: !bootstrap });
-  const totalReturnPct = ((av - a.capitalBase) / a.capitalBase) * 100;
+function MobileAccountBar({ pollSecs, pollPulse, mode, liveAccountBar }) {
+  const bootstrap = shouldRenderBootstrap(mode) || !liveAccountBar;
+  const capitalBase = liveAccountBar?.capitalBase ?? 10000;
+  const { av, ap } = useAccountDrift({
+    initialValue: liveAccountBar?.currentValue ?? capitalBase,
+    initialPnl: liveAccountBar?.todayPnl ?? 0,
+    enabled: !bootstrap,
+  });
+  const totalReturnPct = capitalBase ? ((av - capitalBase) / capitalBase) * 100 : 0;
   const valFmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sign = (v) => (v >= 0 ? '+' : '');
   const cls = (v) => (v >= 0 ? 'g' : 'r');
 
   return (
     <div className="acct">
-      <div className="aitem"><span className="alabel">Capital Base</span><span className="aval">${a.capitalBase.toLocaleString()}</span></div>
+      <div className="aitem"><span className="alabel">Capital Base</span><span className="aval">${capitalBase.toLocaleString()}</span></div>
       <div className="aitem"><span className="alabel">Current Value</span>
         {bootstrap
           ? <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>
-          : <span className={'aval ' + cls(av - a.capitalBase)}>${valFmt(av)}</span>}
+          : <span className={'aval ' + cls(av - capitalBase)}>${valFmt(av)}</span>}
       </div>
       <div className="aitem"><span className="alabel">Total Return</span>
         {bootstrap
@@ -173,28 +193,37 @@ function TabBar({ tab, setTab }) {
   );
 }
 
-function DeskTab({ bootstrap, eventsCount }) {
-  const offsets = usePositionDrift(POSITIONS, { enabled: !bootstrap });
+function DeskTab({ mode, data, eventsCount }) {
+  const livePositions = adaptPositions(data);
+  const liveWaterfall = adaptWeeklyWaterfall(data);
+  const liveAccountBar = adaptAccountBar(data);
+  const posBoot = shouldRenderBootstrap(mode) || !livePositions;
+  const wfBoot = shouldRenderBootstrap(mode) || !liveWaterfall;
+  const positions = livePositions ?? [];
+  const offsets = usePositionDrift(positions, { enabled: !posBoot });
+
   return (
     <>
       <div className="panel">
         <div className="ptitle">
           <span><span className="ptitle-bar" />OPEN POSITIONS</span>
-          <span className="ptitle-r">{bootstrap ? 'AWAITING LIVE TRADES' : '3 ACTIVE · P&L LIVE'}</span>
+          <span className="ptitle-r">{posBoot ? 'AWAITING LIVE TRADES' : `${positions.length} ACTIVE · P&L LIVE`}</span>
         </div>
-        {bootstrap ? (
+        {posBoot ? (
           <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>
             — AWAITING LIVE TRADES —
           </div>
-        ) : POSITIONS.map((p, i) => {
+        ) : positions.map((p, i) => {
           const offset = offsets[i] ?? 0;
           const pv = p.pnl + offset;
-          const pp = p.pnlPct + (offset / p.entry) * 100;
+          const pp = p.pnlPct + (p.entry ? (offset / p.entry) * 100 : 0);
           const cur = p.cur + offset * 0.01;
+          const range = p.target - p.entry;
+          const progPct = range ? Math.max(0, Math.min(100, ((cur - p.entry) / range) * 100)) : 0;
           const pos = pv >= 0;
           const clr = pos ? 'var(--green)' : 'var(--red)';
           return (
-            <div className="pos-card" key={p.asset}>
+            <div className="pos-card" key={p.requestId || p.asset}>
               <div className="pc-row1">
                 <div className="pc-asset">{p.asset}</div>
                 <div className="pc-pills">
@@ -215,8 +244,8 @@ function DeskTab({ bootstrap, eventsCount }) {
               </div>
               <div className="pc-row3">
                 <div className="pc-prog-wrap">
-                  <div className="pc-prog-bg"><div className="pc-prog-fill" style={{ width: p.prog + '%', background: clr }} /></div>
-                  <div className="pc-prog-lbl">{p.prog}% TO TARGET</div>
+                  <div className="pc-prog-bg"><div className="pc-prog-fill" style={{ width: progPct + '%', background: clr }} /></div>
+                  <div className="pc-prog-lbl">{progPct.toFixed(0)}% TO TARGET</div>
                 </div>
                 <div className="pc-hold">{p.hold}</div>
               </div>
@@ -226,77 +255,90 @@ function DeskTab({ bootstrap, eventsCount }) {
       </div>
 
       <div className="panel eq-panel">
-        <div className="eq-head">
-          <span className="eq-title"><span className="ptitle-bar" />EQUITY CURVE</span>
-          <span className="eq-stats">
-            <span className="lbl">PEAK</span><span className="g">$12,114</span>
-            <span className="lbl">DD</span><span className="r">-2.20%</span>
-            <span className="lbl">TWR</span><span>+18.47%</span>
-          </span>
-        </div>
-        <MobileEquitySvg bootstrap={bootstrap} />
+        <MobileEquity mode={mode} data={data} />
       </div>
 
       <div className="stats-chip">
-        <div className="sc-item"><div className="sc-val">{bootstrap ? 0 : 3}</div><div className="sc-lbl">Open</div></div>
-        <div className="sc-item"><div className="sc-val">{bootstrap ? 0 : 247}</div><div className="sc-lbl">Trades</div></div>
-        <div className="sc-item"><div className="sc-val">{bootstrap ? 0 : eventsCount}</div><div className="sc-lbl">Events Today</div></div>
+        <div className="sc-item"><div className="sc-val">{posBoot ? 0 : (liveAccountBar?.open ?? 0)}</div><div className="sc-lbl">Open</div></div>
+        <div className="sc-item"><div className="sc-val">{posBoot ? 0 : (liveAccountBar?.trades ?? 0)}</div><div className="sc-lbl">Trades</div></div>
+        <div className="sc-item"><div className="sc-val">{posBoot ? 0 : eventsCount}</div><div className="sc-lbl">Events Today</div></div>
       </div>
 
       <div className="panel wf-panel">
         <div className="ptitle">
           <span><span className="ptitle-bar" />WEEKLY P&amp;L</span>
-          <span className="ptitle-r">{bootstrap ? 'AWAITING LIVE WEEKLY CONTEXTS' : '6 WEEKS · CUR W6'}</span>
+          <span className="ptitle-r">{wfBoot ? 'AWAITING LIVE WEEKLY CONTEXTS' : '6 WEEKS · CUR W6'}</span>
         </div>
-        <MobileWaterfall bootstrap={bootstrap} />
+        <MobileWaterfall mode={mode} liveWaterfall={liveWaterfall} />
       </div>
     </>
   );
 }
 
-function MobileEquitySvg({ bootstrap }) {
-  const svg = useMemo(() => buildEquityCurveSvg({ width: 600, height: 80 }), []);
+function MobileEquity({ mode, data }) {
+  const series = adaptEquityCurve(data);
+  const header = adaptEquityHeader(data);
+  const bootstrap = shouldRenderBootstrap(mode) || !series;
+  const svg = useMemo(
+    () => (bootstrap ? null : buildEquityCurveSvgFromSeries(series, { width: 600, height: 80 })),
+    [bootstrap, series],
+  );
+  const peakFmt = header?.peak ? `$${Math.round(header.peak).toLocaleString()}` : '—';
+  const ddFmt = header?.drawdownPct != null ? `${header.drawdownPct.toFixed(2)}%` : '—';
+  const twrFmt = header?.twrPct != null ? `${header.twrPct >= 0 ? '+' : ''}${header.twrPct.toFixed(2)}%` : '—';
   return (
-    <div className="eq-svg-wrap">
-      <svg id="equity-svg-m" viewBox="0 0 600 80" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="eqGradPosM" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(0,230,118,0.35)" />
-            <stop offset="100%" stopColor="rgba(0,230,118,0)" />
-          </linearGradient>
-        </defs>
-        <line x1="0" y1={svg.baseY} x2={svg.width} y2={svg.baseY}
-          stroke="rgba(255,171,0,0.4)" strokeWidth="0.6" strokeDasharray="3,3" />
-        <text x="4" y={svg.baseY - 3} fontFamily="Share Tech Mono" fontSize="6" fill="var(--amber)" opacity="0.6">$10K BASE</text>
-        {!bootstrap && (
-          <>
-            <path d={svg.fillD} fill="url(#eqGradPosM)" stroke="none" />
-            <path d={svg.d} fill="none" stroke="var(--green)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx={svg.endX} cy={svg.endY} r="2.5" fill="var(--green)">
-              <animate attributeName="r" values="2.5;4;2.5" dur="2s" repeatCount="indefinite" />
-            </circle>
-            <circle cx={svg.peakX} cy={svg.peakY} r="2" fill="var(--cyan)" opacity="0.8" />
-          </>
-        )}
-        {bootstrap && (
-          <text x="300" y="44" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--w3)" letterSpacing="2">— AWAITING LIVE EQUITY SERIES —</text>
-        )}
-      </svg>
-    </div>
+    <>
+      <div className="eq-head">
+        <span className="eq-title"><span className="ptitle-bar" />EQUITY CURVE</span>
+        <span className="eq-stats">
+          <span className="lbl">PEAK</span><span className="g">{peakFmt}</span>
+          <span className="lbl">DD</span><span className="r">{ddFmt}</span>
+          <span className="lbl">TWR</span><span>{twrFmt}</span>
+        </span>
+      </div>
+      <div className="eq-svg-wrap">
+        <svg id="equity-svg-m" viewBox="0 0 600 80" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="eqGradPosM" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(0,230,118,0.35)" />
+              <stop offset="100%" stopColor="rgba(0,230,118,0)" />
+            </linearGradient>
+          </defs>
+          {svg && (
+            <>
+              <line x1="0" y1={svg.baseY} x2={svg.width} y2={svg.baseY}
+                stroke="rgba(255,171,0,0.4)" strokeWidth="0.6" strokeDasharray="3,3" />
+              <text x="4" y={svg.baseY - 3} fontFamily="Share Tech Mono" fontSize="6" fill="var(--amber)" opacity="0.6">$10K BASE</text>
+              <path d={svg.fillD} fill="url(#eqGradPosM)" stroke="none" />
+              <path d={svg.d} fill="none" stroke="var(--green)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx={svg.endX} cy={svg.endY} r="2.5" fill="var(--green)">
+                <animate attributeName="r" values="2.5;4;2.5" dur="2s" repeatCount="indefinite" />
+              </circle>
+              <circle cx={svg.peakX} cy={svg.peakY} r="2" fill="var(--cyan)" opacity="0.8" />
+            </>
+          )}
+          {bootstrap && (
+            <text x="300" y="44" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--w3)" letterSpacing="2">— AWAITING LIVE EQUITY SERIES —</text>
+          )}
+        </svg>
+      </div>
+    </>
   );
 }
 
-function MobileWaterfall({ bootstrap }) {
-  // Section E (updated): phase-filtered. Empty bars under LIVE in Phase 1.1.
+function MobileWaterfall({ mode, liveWaterfall }) {
   const wrapRef = useRef(null);
-  const [heights, setHeights] = useState(() => WEEKLY_WATERFALL.map(() => 2));
+  const series = liveWaterfall;
+  const bootstrap = shouldRenderBootstrap(mode) || !series;
+  const data = series ?? WEEKLY_WATERFALL;
+  const [heights, setHeights] = useState(() => data.map(() => 2));
   useEffect(() => {
     if (bootstrap) return;
     const wrap = wrapRef.current;
     if (!wrap) return;
     const barH = wrap.clientHeight - 22;
     const maxP = 7;
-    WEEKLY_WATERFALL.forEach((w, i) => {
+    data.forEach((w, i) => {
       setTimeout(() => {
         setHeights((prev) => {
           const next = [...prev];
@@ -305,7 +347,7 @@ function MobileWaterfall({ bootstrap }) {
         });
       }, 80 + i * 100);
     });
-  }, [bootstrap]);
+  }, [bootstrap, data]);
   if (bootstrap) {
     return (
       <div className="wf-wrap" ref={wrapRef}>
@@ -319,7 +361,7 @@ function MobileWaterfall({ bootstrap }) {
   return (
     <div className="wf-wrap" ref={wrapRef}>
       <div className="wf-baseline" />
-      {WEEKLY_WATERFALL.map((w, i) => (
+      {data.map((w, i) => (
         <div className="wf-col" key={w.w}>
           <div
             className="wf-pct"
@@ -336,7 +378,8 @@ function MobileWaterfall({ bootstrap }) {
   );
 }
 
-function ScanTab({ bootstrap }) {
+function ScanTab({ mode }) {
+  const bootstrap = shouldRenderBootstrap(mode);
   const [rows, setRows] = useState(() =>
     SCANNER_ASSETS.map((a) => ({ ...a, score: 0, bar: 0, evaluating: false })),
   );
@@ -371,7 +414,6 @@ function ScanTab({ bootstrap }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bootstrap]);
-
   const rowClass = (a) => {
     if (bootstrap) return 'srow';
     if (a.fired) return 'srow fired';
@@ -379,12 +421,11 @@ function ScanTab({ bootstrap }) {
     if (a.score >= 65) return 'srow thresh';
     return 'srow';
   };
-
   return (
     <div className="panel">
       <div className="ptitle">
         <span><span className="ptitle-bar" />SIGNAL SCANNER</span>
-        <span className="ptitle-r">847 ASSETS</span>
+        <span className="ptitle-r">{SCANNER_ASSETS.length} ASSETS</span>
       </div>
       <div className="scanner-list">
         {rows.map((a) => (
@@ -407,7 +448,15 @@ function ScanTab({ bootstrap }) {
   );
 }
 
-function SystemTab({ bootstrap, onOpenKernel }) {
+function SystemTab({ mode, data, onOpenKernel }) {
+  const liveMode = mode === 'live';
+  const winRate = adaptWinRate(data);
+  const sharpe = adaptSharpe(data);
+  const conviction = adaptConviction(data);
+  const wrBoot = liveMode || !winRate;
+  const srBoot = liveMode || !sharpe;
+  const ctBoot = liveMode || !conviction;
+
   return (
     <>
       <div className="panel">
@@ -416,25 +465,25 @@ function SystemTab({ bootstrap, onOpenKernel }) {
         <div className="mc">
           <div className="mc-left">
             <div className="mc-label">WIN RATE</div>
-            {bootstrap ? (
+            {wrBoot ? (
               <>
                 <div className="mc-value dim" style={{ color: 'var(--w3)' }}>—%</div>
-                <div className="mc-sub">AWAITING FIRST LIVE TRADE</div>
+                <div className="mc-sub">AWAITING FIRST CLOSED TRADE</div>
               </>
             ) : (
               <>
-                <div className="mc-value g">68.4%</div>
-                <div className="mc-sub">169 wins / 247 trades</div>
+                <div className="mc-value g">{winRate.pct.toFixed(1)}%</div>
+                <div className="mc-sub">{winRate.wins} wins / {winRate.total} trades</div>
               </>
             )}
           </div>
           <svg className="mc-arc" width="56" height="34" viewBox="0 0 56 34" overflow="visible">
             <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" strokeLinecap="round" />
-            {!bootstrap && (
+            {!wrBoot && (
               <>
                 <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="var(--green)" strokeWidth="5" strokeLinecap="round"
-                  strokeDasharray="75.4" strokeDashoffset="24.3" opacity="0.9" />
-                <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--green)">68.4%</text>
+                  strokeDasharray="75.4" strokeDashoffset={(1 - winRate.pct / 100) * 75.4} opacity="0.9" />
+                <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--green)">{winRate.pct.toFixed(1)}%</text>
               </>
             )}
           </svg>
@@ -443,25 +492,25 @@ function SystemTab({ bootstrap, onOpenKernel }) {
         <div className="mc">
           <div className="mc-left">
             <div className="mc-label">SHARPE RATIO</div>
-            {bootstrap ? (
+            {srBoot ? (
               <>
                 <div className="mc-value dim" style={{ color: 'var(--w3)' }}>—</div>
                 <div className="mc-sub">AWAITING FIRST WEEKLY SR</div>
               </>
             ) : (
               <>
-                <div className="mc-value c">2.31</div>
+                <div className="mc-value c">{sharpe.sr.toFixed(2)}</div>
                 <div className="mc-sub">target ≥ 1.0 · phase 3 gate</div>
               </>
             )}
           </div>
           <svg className="mc-arc" width="56" height="34" viewBox="0 0 56 34" overflow="visible">
             <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" strokeLinecap="round" />
-            {!bootstrap && (
+            {!srBoot && (
               <>
                 <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="var(--cyan)" strokeWidth="5" strokeLinecap="round"
-                  strokeDasharray="75.4" strokeDashoffset="9" opacity="0.9" />
-                <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--cyan)">2.31</text>
+                  strokeDasharray="75.4" strokeDashoffset={Math.max(0, (1 - Math.min(sharpe.sr / 3, 1)) * 75.4)} opacity="0.9" />
+                <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--cyan)">{sharpe.sr.toFixed(2)}</text>
               </>
             )}
           </svg>
@@ -472,7 +521,9 @@ function SystemTab({ bootstrap, onOpenKernel }) {
             <div className="mc-label" style={{ color: 'var(--amber)', letterSpacing: '3px' }}>LANE 2 Δ DELTA</div>
             <div className="mc-value a" style={{ fontSize: '18px' }}>OFFLINE</div>
             <div className="mc-sub" style={{ color: 'var(--amber)', opacity: 0.75 }}>lane2_enabled = false · scaffold mode</div>
-            <div className="mc-sub">0 / 200 PREDICTIONS RESOLVED</div>
+            <div className="mc-sub">
+              {data?.lane2 ? `${data.lane2.resolved_count || 0} / 200 PREDICTIONS RESOLVED` : '0 / 200 PREDICTIONS RESOLVED'}
+            </div>
           </div>
           <svg className="mc-arc" width="56" height="40" viewBox="0 0 56 40" overflow="visible">
             <path d="M4,36 A24,24 0 0,1 52,36" fill="none" stroke="rgba(255,171,0,0.10)" strokeWidth="7" strokeLinecap="round" />
@@ -483,25 +534,26 @@ function SystemTab({ bootstrap, onOpenKernel }) {
           </svg>
         </div>
 
-        {/* Conviction — flat 3-segment bar (mobile-specific per reconciliation Section G) */}
         <div className="mc" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
             <div className="mc-label">CONVICTION TIERS</div>
-            <div className="mc-value a" style={{ fontSize: '18px' }}>{bootstrap ? '— PENDING' : 'MAX 41%'}</div>
+            <div className="mc-value a" style={{ fontSize: '18px' }}>
+              {ctBoot ? '— PENDING' : `${conviction.dominantLabel} ${conviction.dominantPct.toFixed(0)}%`}
+            </div>
           </div>
-          {bootstrap ? (
+          {ctBoot ? (
             <div className="mc-sub" style={{ marginTop: '6px' }}>AWAITING FIRST TRADE</div>
           ) : (
             <>
               <div className="conv-bar">
-                <div className="conv-seg std" style={{ width: '26%' }} />
-                <div className="conv-seg hi" style={{ width: '33%' }} />
-                <div className="conv-seg max" style={{ width: '41%' }} />
+                <div className="conv-seg std" style={{ width: conviction.std + '%' }} />
+                <div className="conv-seg hi"  style={{ width: conviction.high + '%' }} />
+                <div className="conv-seg max" style={{ width: conviction.max + '%' }} />
               </div>
               <div className="conv-legend">
-                <span>STD <span style={{ color: 'var(--white)' }}>26%</span> ×1.0</span>
-                <span style={{ color: 'var(--cyan)' }}>HIGH <span>33%</span> ×1.25</span>
-                <span style={{ color: 'var(--amber)' }}>MAX <span>41%</span> ×1.5</span>
+                <span>STD <span style={{ color: 'var(--white)' }}>{conviction.std.toFixed(0)}%</span> ×1.0</span>
+                <span style={{ color: 'var(--cyan)' }}>HIGH <span>{conviction.high.toFixed(0)}%</span> ×1.25</span>
+                <span style={{ color: 'var(--amber)' }}>MAX <span>{conviction.max.toFixed(0)}%</span> ×1.5</span>
               </div>
             </>
           )}
@@ -527,8 +579,14 @@ function SystemTab({ bootstrap, onOpenKernel }) {
   );
 }
 
-function DataTab({ events, bootstrap }) {
-  const m = RETURNS_MATRIX;
+function DataTab({ mode, data, liveEvents }) {
+  const rules = adaptRulesThisWeek(data);
+  const foot = adaptRulesFoot(data);
+  const bootstrap = shouldRenderBootstrap(mode);
+  const rulesBoot = bootstrap || (!rules && !foot);
+  const eventsBoot = bootstrap || !liveEvents;
+  const events = liveEvents ?? [];
+
   return (
     <>
       <div className="panel">
@@ -536,43 +594,23 @@ function DataTab({ events, bootstrap }) {
           <span><span className="ptitle-bar" />RETURNS BY DOMAIN</span>
           <span className="ptitle-r">3×3</span>
         </div>
-        {bootstrap ? (
-          <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>
-            — AWAITING LIVE TRADES —
-          </div>
-        ) : (
-          <div className="matrix-grid">
-            <div />
-            <div className="matrix-h">CON</div>
-            <div className="matrix-h">MOD</div>
-            <div className="matrix-h">AGG</div>
-            <div className="matrix-h sigma">Σ</div>
-            {m.rows.map((row) => (
-              <RowRender key={row.label} row={row} />
-            ))}
-            <div className="matrix-rh sigma">Σ</div>
-            {m.colSigma.map((c, i) => (
-              <div className="matrix-cell sigma-row" key={i}>
-                <div className="mc-r g big">+{c.ret.toFixed(1)}%</div>
-                <div className="mc-s">SR <span className="c">{c.sr.toFixed(2)}</span></div>
-              </div>
-            ))}
-            <div className="matrix-cell sigma-corner">
-              <div className="mc-r g big">+{m.total.ret.toFixed(2)}%</div>
-              <div className="mc-s c">TOTAL</div>
-            </div>
-          </div>
-        )}
+        <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>
+          — AWAITING LIVE RETURNS MATRIX —
+        </div>
       </div>
 
       <div className="panel">
         <div className="ptitle">
           <span><span className="ptitle-bar" />RULES ADDED THIS WEEK</span>
-          <span className="ptitle-r">CYCLE {RULES_FOOT.cycle}</span>
+          <span className="ptitle-r">CYCLE {foot?.cycle ?? 0}</span>
         </div>
         <div className="rules-list">
-          {RULES_ADDED.map((r, i) => (
-            <div className={'rule-row sec-' + r.sec.toLowerCase()} key={i}>
+          {rulesBoot || !rules ? (
+            <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '12px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>
+              — AWAITING LIVE RULES —
+            </div>
+          ) : rules.map((r, i) => (
+            <div className={'rule-row sec-' + r.sec.toLowerCase()} key={r.ruleId || i}>
               <div className={'rule-badge sec-' + r.sec.toLowerCase()}>{r.sec}</div>
               <div className="rule-day">{r.day}</div>
               <div className="rule-text">{r.text.map((part, j) =>
@@ -581,19 +619,19 @@ function DataTab({ events, bootstrap }) {
             </div>
           ))}
         </div>
-        <div className="rules-foot">{RULES_FOOT.thisWeek} RULES · CYCLE <span>{RULES_FOOT.cycle}</span> · TOTAL <span>{RULES_FOOT.total}</span></div>
+        <div className="rules-foot">{foot?.thisWeek ?? 0} RULES · CYCLE <span>{foot?.cycle ?? 0}</span> · TOTAL <span>{foot?.total ?? 0}</span></div>
       </div>
 
       <div className="panel">
         <div className="ptitle">
           <span><span className="ptitle-bar" />SYSTEM EVENT FEED</span>
-          <span className="ptitle-r">{bootstrap ? '0 EVENTS TODAY' : `${events.length} EVENTS TODAY`}</span>
+          <span className="ptitle-r">{eventsBoot ? '0 EVENTS' : `${events.length} EVENTS`}</span>
         </div>
         <div className="event-feed">
-          {bootstrap ? (
+          {eventsBoot ? (
             <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '12px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING LIVE EVENTS —</div>
-          ) : events.map((e, i) => (
-            <div className={'ev ' + e.cls} key={i}>
+          ) : events.map((e) => (
+            <div className={'ev ' + e.cls} key={e.eventId || (e.t + e.text)}>
               <span className="ev-icon">{e.icon}</span>
               <span className="ev-time">{e.t}</span>
               <span className="ev-text">{e.text}</span>
@@ -606,33 +644,11 @@ function DataTab({ events, bootstrap }) {
   );
 }
 
-function RowRender({ row }) {
-  return (
-    <>
-      <div className="matrix-rh">{row.label}</div>
-      {row.cells.map((c, i) => (
-        <div className="matrix-cell" key={i}>
-          <div className={'mc-w' + (c.wp >= 60 ? ' g' : '')}>{c.wp}%</div>
-          <div className="mc-s">SR <span className="c">{c.sr.toFixed(2)}</span></div>
-          <div className="mc-r g">+{c.ret.toFixed(1)}%</div>
-        </div>
-      ))}
-      <div className="matrix-cell sigma-col">
-        <div className="mc-r g big">+{row.sigma.ret.toFixed(1)}%</div>
-        <div className="mc-s">SR <span className="c">{row.sigma.sr.toFixed(2)}</span></div>
-      </div>
-    </>
-  );
-}
-
 function KernelOverlay({ open, onClose }) {
-  // Mount the Three.js scene only when overlay is open; tear down on close
-  // to free GPU resources between sessions.
   const canvasRef = useRef(null);
   const [counts, setCounts] = useState({ nodes: KERNEL_COUNTS.nodes, edges: KERNEL_COUNTS.edges });
   useEffect(() => {
     if (!open) return;
-    // wait one frame so the canvas has layout dimensions before init
     const id = requestAnimationFrame(() => {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -640,7 +656,6 @@ function KernelOverlay({ open, onClose }) {
       setCounts(k.counts);
       const onResize = () => k.resize();
       window.addEventListener('resize', onResize);
-      // attach destroy to a ref via closure
       canvas.__destroyKernel = () => {
         window.removeEventListener('resize', onResize);
         k.destroy();
