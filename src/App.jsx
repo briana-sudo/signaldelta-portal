@@ -7,24 +7,29 @@ import { summarizePoll } from './lib/dataAdapter.js';
 
 export default function App() {
   const platform = usePlatform();
-  const { data, error, loading } = useNeo4jPoll();
+  const { data, errors, hasAnyData, error, loading } = useNeo4jPoll();
 
   // Console telemetry per first-poll verification. Logs once per successful
-  // poll cycle with the per-query row counts.
+  // poll cycle with the per-query row counts. With Promise.allSettled, "OK"
+  // means the cycle settled — individual query failures land in `errors`.
   useEffect(() => {
     if (data) {
       // eslint-disable-next-line no-console
-      console.info('[signaldelta] poll OK', summarizePoll(data));
+      console.info('[signaldelta] poll cycle settled', {
+        ...summarizePoll(data),
+        failed: Object.keys(errors),
+        hasAnyData,
+      });
     }
-  }, [data]);
+  }, [data, errors, hasAnyData]);
 
   useEffect(() => {
     if (error) {
       // eslint-disable-next-line no-console
-      console.error('[signaldelta] poll FAIL', error);
+      console.error('[signaldelta] poll FATAL', error);
     }
   }, [error]);
 
-  const props = { data, error, loading };
+  const props = { data, errors, hasAnyData, error, loading };
   return platform === 'mobile' ? <MobileApp {...props} /> : <PCApp {...props} />;
 }

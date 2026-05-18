@@ -33,7 +33,7 @@ const barClr = (s) => {
   return 'var(--w3)';
 };
 
-export default function MobileApp({ data, error, loading }) {
+export default function MobileApp({ data, errors = {}, hasAnyData = false, error, loading }) {
   const clock = useClock();
   const { secs: pollSecs, pulse: pollPulse } = usePollCountdown();
   const [mode, setMode] = useState(DEFAULT_MODE);
@@ -46,7 +46,7 @@ export default function MobileApp({ data, error, loading }) {
 
   return (
     <div className="mobile-shell">
-      {error && <MobileErrorBanner error={error} />}
+      <MobileStatusBanner error={error} errors={errors} hasAnyData={hasAnyData} />
       <MobileHeader clock={clock} mode={mode} currentPhase={currentPhase} />
       <ModeToggle mode={mode} setMode={setMode} />
       <MobileAccountBar
@@ -76,15 +76,38 @@ export default function MobileApp({ data, error, loading }) {
   );
 }
 
-function MobileErrorBanner({ error }) {
+function MobileStatusBanner({ error, errors, hasAnyData }) {
+  const failed = Object.keys(errors || {});
+  const fatalConfig = !!error;
+  const allDown = !fatalConfig && failed.length > 0 && !hasAnyData;
+  const partial = !fatalConfig && failed.length > 0 && hasAnyData;
+
+  if (!fatalConfig && !allDown && !partial) return null;
+
+  if (fatalConfig || allDown) {
+    return (
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 10000,
+        background: 'rgba(255,61,87,0.92)', color: '#fff',
+        fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px',
+        padding: '6px 12px', textAlign: 'center',
+      }}>
+        PROXY ERROR · {fatalConfig
+          ? (error.message || String(error))
+          : `all ${failed.length} queries failed`}
+      </div>
+    );
+  }
   return (
-    <div style={{
-      position: 'sticky', top: 0, zIndex: 10000,
-      background: 'rgba(255,61,87,0.92)', color: '#fff',
-      fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px',
-      padding: '6px 12px', textAlign: 'center',
-    }}>
-      PROXY ERROR · {error.message || String(error)}
+    <div
+      title={`Failed: ${failed.join(', ')}`}
+      style={{
+        position: 'sticky', top: 0, zIndex: 10000,
+        background: 'rgba(255,171,0,0.92)', color: '#1a1500',
+        fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px',
+        padding: '6px 12px', textAlign: 'center',
+      }}>
+      PARTIAL DATA · {failed.length} failed: {failed.join(', ')}
     </div>
   );
 }

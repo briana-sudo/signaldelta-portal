@@ -1,25 +1,31 @@
 // ─────────────────────────────────────────────────────────────
-// 60-second proxy poll hook.
+// 60-second proxy poll hook with Promise.allSettled resilience.
 //
-// Path B architecture: this hook fetches every panel's data from the
-// FastAPI proxy (signaldelta-portal-proxy) over a TryCloudflare HTTPS
-// tunnel. The proxy holds the Cypher whitelist; the portal POSTs a
-// query NAME plus params dict and a bearer token. The portal can
-// never inject arbitrary Cypher.
+// Each whitelisted query is dispatched independently. A failure in
+// one query no longer aborts the whole cycle — the others' results
+// still land in `data`, the failure is logged with its query name,
+// and the corresponding panel falls back to bootstrap state via its
+// adapter returning null.
 //
-// Env vars (Vite — must be set as GitHub Secrets and injected by the
-// deploy workflow):
-//   VITE_PROXY_URL        — TryCloudflare tunnel URL, e.g.
-//                           https://something-something.trycloudflare.com
-//                           (no trailing slash). Regenerated every time
-//                           the tunnel restarts — update Secret + redeploy.
-//   VITE_PROXY_API_TOKEN  — 32-char bearer token shared with the proxy's
-//                           PROXY_API_TOKEN env var.
+// Return shape:
+//   data         — { accountBar, weeklyWaterfall, positions, events,
+//                    winRate, sharpe, lane2, conviction, kernelNodes,
+//                    kernelEdges, equityCurve, equityHeader,
+//                    rulesThisWeek, rulesFoot, pollTimestamp }
+//                  each slice is null/[] when its query failed or
+//                  returned empty.
+//   errors       — { <query_name>: errorMessage } for any rejected
+//                  query in the most recent cycle. {} when all green.
+//   hasAnyData   — true when at least one slice contains data.
+//                  Drives the PROXY ERROR (no data) vs PARTIAL DATA
+//                  (some failed) banner state in App.
+//   loading      — true until the first cycle settles.
+//   error        — set only when getProxyConfig() throws (missing
+//                  env vars). Never set for in-flight query failures.
 //
-// NOT imported by any component yet. Components consume the static
-// placeholders.js until the operator wires the proxy live. To activate:
-//   - in App.jsx:  const { data, loading, error } = useNeo4jPoll();
-//   - pass `data` down to PCApp / MobileApp instead of placeholders.
+// Env vars (Vite — injected by .github/workflows/deploy.yml from GH Secrets):
+//   VITE_PROXY_URL        — TryCloudflare tunnel URL (no trailing slash)
+//   VITE_PROXY_API_TOKEN  — 32-char bearer token shared with proxy .env
 // ─────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -31,6 +37,25 @@ import {
 } from '../lib/queries.js';
 
 const POLL_INTERVAL_MS = 60_000;
+
+// Per-poll query specs. `key` is the data slice name; `singleton: true`
+// extracts rows[0] (queries that always return ≤1 aggregation row).
+const QUERY_SPECS = [
+  { key: 'accountBar',       name: Q_ACCOUNT_BAR,      singleton: true  },
+  { key: 'weeklyWaterfall',  name: Q_WEEKLY_WATERFALL, singleton: false },
+  { key: 'positions',        name: Q_OPEN_POSITIONS,   singleton: false },
+  { key: 'events',           name: Q_RECENT_EVENTS,    singleton: false },
+  { key: 'winRate',          name: Q_WIN_RATE,         singleton: true  },
+  { key: 'sharpe',           name: Q_SHARPE,           singleton: true  },
+  { key: 'lane2',            name: Q_LANE2_DELTA,      singleton: true  },
+  { key: 'conviction',       name: Q_CONVICTION,       singleton: false },
+  { key: 'kernelNodes',      name: Q_KERNEL_NODES,     singleton: false },
+  { key: 'kernelEdges',      name: Q_KERNEL_EDGES,     singleton: false },
+  { key: 'equityCurve',      name: Q_EQUITY_CURVE,     singleton: false },
+  { key: 'equityHeader',     name: Q_EQUITY_HEADER,    singleton: true  },
+  { key: 'rulesThisWeek',    name: Q_RULES_THIS_WEEK,  singleton: false },
+  { key: 'rulesFoot',        name: Q_RULES_FOOT,       singleton: true  },
+];
 
 function getProxyConfig() {
   const url = import.meta.env.VITE_PROXY_URL;
@@ -69,49 +94,40 @@ async function callProxy(name, params = {}) {
 }
 
 async function pollOnce() {
-  const [
-    accountBar, weeklyWaterfall, positions, events,
-    winRate, sharpe, lane2, conviction,
-    kernelNodes, kernelEdges,
-    equityCurve, equityHeader,
-    rulesThisWeek, rulesFoot,
-  ] = await Promise.all([
-    callProxy(Q_ACCOUNT_BAR),
-    callProxy(Q_WEEKLY_WATERFALL),
-    callProxy(Q_OPEN_POSITIONS),
-    callProxy(Q_RECENT_EVENTS),
-    callProxy(Q_WIN_RATE),
-    callProxy(Q_SHARPE),
-    callProxy(Q_LANE2_DELTA),
-    callProxy(Q_CONVICTION),
-    callProxy(Q_KERNEL_NODES),
-    callProxy(Q_KERNEL_EDGES),
-    callProxy(Q_EQUITY_CURVE),
-    callProxy(Q_EQUITY_HEADER),
-    callProxy(Q_RULES_THIS_WEEK),
-    callProxy(Q_RULES_FOOT),
-  ]);
-  return {
-    accountBar: accountBar[0] ?? null,
-    weeklyWaterfall,
-    positions,
-    events,
-    winRate: winRate[0] ?? null,
-    sharpe: sharpe[0] ?? null,
-    lane2: lane2[0] ?? null,
-    conviction,
-    kernelNodes,
-    kernelEdges,
-    equityCurve,
-    equityHeader: equityHeader[0] ?? null,
-    rulesThisWeek,
-    rulesFoot: rulesFoot[0] ?? null,
-    pollTimestamp: new Date().toISOString(),
-  };
+  const settled = await Promise.allSettled(
+    QUERY_SPECS.map((spec) => callProxy(spec.name)),
+  );
+  const data = { pollTimestamp: new Date().toISOString() };
+  const errors = {};
+  let anyData = false;
+
+  settled.forEach((result, i) => {
+    const spec = QUERY_SPECS[i];
+    if (result.status === 'fulfilled') {
+      const rows = result.value;
+      const value = spec.singleton ? (rows[0] ?? null) : rows;
+      data[spec.key] = value;
+      const present = spec.singleton
+        ? value !== null
+        : Array.isArray(value) && value.length > 0;
+      if (present) anyData = true;
+    } else {
+      // eslint-disable-next-line no-console
+      console.error(`[signaldelta] poll '${spec.name}' failed:`, result.reason);
+      errors[spec.name] = result.reason instanceof Error
+        ? result.reason.message
+        : String(result.reason);
+      data[spec.key] = spec.singleton ? null : [];
+    }
+  });
+
+  return { data, errors, hasAnyData: anyData };
 }
 
 export function useNeo4jPoll() {
   const [data, setData] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [hasAnyData, setHasAnyData] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const mounted = useRef(true);
@@ -122,16 +138,19 @@ export function useNeo4jPoll() {
     async function tick() {
       try {
         const next = await pollOnce();
-        if (mounted.current) {
-          setData(next);
-          setError(null);
-          setLoading(false);
-        }
+        if (!mounted.current) return;
+        setData(next.data);
+        setErrors(next.errors);
+        setHasAnyData(next.hasAnyData);
+        setError(null);
+        setLoading(false);
       } catch (e) {
-        if (mounted.current) {
-          setError(e);
-          setLoading(false);
-        }
+        // Reached only when getProxyConfig() throws (missing env vars). With
+        // allSettled, individual query failures don't bubble here — they land
+        // in `errors`.
+        if (!mounted.current) return;
+        setError(e);
+        setLoading(false);
       }
     }
     tick();
@@ -142,7 +161,7 @@ export function useNeo4jPoll() {
     };
   }, []);
 
-  return { data, error, loading };
+  return { data, errors, hasAnyData, error, loading };
 }
 
 // Per-event helper — call from the trade overlay when a new TRADE_OPENED /

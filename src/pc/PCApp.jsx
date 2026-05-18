@@ -27,7 +27,7 @@ const barClr = (s) => {
   return 'var(--w3)';
 };
 
-export default function PCApp({ data, error, loading }) {
+export default function PCApp({ data, errors = {}, hasAnyData = false, error, loading }) {
   const clock = useClock();
   const { secs: pollSecs, pulse: pollPulse } = usePollCountdown();
   const [mode, setMode] = useState(DEFAULT_MODE);
@@ -43,7 +43,7 @@ export default function PCApp({ data, error, loading }) {
 
   return (
     <div className="pc-shell">
-      {error && <ErrorBanner error={error} />}
+      <StatusBanner error={error} errors={errors} hasAnyData={hasAnyData} />
       <Header clock={clock} mode={mode} setMode={setMode} currentPhase={currentPhase} />
       <AccountBar
         pollSecs={pollSecs}
@@ -61,15 +61,43 @@ export default function PCApp({ data, error, loading }) {
   );
 }
 
-function ErrorBanner({ error }) {
+function StatusBanner({ error, errors, hasAnyData }) {
+  // Three states per Brian's spec:
+  //   PROXY ERROR (red)   — getProxyConfig fatal, OR all queries failed and no data anywhere
+  //   PARTIAL DATA (amber) — some queries failed but at least one slice has data
+  //   (no banner)         — every query succeeded this cycle
+  const failed = Object.keys(errors || {});
+  const fatalConfig = !!error;
+  const allDown = !fatalConfig && failed.length > 0 && !hasAnyData;
+  const partial = !fatalConfig && failed.length > 0 && hasAnyData;
+
+  if (!fatalConfig && !allDown && !partial) return null;
+
+  if (fatalConfig || allDown) {
+    return (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000,
+        background: 'rgba(255,61,87,0.92)', color: '#fff',
+        fontFamily: 'var(--mono)', fontSize: '10px', letterSpacing: '1px',
+        padding: '6px 12px', borderBottom: '1px solid var(--red)',
+      }}>
+        PROXY ERROR · {fatalConfig
+          ? (error.message || String(error))
+          : `all ${failed.length} queries failed — proxy or tunnel may be down`}
+      </div>
+    );
+  }
+  // partial
   return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000,
-      background: 'rgba(255,61,87,0.92)', color: '#fff',
-      fontFamily: 'var(--mono)', fontSize: '10px', letterSpacing: '1px',
-      padding: '6px 12px', borderBottom: '1px solid var(--red)',
-    }}>
-      PROXY ERROR · {error.message || String(error)}
+    <div
+      title={`Failed queries: ${failed.join(', ')}`}
+      style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000,
+        background: 'rgba(255,171,0,0.92)', color: '#1a1500',
+        fontFamily: 'var(--mono)', fontSize: '10px', letterSpacing: '1px',
+        padding: '6px 12px', borderBottom: '1px solid var(--amber)',
+      }}>
+      PARTIAL DATA · {failed.length} of {failed.length + (hasAnyData ? 1 : 0)}+ queries failed: {failed.join(', ')}
     </div>
   );
 }
