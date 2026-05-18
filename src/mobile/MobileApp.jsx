@@ -138,7 +138,11 @@ function MobileHeader({ clock, mode, currentPhase }) {
       </div>
       <div className="hdr-right">
         <div className={'status-dot dot-' + dot} title={text} />
-        <div className="clock">{clock}</div>
+        <div className="clock">
+          <span className="clock-et">{clock.etCompact}</span>
+          <span className="clock-sep">·</span>
+          <span className="clock-utc">{clock.utcCompact}</span>
+        </div>
       </div>
     </div>
   );

@@ -30,12 +30,40 @@ function convInfo(conv) {
 }
 
 // ── Time helpers ─────────────────────────────────────────────────────
+// Per reconciliation Section E.2: portal display layer is US Eastern Time
+// (EDT/EST with auto-DST via IANA 'America/New_York'). Storage in Neo4j and
+// query responses stay UTC; conversion happens here at the render boundary.
+// Hold duration is a delta, not an instant — no timezone applies, so the
+// computation stays in pure ms math.
+const TZ = 'America/New_York';
+
 function pad2(n) { return String(n).padStart(2, '0'); }
+
+// ET HH:MM (24h) for the Event Feed time column. Keeps the dense-UI vibe.
+const ET_HHMM_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: TZ,
+  hour: '2-digit', minute: '2-digit', hour12: false,
+});
+
 function fmtHHMM(iso) {
   if (!iso) return '--:--';
-  const d = new Date(iso);
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return ET_HHMM_FORMATTER.format(new Date(iso));
 }
+
+// Weekday abbrev in ET (e.g., 'MON', 'TUE'). Used for the Rules Added panel
+// day badges. Per Section E.2 this matters at the day boundary — a rule
+// written at Monday 02:00 UTC is Sunday 21:00 ET (winter) or 22:00 ET
+// (summer), badge should read SUN.
+const ET_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: TZ,
+  weekday: 'short',
+});
+
+function dayAbbrevET(iso) {
+  if (!iso) return '---';
+  return ET_WEEKDAY_FORMATTER.format(new Date(iso)).toUpperCase();
+}
+
 function computeHold(entryIso) {
   if (!entryIso) return '—';
   const entry = new Date(entryIso).getTime();
@@ -237,20 +265,18 @@ export function adaptEquityHeader(data) {
 }
 
 // ── Rules added this week ────────────────────────────────────────────
-const DAY_ABBREV = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-
+// Day badge derived from created_timestamp converted to ET before extracting
+// day-of-week, per Section E.2. The week BOUNDARY (Monday 00:00 UTC) is
+// preserved on the engine side per Section D3 — only the badge label uses ET.
 export function adaptRulesThisWeek(data) {
   const rows = data?.rulesThisWeek;
   if (!Array.isArray(rows) || rows.length === 0) return null;
-  return rows.map((r) => {
-    const d = r.created ? new Date(r.created) : null;
-    return {
-      sec: r.section || 'A',
-      day: d ? DAY_ABBREV[d.getDay()] : '---',
-      text: [r.summary || ''],
-      ruleId: r.rule_id,
-    };
-  });
+  return rows.map((r) => ({
+    sec: r.section || 'A',
+    day: dayAbbrevET(r.created),
+    text: [r.summary || ''],
+    ruleId: r.rule_id,
+  }));
 }
 
 export function adaptRulesFoot(data) {

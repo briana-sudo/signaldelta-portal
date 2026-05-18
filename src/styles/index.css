@@ -103,7 +103,14 @@ body::after {
 .pc-shell .mode-pill:hover { color:var(--w2); }
 .pc-shell .mode-pill.active { background:var(--cyan2); color:var(--cyan); text-shadow:0 0 6px rgba(0,194,255,0.5); }
 
-.pc-shell .clock { font-family:var(--mono); font-size:13px; color:var(--cyan); letter-spacing:2px; }
+/* Dual-timezone clock per reconciliation Section E.2.
+   ET prominent on the left (content-priority), UTC smaller on the right
+   (operator cross-reference). DST handled automatically via the IANA
+   identifier in useClock; never hardcoded -5 / -4 offsets here. */
+.pc-shell .clock { font-family:var(--mono); letter-spacing:2px; display:flex; align-items:baseline; gap:6px; }
+.pc-shell .clock-et  { font-size:13px; color:var(--cyan); }
+.pc-shell .clock-sep { font-size:11px; color:var(--w3); }
+.pc-shell .clock-utc { font-size:9px;  color:var(--w3); letter-spacing:1px; }
 
 .pc-shell .acct {
   height: 50px; background: var(--navy3); border-bottom: 1px solid var(--border);
@@ -351,7 +358,12 @@ body::after {
 .mobile-shell .status-dot.dot-amber { background:var(--amber); box-shadow:0 0 6px var(--amber); }
 .mobile-shell .status-dot.dot-green { background:var(--green); box-shadow:0 0 6px var(--green); }
 .mobile-shell .status-dot.dot-split { background:linear-gradient(90deg, var(--amber) 0 50%, var(--green) 50% 100%); box-shadow:0 0 6px rgba(255,171,0,0.6), 0 0 6px rgba(0,230,118,0.6); }
-.mobile-shell .clock { font-family:var(--mono); font-size:11px; color:var(--cyan); letter-spacing:1.5px; }
+/* Mobile dual-clock — same pattern, condensed for the narrow viewport.
+   Drops UTC seconds to fit; PC retains them for operator detail. */
+.mobile-shell .clock { font-family:var(--mono); letter-spacing:1px; display:flex; align-items:baseline; gap:4px; }
+.mobile-shell .clock-et  { font-size:11px; color:var(--cyan); }
+.mobile-shell .clock-sep { font-size:9px;  color:var(--w3); }
+.mobile-shell .clock-utc { font-size:8px;  color:var(--w3); letter-spacing:0.5px; }
 
 .mobile-shell .mode-toggle { display:flex; height:30px; flex-shrink:0; border-bottom:1px solid var(--border); background:var(--navy2); }
 .mobile-shell .mode-pill { flex:1; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:9px; letter-spacing:2px; color:var(--w3); cursor:pointer; border-right:1px solid var(--border); transition:all .2s; user-select:none; }

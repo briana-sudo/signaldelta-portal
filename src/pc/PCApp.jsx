@@ -140,7 +140,11 @@ function Header({ clock, mode, setMode, currentPhase }) {
           ))}
         </div>
       </div>
-      <div className="clock">{clock} UTC</div>
+      <div className="clock">
+        <span className="clock-et">{clock.et} ET</span>
+        <span className="clock-sep">·</span>
+        <span className="clock-utc">{clock.utc} UTC</span>
+      </div>
     </div>
   );
 }
