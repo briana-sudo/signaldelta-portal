@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
+import { useAccountDrift, usePositionDrift, useTickerWobble } from '../lib/useDrift.js';
+import { useEventFeed } from '../lib/useEventFeed.js';
+import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
 import {
-  SCANNER_ASSETS, POSITIONS, WEEKLY_WATERFALL, SEED_EVENTS,
+  SCANNER_ASSETS, POSITIONS, WEEKLY_WATERFALL,
   RETURNS_MATRIX, RULES_ADDED, RULES_FOOT, TICKER, ACCOUNT_BAR,
-  KERNEL_COUNTS, LOGO_SVG,
+  KERNEL_COUNTS, LOGO_SVG, TRADE_DEMO_SEQUENCE,
 } from '../lib/placeholders.js';
 import { buildEquityCurveSvg } from '../lib/equityCurve.js';
+import { initKernelScene } from '../lib/kernelScene.js';
+import TradeOverlay from './TradeOverlay.jsx';
 
-// Mode toggle: hardcoded TRAINING default per Section E of reconciliation v1.1.
-// Phase 4 wires systemState-driven default function + localStorage persistence.
 const MODES = ['live', 'training', 'combined'];
 const DEFAULT_MODE = 'training';
 
@@ -19,18 +22,50 @@ const barClr = (s) => {
   if (s >= 20) return 'var(--amber)';
   return 'var(--w3)';
 };
+const nowHHMM = () => {
+  const n = new Date();
+  return [n.getHours(), n.getMinutes()].map((v) => String(v).padStart(2, '0')).join(':');
+};
 
 export default function PCApp() {
   const clock = useClock();
   const { secs: pollSecs, pulse: pollPulse } = usePollCountdown();
   const [mode, setMode] = useState(DEFAULT_MODE);
+  const bootstrap = shouldRenderBootstrap(mode);
+
+  const { events, pushEvent, pushSyncEvent } = useEventFeed({
+    randomIntervalMs: 8000,
+    cap: 8,
+    enabled: !bootstrap,
+  });
+
+  // Trade overlay demo sequence (Step G): fires once on mount in non-LIVE modes.
+  const [overlayTrigger, setOverlayTrigger] = useState(null);
+  useEffect(() => {
+    if (bootstrap) return; // LIVE mode shows no trades in Phase 1.1
+    const timers = TRADE_DEMO_SEQUENCE.map((step, i) =>
+      setTimeout(() => {
+        pushEvent({ ...step.event, t: nowHHMM() });
+        setOverlayTrigger({ ...step.overlay, fireKey: Date.now() + i });
+      }, step.delay),
+    );
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bootstrap]);
+
+  // 60s poll-tick event: push a DATA SYNC event into the feed on each rollover.
+  useEffect(() => {
+    if (pollPulse && !bootstrap) pushSyncEvent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pollPulse, bootstrap]);
 
   return (
     <div className="pc-shell">
       <Header clock={clock} mode={mode} setMode={setMode} />
-      <AccountBar pollSecs={pollSecs} pollPulse={pollPulse} />
-      <Main />
+      <AccountBar pollSecs={pollSecs} pollPulse={pollPulse} bootstrap={bootstrap} />
+      <Main mode={mode} events={events} />
       <Ticker />
+      <TradeOverlay trigger={overlayTrigger} />
     </div>
   );
 }
@@ -65,16 +100,42 @@ function Header({ clock, mode, setMode }) {
   );
 }
 
-function AccountBar({ pollSecs, pollPulse }) {
+function AccountBar({ pollSecs, pollPulse, bootstrap }) {
   const a = ACCOUNT_BAR;
+  const { av, ap } = useAccountDrift({
+    initialValue: a.currentValue,
+    initialPnl: a.todayPnl,
+    enabled: !bootstrap,
+  });
+  const totalReturnPct = ((av - a.capitalBase) / a.capitalBase) * 100;
+  const valFmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const sign = (v) => (v >= 0 ? '+' : '');
+  const cls = (v) => (v >= 0 ? 'g' : 'r');
+
   return (
     <div className="acct">
       <div className="aitem"><span className="alabel">Capital Base</span><span className="aval">${a.capitalBase.toLocaleString()}</span></div>
-      <div className="aitem"><span className="alabel">Current Value</span><span className="aval g">${a.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-      <div className="aitem"><span className="alabel">Total Return</span><span className="aval g">+{a.totalReturnPct.toFixed(2)}%</span></div>
-      <div className="aitem"><span className="alabel">Today P&amp;L</span><span className="aval g">+${a.todayPnl.toFixed(2)}</span></div>
-      <div className="aitem"><span className="alabel">Trades</span><span className="aval c">{a.trades}</span></div>
-      <div className="aitem"><span className="alabel">Open</span><span className="aval c">{a.open}</span></div>
+      <div className="aitem"><span className="alabel">Current Value</span>
+        {bootstrap
+          ? <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>
+          : <span className={'aval ' + cls(av - a.capitalBase)}>${valFmt(av)}</span>}
+      </div>
+      <div className="aitem"><span className="alabel">Total Return</span>
+        {bootstrap
+          ? <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>
+          : <span className={'aval ' + cls(totalReturnPct)}>{sign(totalReturnPct)}{totalReturnPct.toFixed(2)}%</span>}
+      </div>
+      <div className="aitem"><span className="alabel">Today P&amp;L</span>
+        {bootstrap
+          ? <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>
+          : <span className={'aval ' + cls(ap)}>{sign(ap)}${Math.abs(ap).toFixed(2)}</span>}
+      </div>
+      <div className="aitem"><span className="alabel">Trades</span>
+        <span className="aval c">{bootstrap ? 0 : a.trades}</span>
+      </div>
+      <div className="aitem"><span className="alabel">Open</span>
+        <span className="aval c">{bootstrap ? 0 : a.open}</span>
+      </div>
       <div className="acct-divider" />
       <MiniWaterfall />
       <div className="acct-divider" />
@@ -124,34 +185,37 @@ function MiniWaterfall() {
   );
 }
 
-function Main() {
+function Main({ mode, events }) {
   return (
     <div className="main">
       <div className="col-scanner">
-        <ScannerPanel />
+        <ScannerPanel mode={mode} />
       </div>
       <div className="col-center">
-        <PositionsPanel />
-        <EquityCurvePanel />
-        <EventFeedPanel />
+        <PositionsPanel mode={mode} />
+        <EquityCurvePanel mode={mode} />
+        <EventFeedPanel events={events} mode={mode} />
       </div>
       <div className="col-metrics">
-        <MetricsPanel />
+        <MetricsPanel mode={mode} />
         <KernelPanel />
       </div>
       <div className="col-extra">
-        <ReturnsMatrixPanel />
+        <ReturnsMatrixPanel mode={mode} />
         <RulesAddedPanel />
       </div>
     </div>
   );
 }
 
-function ScannerPanel() {
+function ScannerPanel({ mode }) {
+  const bootstrap = shouldRenderBootstrap(mode);
   const [rows, setRows] = useState(() =>
     SCANNER_ASSETS.map((a) => ({ ...a, score: 0, bar: 0, evaluating: false })),
   );
+
   useEffect(() => {
+    if (bootstrap) return;
     let stepTimer = null;
     const tick = setInterval(() => {
       const i = Math.floor(Math.random() * rows.length);
@@ -172,10 +236,7 @@ function ScannerPanel() {
           if (curScore >= target) next[i] = { ...next[i], evaluating: false };
           return next;
         });
-        if (curScore >= target) {
-          clearInterval(stepTimer);
-          stepTimer = null;
-        }
+        if (curScore >= target) { clearInterval(stepTimer); stepTimer = null; }
       }, 35);
     }, 500);
     return () => {
@@ -183,9 +244,10 @@ function ScannerPanel() {
       if (stepTimer) clearInterval(stepTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [bootstrap]);
 
   const rowClass = (a) => {
+    if (bootstrap) return 'srow';
     if (a.fired) return 'srow fired';
     if (a.evaluating) return 'srow eval';
     if (a.score >= 65) return 'srow thresh';
@@ -199,7 +261,7 @@ function ScannerPanel() {
         <span className="ptitle-r">847 ASSETS</span>
       </div>
       <div className="scanner-list">
-        {rows.map((a, i) => (
+        {rows.map((a) => (
           <div className={rowClass(a)} key={a.sym}>
             <div>
               <div className="sasset">{a.sym}</div>
@@ -207,11 +269,11 @@ function ScannerPanel() {
             </div>
             <div>
               <div className="sbar-bg">
-                <div className="sbar-fill" style={{ width: a.bar + '%', background: barClr(a.score) }} />
+                <div className="sbar-fill" style={{ width: (bootstrap ? 0 : a.bar) + '%', background: barClr(bootstrap ? 0 : a.score) }} />
               </div>
             </div>
-            <div className={'sscore ' + scoreCls(a.score)}>{a.score || '—'}</div>
-            {a.fired && <div className="fired-badge">FIRED</div>}
+            <div className={'sscore ' + scoreCls(bootstrap ? 0 : a.score)}>{bootstrap || !a.score ? '—' : a.score}</div>
+            {!bootstrap && a.fired && <div className="fired-badge">FIRED</div>}
           </div>
         ))}
       </div>
@@ -219,12 +281,15 @@ function ScannerPanel() {
   );
 }
 
-function PositionsPanel() {
+function PositionsPanel({ mode }) {
+  const bootstrap = shouldRenderBootstrap(mode);
+  const offsets = usePositionDrift(POSITIONS, { enabled: !bootstrap });
+
   return (
     <div className="panel p-positions">
       <div className="ptitle">
         <span><span className="ptitle-bar" />OPEN POSITIONS</span>
-        <span className="ptitle-r">3 ACTIVE · P&amp;L LIVE</span>
+        <span className="ptitle-r">{bootstrap ? 'AWAITING LIVE TRADES' : '3 ACTIVE · P&L LIVE'}</span>
       </div>
       <table className="pos-table">
         <thead>
@@ -236,8 +301,14 @@ function PositionsPanel() {
           </tr>
         </thead>
         <tbody>
-          {POSITIONS.map((p) => {
-            const pos = p.pnl >= 0;
+          {bootstrap ? (
+            <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING LIVE TRADES —</td></tr>
+          ) : POSITIONS.map((p, i) => {
+            const offset = offsets[i] ?? 0;
+            const pv = p.pnl + offset;
+            const pp = p.pnlPct + (offset / p.entry) * 100;
+            const cur = p.cur + offset * 0.01;
+            const pos = pv >= 0;
             const clr = pos ? 'var(--green)' : 'var(--red)';
             return (
               <tr key={p.asset}>
@@ -245,7 +316,7 @@ function PositionsPanel() {
                 <td><span className={'ptrack ' + p.track}>{p.tl}</span></td>
                 <td><span className={'pconv ' + p.conv}>{p.cl}</span></td>
                 <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w2)' }}>{p.entry.toLocaleString()}</td>
-                <td style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--white)' }}>{p.cur.toLocaleString()}</td>
+                <td style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--white)' }}>{cur.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                 <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--red)' }}>{p.stop.toLocaleString()}</td>
                 <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--green)' }}>{p.target.toLocaleString()}</td>
                 <td className="prog-wrap">
@@ -253,8 +324,8 @@ function PositionsPanel() {
                   <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: 'var(--w3)', marginTop: '2px' }}>{p.prog}% TO TARGET</div>
                 </td>
                 <td>
-                  <div className="ppnl" style={{ color: clr }}>{pos ? '+' : ''}${Math.abs(p.pnl).toFixed(2)}</div>
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: clr }}>{pos ? '+' : ''}{p.pnlPct.toFixed(2)}%</div>
+                  <div className="ppnl" style={{ color: clr }}>{pos ? '+' : ''}${Math.abs(pv).toFixed(2)}</div>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: clr }}>{pos ? '+' : ''}{pp.toFixed(2)}%</div>
                 </td>
                 <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w3)' }}>{p.hold}</td>
               </tr>
@@ -266,8 +337,11 @@ function PositionsPanel() {
   );
 }
 
-function EquityCurvePanel() {
+function EquityCurvePanel({ mode }) {
+  const bootstrap = shouldRenderBootstrap(mode);
   const svg = useMemo(() => buildEquityCurveSvg({ width: 600, height: 80 }), []);
+  // PEAK/DD/TWR always combined per reconciliation D1 (independent of mode toggle)
+  const subscript = mode !== 'combined' ? <span style={{ fontSize: '6px', color: 'var(--w3)', marginLeft: '2px' }}>(combined)</span> : null;
   return (
     <div className="panel eq-panel">
       <div className="eq-head">
@@ -275,7 +349,7 @@ function EquityCurvePanel() {
         <span className="eq-stats">
           <span className="lbl">PEAK</span><span className="g">$12,114</span>
           <span className="lbl">DRAWDOWN</span><span className="r">-2.20%</span>
-          <span className="lbl">TWR</span><span>+18.47%</span>
+          <span className="lbl">TWR</span><span>+18.47%</span>{subscript}
         </span>
       </div>
       <div className="eq-svg-wrap">
@@ -289,27 +363,37 @@ function EquityCurvePanel() {
           <line x1="0" y1={svg.baseY} x2={svg.width} y2={svg.baseY}
             stroke="rgba(255,171,0,0.4)" strokeWidth="0.6" strokeDasharray="3,3" />
           <text x="4" y={svg.baseY - 3} fontFamily="Share Tech Mono" fontSize="6" fill="var(--amber)" opacity="0.6">$10K BASE</text>
-          <path d={svg.fillD} fill="url(#eqGradPos)" stroke="none" />
-          <path d={svg.d} fill="none" stroke="var(--green)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx={svg.endX} cy={svg.endY} r="2.5" fill="var(--green)">
-            <animate attributeName="r" values="2.5;4;2.5" dur="2s" repeatCount="indefinite" />
-          </circle>
-          <circle cx={svg.peakX} cy={svg.peakY} r="2" fill="var(--cyan)" opacity="0.8" />
+          {!bootstrap && (
+            <>
+              <path d={svg.fillD} fill="url(#eqGradPos)" stroke="none" />
+              <path d={svg.d} fill="none" stroke="var(--green)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx={svg.endX} cy={svg.endY} r="2.5" fill="var(--green)">
+                <animate attributeName="r" values="2.5;4;2.5" dur="2s" repeatCount="indefinite" />
+              </circle>
+              <circle cx={svg.peakX} cy={svg.peakY} r="2" fill="var(--cyan)" opacity="0.8" />
+            </>
+          )}
+          {bootstrap && (
+            <text x="300" y="44" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--w3)" letterSpacing="2">— AWAITING LIVE EQUITY SERIES —</text>
+          )}
         </svg>
       </div>
     </div>
   );
 }
 
-function EventFeedPanel() {
+function EventFeedPanel({ events, mode }) {
+  const bootstrap = shouldRenderBootstrap(mode);
   return (
     <div className="panel p-events">
       <div className="ptitle">
         <span><span className="ptitle-bar" />SYSTEM EVENT FEED</span>
-        <span className="ptitle-r">{SEED_EVENTS.length} EVENTS TODAY</span>
+        <span className="ptitle-r">{bootstrap ? '0 EVENTS TODAY' : `${events.length} EVENTS TODAY`}</span>
       </div>
       <div className="event-feed">
-        {SEED_EVENTS.slice(0, 8).map((e, i) => (
+        {bootstrap ? (
+          <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '12px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING LIVE EVENTS —</div>
+        ) : events.slice(0, 8).map((e, i) => (
           <div className={'ev ' + e.cls} key={i}>
             <span className="ev-icon">{e.icon}</span>
             <span className="ev-time">{e.t}</span>
@@ -322,7 +406,8 @@ function EventFeedPanel() {
   );
 }
 
-function MetricsPanel() {
+function MetricsPanel({ mode }) {
+  const bootstrap = shouldRenderBootstrap(mode);
   return (
     <div className="panel p-waterfall">
       <div className="ptitle"><span><span className="ptitle-bar" />SYSTEM METRICS</span></div>
@@ -331,14 +416,27 @@ function MetricsPanel() {
       <div className="mc">
         <div className="mc-left">
           <div className="mc-label">WIN RATE</div>
-          <div className="mc-value g">68.4%</div>
-          <div className="mc-sub">169 wins / 247 trades</div>
+          {bootstrap ? (
+            <>
+              <div className="mc-value dim" style={{ color: 'var(--w3)' }}>—%</div>
+              <div className="mc-sub">AWAITING FIRST LIVE TRADE</div>
+            </>
+          ) : (
+            <>
+              <div className="mc-value g">68.4%</div>
+              <div className="mc-sub">169 wins / 247 trades</div>
+            </>
+          )}
         </div>
         <svg className="mc-arc" width="56" height="34" viewBox="0 0 56 34" overflow="visible">
           <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" strokeLinecap="round" />
-          <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="var(--green)" strokeWidth="5" strokeLinecap="round"
-            strokeDasharray="75.4" strokeDashoffset="24.3" opacity="0.9" />
-          <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--green)">68.4%</text>
+          {!bootstrap && (
+            <>
+              <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="var(--green)" strokeWidth="5" strokeLinecap="round"
+                strokeDasharray="75.4" strokeDashoffset="24.3" opacity="0.9" />
+              <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--green)">68.4%</text>
+            </>
+          )}
         </svg>
       </div>
 
@@ -346,18 +444,31 @@ function MetricsPanel() {
       <div className="mc">
         <div className="mc-left">
           <div className="mc-label">SHARPE RATIO</div>
-          <div className="mc-value c">2.31</div>
-          <div className="mc-sub">target ≥ 1.0 · phase 3 gate</div>
+          {bootstrap ? (
+            <>
+              <div className="mc-value dim" style={{ color: 'var(--w3)' }}>—</div>
+              <div className="mc-sub">AWAITING FIRST WEEKLY SR</div>
+            </>
+          ) : (
+            <>
+              <div className="mc-value c">2.31</div>
+              <div className="mc-sub">target ≥ 1.0 · phase 3 gate</div>
+            </>
+          )}
         </div>
         <svg className="mc-arc" width="56" height="34" viewBox="0 0 56 34" overflow="visible">
           <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" strokeLinecap="round" />
-          <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="var(--cyan)" strokeWidth="5" strokeLinecap="round"
-            strokeDasharray="75.4" strokeDashoffset="9" opacity="0.9" />
-          <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--cyan)">2.31</text>
+          {!bootstrap && (
+            <>
+              <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="var(--cyan)" strokeWidth="5" strokeLinecap="round"
+                strokeDasharray="75.4" strokeDashoffset="9" opacity="0.9" />
+              <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--cyan)">2.31</text>
+            </>
+          )}
         </svg>
       </div>
 
-      {/* LANE 2 OFFLINE (Phase 1) */}
+      {/* LANE 2 OFFLINE (Phase 1) — always OFFLINE regardless of mode toggle */}
       <div className="mc mc-delta offline">
         <div className="mc-left">
           <div className="mc-label" style={{ color: 'var(--amber)', letterSpacing: '3px' }}>LANE 2 Δ DELTA</div>
@@ -378,18 +489,31 @@ function MetricsPanel() {
       <div className="mc">
         <div className="mc-left">
           <div className="mc-label">CONVICTION TIERS</div>
-          <div className="mc-value" style={{ color: 'var(--amber)', fontSize: '18px' }}>MAX 41%</div>
-          <div className="mc-sub">High 33% · Std 26% · sizing ×1.5 / ×1.25 / ×1.0</div>
+          {bootstrap ? (
+            <>
+              <div className="mc-value dim" style={{ color: 'var(--w3)', fontSize: '18px' }}>— PENDING</div>
+              <div className="mc-sub">AWAITING FIRST TRADE</div>
+            </>
+          ) : (
+            <>
+              <div className="mc-value" style={{ color: 'var(--amber)', fontSize: '18px' }}>MAX 41%</div>
+              <div className="mc-sub">High 33% · Std 26% · sizing ×1.5 / ×1.25 / ×1.0</div>
+            </>
+          )}
         </div>
         <svg width="56" height="56" viewBox="0 0 56 56" style={{ flexShrink: 0 }}>
           <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="7" />
-          <circle cx="28" cy="28" r="22" fill="none" stroke="var(--w3)" strokeWidth="7"
-            strokeDasharray="35.9 102.1" strokeDashoffset="0" transform="rotate(-90 28 28)" />
-          <circle cx="28" cy="28" r="22" fill="none" stroke="var(--cyan)" strokeWidth="7"
-            strokeDasharray="45.6 92.4" strokeDashoffset="-35.9" transform="rotate(-90 28 28)" />
-          <circle cx="28" cy="28" r="22" fill="none" stroke="var(--amber)" strokeWidth="7"
-            strokeDasharray="56.5 81.5" strokeDashoffset="-81.5" transform="rotate(-90 28 28)" />
-          <text x="28" y="31" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--amber)">41%</text>
+          {!bootstrap && (
+            <>
+              <circle cx="28" cy="28" r="22" fill="none" stroke="var(--w3)" strokeWidth="7"
+                strokeDasharray="35.9 102.1" strokeDashoffset="0" transform="rotate(-90 28 28)" />
+              <circle cx="28" cy="28" r="22" fill="none" stroke="var(--cyan)" strokeWidth="7"
+                strokeDasharray="45.6 92.4" strokeDashoffset="-35.9" transform="rotate(-90 28 28)" />
+              <circle cx="28" cy="28" r="22" fill="none" stroke="var(--amber)" strokeWidth="7"
+                strokeDasharray="56.5 81.5" strokeDashoffset="-81.5" transform="rotate(-90 28 28)" />
+              <text x="28" y="31" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--amber)">41%</text>
+            </>
+          )}
         </svg>
       </div>
     </div>
@@ -397,13 +521,27 @@ function MetricsPanel() {
 }
 
 function KernelPanel() {
-  // Three.js scene wired in Step F. Step C renders the static overlays + empty canvas.
+  const canvasRef = useRef(null);
+  const [counts, setCounts] = useState({ nodes: KERNEL_COUNTS.nodes, edges: KERNEL_COUNTS.edges });
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const k = initKernelScene(canvas);
+    setCounts(k.counts);
+    const onResize = () => k.resize();
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      k.destroy();
+    };
+  }, []);
+
   return (
     <div className="panel p-kernel">
-      <canvas id="kernel-canvas" />
+      <canvas id="kernel-canvas" ref={canvasRef} />
       <div className="kernel-overlay">
         <span className="kernel-title">KNOWLEDGE KERNELS</span>
-        <span className="kernel-count">{KERNEL_COUNTS.nodes} NODES · {KERNEL_COUNTS.edges} EDGES</span>
+        <span className="kernel-count">{counts.nodes} NODES · {counts.edges} EDGES</span>
       </div>
       <div className="kernel-legend">
         <div className="kl-item"><span className="kl-dot" style={{ background: '#00c2ff' }} />TRADES</div>
@@ -421,8 +559,24 @@ function KernelPanel() {
   );
 }
 
-function ReturnsMatrixPanel() {
+function ReturnsMatrixPanel({ mode }) {
+  const bootstrap = shouldRenderBootstrap(mode);
   const m = RETURNS_MATRIX;
+
+  if (bootstrap) {
+    return (
+      <div className="panel p-returns">
+        <div className="ptitle">
+          <span><span className="ptitle-bar" />RETURNS BY DOMAIN</span>
+          <span className="ptitle-r">3×3</span>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--w3)', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px', textAlign: 'center', padding: '12px' }}>
+          — AWAITING LIVE TRADES —
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="panel p-returns">
       <div className="ptitle">
@@ -439,7 +593,6 @@ function ReturnsMatrixPanel() {
           {m.rows.map((row) => (
             <RowRender key={row.label} row={row} />
           ))}
-          {/* aggregate row */}
           <div className="matrix-rh sigma">Σ</div>
           {m.colSigma.map((c, i) => (
             <div className="matrix-cell sigma-row" key={i}>
@@ -456,6 +609,7 @@ function ReturnsMatrixPanel() {
     </div>
   );
 }
+
 function RowRender({ row }) {
   return (
     <>
@@ -476,6 +630,7 @@ function RowRender({ row }) {
 }
 
 function RulesAddedPanel() {
+  // Rules are system-wide (written by §11 learning loop), not phase-filtered.
   return (
     <div className="panel p-rules">
       <div className="ptitle">
@@ -501,7 +656,21 @@ function RulesAddedPanel() {
 }
 
 function Ticker() {
-  const all = [...TICKER, ...TICKER];
+  const tick = useTickerWobble(TICKER);
+  // Apply ±0.1% wobble per item per tick (cosmetic per Portal Spec)
+  const wobbled = useMemo(() => TICKER.map((t, i) => {
+    const seed = Math.sin((tick + 1) * (i + 1) * 0.37);
+    const wobble = seed * 0.001;
+    const numericPx = parseFloat(t.p.replace(/,/g, ''));
+    if (Number.isFinite(numericPx)) {
+      const next = numericPx * (1 + wobble);
+      const decimals = t.p.includes('.') ? (t.p.split('.')[1].length) : 0;
+      const formatted = next.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+      return { ...t, p: formatted };
+    }
+    return t;
+  }), [tick]);
+  const all = [...wobbled, ...wobbled];
   return (
     <div className="ticker">
       <div className="ticker-inner">

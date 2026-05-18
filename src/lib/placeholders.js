@@ -137,6 +137,45 @@ export const KERNEL_COUNTS = {
   phase: 1,
 };
 
+// Trade demo sequence — Step G timing per locked baseline.
+// PC fires modal overlay + event feed; mobile fires event feed only (Section G).
+export const TRADE_DEMO_SEQUENCE = [
+  {
+    delay: 5000,
+    overlay: {
+      type: 'open',
+      asset: 'SOL/USD',
+      entry: 182.4,
+      composite: 88,
+      conviction: 'MAX TIER',
+      convColor: 'var(--green)',
+      convBg: 'var(--green2)',
+      inds: [
+        { name: 'RSI-14', val: '28.4 OVERSOLD', positive: true },
+        { name: 'EMA-20', val: 'BULLISH CROSS', positive: true },
+        { name: 'VWAP',   val: 'PRICE ABOVE',  positive: true },
+        { name: 'MACD',   val: 'SIGNAL CROSS', positive: true },
+      ],
+    },
+    event: { cls: 'open', icon: '▶', text: 'TRADE OPEN · SOL/USD · AGG track · MAX conviction', val: null, valcls: '' },
+  },
+  {
+    delay: 18000,
+    overlay: {
+      type: 'close-win',
+      asset: 'BTC/USD',
+      exit: 69182,
+      hold: '3h 22m',
+      pnl: 876.5,
+      pnlPct: 1.30,
+      conviction: 'MAX TIER',
+      convColor: 'var(--green)',
+      convBg: 'var(--green2)',
+    },
+    event: { cls: 'close-win', icon: '✓', text: 'TRADE CLOSED · BTC/USD · target hit', val: '+1.30%', valcls: 'g' },
+  },
+];
+
 // Logo SVG markup (identical in both baselines).
 // Kept here so PCApp and MobileApp render the same mark.
 export const LOGO_SVG = `<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
