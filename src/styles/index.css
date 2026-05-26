@@ -309,16 +309,17 @@ body::after {
   font-size: 9px;
   letter-spacing: 1px;
 }
-/* Portal v1.2 Change 4 (2026-05-26): macro marquee 180s → 90s. The 180s
-   loop was too slow — items barely moved. 90s matches per-asset
-   NewsTicker cadence (slightly faster since the macro feed is typically
-   leaner per cycle). Hover-to-pause preserved. */
+/* Portal v1.4 fix (2026-05-26): 90s → 60s. v1.2 went 180s → 90s; that
+   still ran ~3.0 sec per macro item vs. the bottom asset-price ticker's
+   ~2.0 sec/item rhythm. 60s aligns macro cadence with the bottom ticker
+   (~30 macro items × 2.0 sec = 60s) so the two streaming surfaces share
+   visual rhythm. Hover-to-pause preserved. */
 .pc-shell .macro-strip-inner {
   flex: 1;
   display: flex;
   white-space: nowrap;
   overflow: hidden;
-  animation: macro-scroll 90s linear infinite;
+  animation: macro-scroll 60s linear infinite;
 }
 .pc-shell .macro-strip-wrap:hover .macro-strip-inner { animation-play-state: paused; }
 @keyframes macro-scroll {
@@ -414,7 +415,7 @@ body::after {
 .mobile-shell .macro-strip-empty { display: flex; align-items: center; width: 100%; height: 100%; gap: 6px; padding-left: 6px; }
 .mobile-shell .macro-label { flex-shrink: 0; font-family: var(--disp); font-weight: 700; font-size: 8px; letter-spacing: 2px; color: var(--amber); padding: 2px 5px; border: 1px solid var(--amber); background: var(--amber2); }
 .mobile-shell .macro-empty-text { color: var(--w3); font-family: var(--mono); font-size: 9px; letter-spacing: 1px; }
-.mobile-shell .macro-strip-inner { flex: 1; display: flex; white-space: nowrap; overflow: hidden; animation: macro-scroll 90s linear infinite; }
+.mobile-shell .macro-strip-inner { flex: 1; display: flex; white-space: nowrap; overflow: hidden; animation: macro-scroll 60s linear infinite; }
 .mobile-shell .macro-item { display: flex; align-items: center; gap: 5px; padding: 0 10px; font-family: var(--mono); font-size: 9px; }
 .mobile-shell .macro-time { color: var(--w3); font-size: 7px; }
 .mobile-shell .macro-source { color: var(--w2); font-weight: 700; letter-spacing: 0.5px; }
@@ -471,6 +472,18 @@ body::after {
 
 .pc-shell .col-scanner { display:flex; flex-direction:column; background:rgba(0,194,255,0.05); }
 .pc-shell .col-scanner .panel { flex:1; }
+/* Portal v1.4 fix (2026-05-26): min-height:0 on the col-scanner chain.
+   Without these, the grid item's default min-height:auto resolves to the
+   intrinsic height of the doubled scanner row list (~1380px for 46 rows),
+   inflating the entire .main grid row track. That pushed the trade-list
+   column headers below the viewport and squeezed the per-asset NewsTicker
+   out of sight. min-height:0 opts the chain out of auto-min-content sizing
+   so .scanner-list's overflow:hidden actually clips and the row track
+   collapses to the available 1fr height. Mobile is OK as-is (already
+   bounded by max-height: 70vh on .mobile-shell .scanner-list). */
+.pc-shell .col-scanner,
+.pc-shell .col-scanner .panel,
+.pc-shell .scanner-list { min-height: 0; }
 
 .pc-shell .col-center { display:grid; grid-template-rows: 50% 15% 35%; gap:1px; background:rgba(0,194,255,0.05); min-width:0; }
 .pc-shell .col-metrics { display:grid; grid-template-rows: 1fr 1fr; gap:1px; background:rgba(0,194,255,0.05); }
@@ -486,7 +499,11 @@ body::after {
 .pc-shell .scanner-list { flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative; }
 .pc-shell .scanner-list-inner {
   display:flex; flex-direction:column; gap:2px;
-  animation: scanner-vscroll 60s linear infinite;
+  /* Portal v1.4 fix (2026-05-26): 60s → 40s. With 46 doubled rows, this
+     produces ~1.74 sec per row partial-visibility — noticeably faster than
+     the prior 1.3 sec/row while staying readable (sub-30s would blur
+     scores past the operator's saccade window). */
+  animation: scanner-vscroll 40s linear infinite;
 }
 .pc-shell .scanner-list:hover .scanner-list-inner { animation-play-state: paused; }
 @keyframes scanner-vscroll {
@@ -521,7 +538,22 @@ body::after {
 .pc-shell .sscore.lo { color:var(--w3); }
 .pc-shell .sscore.mi { color:var(--amber); }
 .pc-shell .sscore.hi { color:var(--green); }
-.pc-shell .fired-badge { position:absolute; right:4px; top:50%; transform:translateY(-50%); font-family:var(--mono); font-size:7px; color:var(--green); border:1px solid var(--green); padding:1px 4px; background:var(--green2); letter-spacing:1px; }
+/* Portal v1.4 fix (2026-05-26): FIRED badge collided with the rightmost
+   .sscore cell (both right-anchored) producing "FIR65" mash. Replaced
+   with a pulsing 3px green left-edge stripe via .srow.fired::before —
+   re-uses the existing scanner-fired-pulse keyframe so the stripe and
+   the row background pulse in lockstep. JSX intentionally preserved
+   (display:none) as a fallback signal if the pseudo-element is ever
+   disabled in a future cycle. */
+.pc-shell .srow.fired::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--green);
+  animation: scanner-fired-pulse 1.5s ease-in-out infinite;
+}
+.pc-shell .fired-badge { display: none; }
 
 /* positions table */
 .pc-shell .pos-table { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:9px; flex:1; }
@@ -842,7 +874,8 @@ body::after {
 .mobile-shell .scanner-list { display:flex; flex-direction:column; overflow:hidden; position:relative; max-height: 70vh; }
 .mobile-shell .scanner-list-inner {
   display:flex; flex-direction:column; gap:3px;
-  animation: scanner-vscroll 60s linear infinite;
+  /* Portal v1.4 fix (2026-05-26): mobile parity with PC — 60s → 40s. */
+  animation: scanner-vscroll 40s linear infinite;
 }
 .mobile-shell .scanner-list:hover .scanner-list-inner,
 .mobile-shell .scanner-list:active .scanner-list-inner { animation-play-state: paused; }
@@ -865,7 +898,16 @@ body::after {
 .mobile-shell .sscore.lo { color:var(--w3); }
 .mobile-shell .sscore.mi { color:var(--amber); }
 .mobile-shell .sscore.hi { color:var(--green); }
-.mobile-shell .fired-badge { position:absolute; right:4px; top:50%; transform:translateY(-50%); font-family:var(--mono); font-size:7px; color:var(--green); border:1px solid var(--green); padding:1px 4px; background:var(--green2); letter-spacing:1px; }
+/* Portal v1.4 fix (2026-05-26): mobile mirror of PC stripe pattern. */
+.mobile-shell .srow.fired::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--green);
+  animation: scanner-fired-pulse 1.5s ease-in-out infinite;
+}
+.mobile-shell .fired-badge { display: none; }
 
 /* mobile metric cards */
 .mobile-shell .mc { display:flex; align-items:center; justify-content:space-between; background:var(--navy3); border:1px solid var(--border); padding:10px 12px; margin-bottom:6px; gap:10px; }
