@@ -140,6 +140,44 @@ body::after {
 .pc-shell .poll-fill { position:absolute; inset:2px; border-radius:50%; background:var(--w3); transform:scale(0); transition:transform 0.2s; }
 .pc-shell .poll-ring.active .poll-fill { transform:scale(1); background:var(--cyan); }
 
+/* ─── Change 2: Engine pill (3-state, replaces SYSTEM ACTIVE) ─── */
+.pc-shell .pill-engine.state-live    { color:var(--green); }
+.pc-shell .pill-engine.state-stale   { color:var(--amber); }
+.pc-shell .pill-engine.state-stopped { color:var(--red); }
+.pc-shell .engine-dot.dot-live    { background:var(--green); box-shadow:0 0 6px var(--green); animation:pdot 2s ease-in-out infinite; }
+.pc-shell .engine-dot.dot-stale   { background:var(--amber); box-shadow:0 0 6px var(--amber); animation:pdot 4s ease-in-out infinite; }
+.pc-shell .engine-dot.dot-stopped { background:var(--red);   box-shadow:0 0 6px var(--red);   animation:none; }
+
+/* ─── Change 3: Prominent poll indicator in header ─── */
+.pc-shell .poll-prom {
+  display:flex; align-items:center; gap:6px;
+  font-family:var(--mono); letter-spacing:1px;
+  padding:2px 8px; border:1px solid var(--border);
+}
+.pc-shell .poll-prom-ring {
+  width:16px; height:16px; border-radius:50%;
+  border:1px solid var(--w3); position:relative;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.pc-shell .poll-prom-fill {
+  position:absolute; inset:3px; border-radius:50%;
+  background:var(--w3); transform:scale(0);
+  transition: transform 0.3s, background 0.3s;
+}
+.pc-shell .poll-prom.fired .poll-prom-ring {
+  border-color:var(--cyan);
+  box-shadow:0 0 10px rgba(0,194,255,0.65);
+}
+.pc-shell .poll-prom.fired .poll-prom-fill {
+  transform:scale(1); background:var(--cyan);
+}
+.pc-shell .poll-prom-label {
+  font-size:8px; color:var(--w3); letter-spacing:2px;
+}
+.pc-shell .poll-prom-count {
+  font-size:13px; color:var(--cyan); min-width:30px; text-align:right;
+}
+
 .pc-shell .main {
   flex: 1;
   display: grid;
@@ -384,6 +422,37 @@ body::after {
 .mobile-shell .poll-ring { width:10px; height:10px; border-radius:50%; border:1px solid var(--w3); position:relative; }
 .mobile-shell .poll-fill { position:absolute; inset:2px; border-radius:50%; background:var(--w3); transform:scale(0); transition:transform 0.2s; }
 .mobile-shell .poll-ring.active .poll-fill { transform:scale(1); background:var(--cyan); }
+
+/* Mobile engine dot — overrides the phase-badge .status-dot color when the
+   .engine-dot class is present (mobile EnginePill variant). */
+.mobile-shell .status-dot.engine-dot.dot-live    { background:var(--green); box-shadow:0 0 6px var(--green); animation:pdot 2s ease-in-out infinite; }
+.mobile-shell .status-dot.engine-dot.dot-stale   { background:var(--amber); box-shadow:0 0 6px var(--amber); animation:pdot 4s ease-in-out infinite; }
+.mobile-shell .status-dot.engine-dot.dot-stopped { background:var(--red);   box-shadow:0 0 6px var(--red);   animation:none; }
+
+/* Mobile compact poll indicator (header right) */
+.mobile-shell .poll-prom {
+  display:flex; align-items:center; gap:4px;
+  font-family:var(--mono); letter-spacing:0.5px;
+}
+.mobile-shell .poll-prom-ring {
+  width:12px; height:12px; border-radius:50%;
+  border:1px solid var(--w3); position:relative;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.mobile-shell .poll-prom-fill {
+  position:absolute; inset:2px; border-radius:50%;
+  background:var(--w3); transform:scale(0);
+  transition: transform 0.3s, background 0.3s;
+}
+.mobile-shell .poll-prom.fired .poll-prom-ring {
+  border-color:var(--cyan); box-shadow:0 0 8px rgba(0,194,255,0.65);
+}
+.mobile-shell .poll-prom.fired .poll-prom-fill {
+  transform:scale(1); background:var(--cyan);
+}
+.mobile-shell .poll-prom-count {
+  font-size:10px; color:var(--cyan);
+}
 
 .mobile-shell .tab-wrap { flex:1; overflow:hidden; position:relative; display:flex; flex-direction:column; }
 .mobile-shell .tab-content { flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; display:none; padding-bottom:8px; }

@@ -289,6 +289,39 @@ export function adaptRulesFoot(data) {
   };
 }
 
+// ── Engine heartbeat (reconciliation Section K) ──────────────────────
+// Returns { state, minutesAgo, lastWriteEt, lastWriteIso } or null.
+// State thresholds:
+//   LIVE     (green pulse)       — last engine write within 7 minutes
+//   STALE    (amber slow pulse)  — 7 to 30 minutes since last write
+//   STOPPED  (red, no pulse)     — 30+ minutes since last write OR no data
+// 7-min LIVE threshold accommodates the 5-min stock REST polling cycle
+// plus headroom; 30-min STOPPED threshold catches genuine engine death
+// without flapping on normal idle gaps.
+const ET_HEARTBEAT_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: TZ,
+  year: 'numeric', month: 'short', day: '2-digit',
+  hour: 'numeric', minute: '2-digit', hour12: true,
+});
+
+export function adaptHeartbeat(data) {
+  const h = data?.heartbeat;
+  if (!h || !h.last_engine_write) {
+    return { state: 'stopped', minutesAgo: null, lastWriteEt: null, lastWriteIso: null };
+  }
+  const iso = h.last_engine_write;
+  const lastMs = new Date(iso).getTime();
+  if (!Number.isFinite(lastMs)) {
+    return { state: 'stopped', minutesAgo: null, lastWriteEt: null, lastWriteIso: iso };
+  }
+  const minutesAgo = Math.max(0, Math.floor((Date.now() - lastMs) / 60_000));
+  const state = minutesAgo <= 7 ? 'live'
+              : minutesAgo <= 30 ? 'stale'
+              : 'stopped';
+  const lastWriteEt = ET_HEARTBEAT_FORMATTER.format(new Date(iso));
+  return { state, minutesAgo, lastWriteEt, lastWriteIso: iso };
+}
+
 // ── Kernel counts (for the overlays — not the scene itself) ──────────
 // Phase 1.1: IndicatorNodes don't exist yet (Phase 4+). When they do, this
 // returns the real node/edge counts. Until then, null → the Three.js scene

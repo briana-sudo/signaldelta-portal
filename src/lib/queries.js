@@ -52,6 +52,11 @@ export const Q_RULES_FOOT = 'rules_footer';
 export const Q_MONITORED_ASSETS = 'monitored_assets';
 export const Q_TRADE_OVERLAY_ENRICHMENT = 'trade_overlay_enrichment';
 
+// ── Engine heartbeat (reconciliation Section K) ──
+// Returns single row {last_engine_write: ISO timestamp} — max across the 6
+// engine-written node types. Drives the LIVE/STALE/STOPPED EnginePill.
+export const Q_ENGINE_HEARTBEAT = 'engine_heartbeat';
+
 // Mode toggle helper — Phase 4 will append phase filter server-side once
 // §14 amendments land the `phase` field on TradeNode + WeeklyContextNode
 // + EquitySnapshotNode. Phase 1.1 returns null (no filter) since the

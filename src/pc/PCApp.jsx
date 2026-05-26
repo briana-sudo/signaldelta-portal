@@ -10,10 +10,13 @@ import {
   adaptWinRate, adaptSharpe, adaptLane2, adaptConviction,
   adaptEquityCurve, adaptEquityHeader,
   adaptRulesThisWeek, adaptRulesFoot,
+  adaptHeartbeat,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
+import EnginePill from '../lib/EnginePill.jsx';
+import PollIndicator from '../lib/PollIndicator.jsx';
 import TradeOverlay from './TradeOverlay.jsx';
 
 const MODES = ['live', 'training', 'combined'];
@@ -40,17 +43,26 @@ export default function PCApp({ data, errors = {}, hasAnyData = false, error, lo
   // falls back to the hardcoded constant until the first poll lands.
   const liveAccountBar = adaptAccountBar(data);
   const currentPhase = liveAccountBar?.currentPhase || CURRENT_PHASE;
+  const heartbeat = adaptHeartbeat(data);
+  const pollTimestamp = data?.pollTimestamp;
 
   return (
     <div className="pc-shell">
       <StatusBanner error={error} errors={errors} hasAnyData={hasAnyData} />
-      <Header clock={clock} mode={mode} setMode={setMode} currentPhase={currentPhase} />
-      <AccountBar
+      <Header
+        clock={clock}
+        mode={mode}
+        setMode={setMode}
+        currentPhase={currentPhase}
+        heartbeat={heartbeat}
         pollSecs={pollSecs}
         pollPulse={pollPulse}
+      />
+      <AccountBar
         mode={mode}
         liveAccountBar={liveAccountBar}
         liveWeeklyWaterfall={adaptWeeklyWaterfall(data)}
+        pollTimestamp={pollTimestamp}
       />
       <Main mode={mode} data={data} />
       <Ticker />
@@ -115,7 +127,7 @@ function LoadingBadge() {
   );
 }
 
-function Header({ clock, mode, setMode, currentPhase }) {
+function Header({ clock, mode, setMode, currentPhase, heartbeat, pollSecs, pollPulse }) {
   return (
     <div className="hdr">
       <div className="logo">
@@ -127,7 +139,7 @@ function Header({ clock, mode, setMode, currentPhase }) {
         </div>
       </div>
       <div className="hdr-mid">
-        <div className="pill"><div className="dot dot-green" />SYSTEM ACTIVE</div>
+        <EnginePill heartbeat={heartbeat} variant="pc" />
         <div className="pill"><div className="dot dot-cyan" />{currentPhase === 'Paper' ? 'PAPER TRADING' : currentPhase.toUpperCase()}</div>
         <PerformanceBadge mode={mode} currentPhase={currentPhase} />
         <div className="mode-toggle">
@@ -139,6 +151,7 @@ function Header({ clock, mode, setMode, currentPhase }) {
             >{m.toUpperCase()}</div>
           ))}
         </div>
+        <PollIndicator secs={pollSecs} pulse={pollPulse} variant="pc" />
       </div>
       <div className="clock">
         <span className="clock-et">{clock.et} ET</span>
@@ -154,12 +167,13 @@ function PerformanceBadge({ mode, currentPhase }) {
   return <div className={'sim-tag t-' + tone}>{text}</div>;
 }
 
-function AccountBar({ pollSecs, pollPulse, mode, liveAccountBar, liveWeeklyWaterfall }) {
+function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, pollTimestamp }) {
   const bootstrap = shouldRenderBootstrap(mode) || !liveAccountBar;
   const capitalBase = liveAccountBar?.capitalBase ?? 10000;
   const { av, ap } = useAccountDrift({
     initialValue: liveAccountBar?.currentValue ?? capitalBase,
     initialPnl: liveAccountBar?.todayPnl ?? 0,
+    pollTimestamp,
     enabled: !bootstrap,
   });
   const totalReturnPct = capitalBase ? ((av - capitalBase) / capitalBase) * 100 : 0;
@@ -193,11 +207,7 @@ function AccountBar({ pollSecs, pollPulse, mode, liveAccountBar, liveWeeklyWater
       </div>
       <div className="acct-divider" />
       <MiniWaterfall mode={mode} liveWeeklyWaterfall={liveWeeklyWaterfall} />
-      <div className="acct-divider" />
-      <div className="poll-ind">
-        <div className={'poll-ring' + (pollPulse ? ' active' : '')}><div className="poll-fill" /></div>
-        <span>SYNC: {pollSecs}s</span>
-      </div>
+      {/* Poll indicator moved to header per Change 3 dispatch — see <PollIndicator/> */}
     </div>
   );
 }
@@ -357,7 +367,7 @@ function PositionsPanel({ mode, data }) {
   const livePositions = adaptPositions(data);
   const bootstrap = shouldRenderBootstrap(mode) || !livePositions;
   const positions = livePositions ?? [];
-  const offsets = usePositionDrift(positions, { enabled: !bootstrap });
+  const offsets = usePositionDrift(positions, { pollTimestamp: data?.pollTimestamp, enabled: !bootstrap });
 
   return (
     <div className="panel p-positions">

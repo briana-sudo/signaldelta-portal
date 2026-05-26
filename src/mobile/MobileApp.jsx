@@ -10,10 +10,13 @@ import {
   adaptWinRate, adaptSharpe, adaptConviction,
   adaptEquityCurve, adaptEquityHeader,
   adaptRulesThisWeek, adaptRulesFoot,
+  adaptHeartbeat,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
+import EnginePill from '../lib/EnginePill.jsx';
+import PollIndicator from '../lib/PollIndicator.jsx';
 
 const MODES = ['live', 'training', 'combined'];
 const DEFAULT_MODE = 'training';
@@ -43,21 +46,29 @@ export default function MobileApp({ data, errors = {}, hasAnyData = false, error
   const liveAccountBar = adaptAccountBar(data);
   const currentPhase = liveAccountBar?.currentPhase || CURRENT_PHASE;
   const liveEvents = adaptEvents(data);
+  const heartbeat = adaptHeartbeat(data);
+  const pollTimestamp = data?.pollTimestamp;
 
   return (
     <div className="mobile-shell">
       <MobileStatusBanner error={error} errors={errors} hasAnyData={hasAnyData} />
-      <MobileHeader clock={clock} mode={mode} currentPhase={currentPhase} />
-      <ModeToggle mode={mode} setMode={setMode} />
-      <MobileAccountBar
+      <MobileHeader
+        clock={clock}
+        mode={mode}
+        currentPhase={currentPhase}
+        heartbeat={heartbeat}
         pollSecs={pollSecs}
         pollPulse={pollPulse}
+      />
+      <ModeToggle mode={mode} setMode={setMode} />
+      <MobileAccountBar
         mode={mode}
         liveAccountBar={liveAccountBar}
+        pollTimestamp={pollTimestamp}
       />
       <div className="tab-wrap">
         <div className={'tab-content' + (tab === 'desk' ? ' active' : '')}>
-          <DeskTab mode={mode} data={data} eventsCount={liveEvents?.length ?? 0} />
+          <DeskTab mode={mode} data={data} eventsCount={liveEvents?.length ?? 0} pollTimestamp={pollTimestamp} />
         </div>
         <div className={'tab-content' + (tab === 'scan' ? ' active' : '')}>
           <ScanTab mode={mode} />
@@ -125,8 +136,11 @@ function MobileLoadingBadge() {
   );
 }
 
-function MobileHeader({ clock, mode, currentPhase }) {
-  const { text, dot } = useMemo(() => computeBadge(currentPhase, mode), [mode, currentPhase]);
+function MobileHeader({ clock, mode, currentPhase, heartbeat, pollSecs, pollPulse }) {
+  // Section E.1 phase badge dot + Section K engine heartbeat dot + Section K
+  // prominent poll indicator. Phase dot reflects paper/live/split per the
+  // performanceBadge selector; engine dot reflects engine liveness independently.
+  const { text: badgeText, dot } = useMemo(() => computeBadge(currentPhase, mode), [mode, currentPhase]);
   return (
     <div className="hdr">
       <div className="logo">
@@ -137,12 +151,14 @@ function MobileHeader({ clock, mode, currentPhase }) {
         </div>
       </div>
       <div className="hdr-right">
-        <div className={'status-dot dot-' + dot} title={text} />
+        <div className={'status-dot dot-' + dot} title={badgeText} />
+        <EnginePill heartbeat={heartbeat} variant="mobile" />
         <div className="clock">
           <span className="clock-et">{clock.etCompact}</span>
           <span className="clock-sep">·</span>
           <span className="clock-utc">{clock.utcCompact}</span>
         </div>
+        <PollIndicator secs={pollSecs} pulse={pollPulse} variant="mobile" />
       </div>
     </div>
   );
@@ -162,12 +178,13 @@ function ModeToggle({ mode, setMode }) {
   );
 }
 
-function MobileAccountBar({ pollSecs, pollPulse, mode, liveAccountBar }) {
+function MobileAccountBar({ mode, liveAccountBar, pollTimestamp }) {
   const bootstrap = shouldRenderBootstrap(mode) || !liveAccountBar;
   const capitalBase = liveAccountBar?.capitalBase ?? 10000;
   const { av, ap } = useAccountDrift({
     initialValue: liveAccountBar?.currentValue ?? capitalBase,
     initialPnl: liveAccountBar?.todayPnl ?? 0,
+    pollTimestamp,
     enabled: !bootstrap,
   });
   const totalReturnPct = capitalBase ? ((av - capitalBase) / capitalBase) * 100 : 0;
@@ -193,12 +210,7 @@ function MobileAccountBar({ pollSecs, pollPulse, mode, liveAccountBar }) {
           ? <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>
           : <span className={'aval ' + cls(ap)}>{sign(ap)}${Math.abs(ap).toFixed(2)}</span>}
       </div>
-      <div className="sync-edge">
-        <div className="poll-ind">
-          <div className={'poll-ring' + (pollPulse ? ' active' : '')}><div className="poll-fill" /></div>
-          <span>{pollSecs}s</span>
-        </div>
-      </div>
+      {/* Poll indicator moved to mobile header per Change 3 dispatch */}
     </div>
   );
 }
@@ -220,14 +232,14 @@ function TabBar({ tab, setTab }) {
   );
 }
 
-function DeskTab({ mode, data, eventsCount }) {
+function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
   const livePositions = adaptPositions(data);
   const liveWaterfall = adaptWeeklyWaterfall(data);
   const liveAccountBar = adaptAccountBar(data);
   const posBoot = shouldRenderBootstrap(mode) || !livePositions;
   const wfBoot = shouldRenderBootstrap(mode) || !liveWaterfall;
   const positions = livePositions ?? [];
-  const offsets = usePositionDrift(positions, { enabled: !posBoot });
+  const offsets = usePositionDrift(positions, { pollTimestamp, enabled: !posBoot });
 
   return (
     <>

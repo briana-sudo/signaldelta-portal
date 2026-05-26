@@ -34,6 +34,7 @@ import {
   Q_KERNEL_NODES, Q_KERNEL_EDGES,
   Q_EQUITY_CURVE, Q_EQUITY_HEADER,
   Q_RULES_THIS_WEEK, Q_RULES_FOOT,
+  Q_ENGINE_HEARTBEAT,
 } from '../lib/queries.js';
 
 const POLL_INTERVAL_MS = 60_000;
@@ -55,6 +56,7 @@ const QUERY_SPECS = [
   { key: 'equityHeader',     name: Q_EQUITY_HEADER,    singleton: true  },
   { key: 'rulesThisWeek',    name: Q_RULES_THIS_WEEK,  singleton: false },
   { key: 'rulesFoot',        name: Q_RULES_FOOT,       singleton: true  },
+  { key: 'heartbeat',        name: Q_ENGINE_HEARTBEAT, singleton: true  },
 ];
 
 function getProxyConfig() {
