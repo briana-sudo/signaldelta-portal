@@ -205,11 +205,12 @@ body::after {
    inner ≠ 50% of doubled content, so the loop snap-jumped at iteration
    boundary. Now mirrors the working bottom asset ticker pattern: wrap
    does the single clipping, inner sizes to natural (doubled) content,
-   translateX(-50%) = exactly one copy = seamless. */
+   translateX(-50%) = exactly one copy = seamless.
+   v1.5.1 (2026-05-26): 120s → 80s per operator — system events felt slow. */
 .pc-shell .system-strip-inner {
   display: flex;
   white-space: nowrap;
-  animation: system-scroll 120s linear infinite;
+  animation: system-scroll 80s linear infinite;
 }
 .pc-shell .system-strip-wrap:hover .system-strip-inner { animation-play-state: paused; }
 @keyframes system-scroll {
@@ -336,11 +337,13 @@ body::after {
    visual rhythm. Hover-to-pause preserved. */
 /* Portal v1.5 fix (2026-05-26): same as .system-strip-inner above —
    dropped flex:1 + overflow:hidden so the doubled-content seamless loop
-   actually loops seamlessly. */
+   actually loops seamlessly.
+   v1.5.1 (2026-05-26): 60s → 120s per operator — once the seamless loop
+   actually worked, 60s was 2× too fast for reading macro headlines. */
 .pc-shell .macro-strip-inner {
   display: flex;
   white-space: nowrap;
-  animation: macro-scroll 60s linear infinite;
+  animation: macro-scroll 120s linear infinite;
 }
 .pc-shell .macro-strip-wrap:hover .macro-strip-inner { animation-play-state: paused; }
 @keyframes macro-scroll {
@@ -397,10 +400,11 @@ body::after {
   background: var(--navy2); padding: 0 6px;
 }
 .mobile-shell .system-strip-empty-text { color: var(--w3); letter-spacing: 1px; font-size: 9px; }
-/* Portal v1.5 fix (2026-05-26): mobile mirror — dropped flex:1 + overflow:hidden. */
+/* Portal v1.5 fix (2026-05-26): mobile mirror — dropped flex:1 + overflow:hidden.
+   v1.5.1 (2026-05-26): mobile parity with PC — 90s → 80s. */
 .mobile-shell .system-strip-inner {
   display: flex; white-space: nowrap;
-  animation: system-scroll 90s linear infinite;
+  animation: system-scroll 80s linear infinite;
 }
 .mobile-shell .system-strip-wrap:hover .system-strip-inner { animation-play-state: paused; }
 .mobile-shell .system-item { display: flex; align-items: center; gap: 5px; padding: 0 10px; font-family: var(--mono); font-size: 9px; }
@@ -442,8 +446,9 @@ body::after {
 /* Portal v1.5 fix (2026-05-26): mobile mirror of PC macro-label stacking. */
 .mobile-shell .macro-label { flex-shrink: 0; font-family: var(--disp); font-weight: 700; font-size: 8px; letter-spacing: 2px; color: var(--amber); padding: 2px 5px; border: 1px solid var(--amber); background: var(--amber2); position: relative; z-index: 2; }
 .mobile-shell .macro-empty-text { color: var(--w3); font-family: var(--mono); font-size: 9px; letter-spacing: 1px; }
-/* Portal v1.5 fix (2026-05-26): mobile mirror — dropped flex:1 + overflow:hidden. */
-.mobile-shell .macro-strip-inner { display: flex; white-space: nowrap; animation: macro-scroll 60s linear infinite; }
+/* Portal v1.5 fix (2026-05-26): mobile mirror — dropped flex:1 + overflow:hidden.
+   v1.5.1 (2026-05-26): mobile parity with PC — 60s → 120s. */
+.mobile-shell .macro-strip-inner { display: flex; white-space: nowrap; animation: macro-scroll 120s linear infinite; }
 .mobile-shell .macro-item { display: flex; align-items: center; gap: 5px; padding: 0 10px; font-family: var(--mono); font-size: 9px; }
 .mobile-shell .macro-time { color: var(--w3); font-size: 7px; }
 .mobile-shell .macro-source { color: var(--w2); font-weight: 700; letter-spacing: 0.5px; }
