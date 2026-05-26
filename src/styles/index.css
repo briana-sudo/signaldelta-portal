@@ -161,51 +161,56 @@ body::after {
   padding: 0;
   overflow: hidden;
 }
-/* Portal v1.1 status-strip 5-event-cycle dispatch (2026-05-26):
-   replaces the single-line "Last event:" readout with a 3-visible
-   vertical cycle. Header label "SYSTEM EVENTS" left, stack on the right.
-   Stack remounts (via key={pos}) on each cycle and plays the stack-step
-   keyframe — 500ms ease-out per spec. depth-0 sharp / 1 dimmer / 2 dimmest. */
-.pc-shell .p-news-status .status-strip {
+/* Portal v1.2 Change 2 (2026-05-26): SYSTEM EVENTS strip switched from
+   3-visible vertical cycle to a horizontal scrolling marquee matching the
+   per-asset NewsTicker and MacroNewsStrip motion model. Three streaming
+   strips (system events / macro / per-asset news) read as a parallel set
+   of single-line marquees. Severity-pill colors unchanged: INFO=cyan,
+   WARNING=amber, ERROR=red. Hover-to-pause via CSS. */
+.pc-shell .p-news-status .system-strip-wrap {
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
-  padding: 4px 10px;
+  padding: 0 10px;
   font-family: var(--mono);
-  font-size: 9px;
   color: var(--w3);
   letter-spacing: 0.5px;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   white-space: nowrap;
   overflow: hidden;
-  min-height: 46px;
+  height: 28px;
 }
-.pc-shell .status-strip.empty { align-items: center; min-height: 22px; }
-.pc-shell .status-strip-label {
+.pc-shell .system-strip-wrap.empty {
+  justify-content: flex-start;
+}
+.pc-shell .system-strip-label {
   font-family: var(--disp); font-weight: 600; font-size: 8px;
   letter-spacing: 3px; color: var(--w3); text-transform: uppercase;
-  flex-shrink: 0; padding-top: 2px;
+  flex-shrink: 0;
 }
-.pc-shell .status-strip-empty-text { color: var(--w3); letter-spacing: 1px; }
+.pc-shell .system-strip-empty-text { color: var(--w3); letter-spacing: 1px; font-size: 9px; }
 
-.pc-shell .status-stack {
-  flex: 1; display: flex; flex-direction: column; gap: 1px;
-  min-width: 0; overflow: hidden;
-  animation: stack-step 500ms ease-out;
+.pc-shell .system-strip-inner {
+  flex: 1;
+  display: flex;
+  white-space: nowrap;
+  overflow: hidden;
+  animation: system-scroll 120s linear infinite;
 }
-@keyframes stack-step {
-  0%   { transform: translateY(-2px); opacity: 0.55; }
-  100% { transform: translateY(0); opacity: 1; }
+.pc-shell .system-strip-wrap:hover .system-strip-inner { animation-play-state: paused; }
+@keyframes system-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
-.pc-shell .status-row {
-  display: flex; align-items: center; gap: 6px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.pc-shell .system-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
   font-family: var(--mono);
+  font-size: 10px;
 }
-.pc-shell .status-row.depth-0 { opacity: 1;    font-size: 10px; }
-.pc-shell .status-row.depth-1 { opacity: 0.6;  font-size: 9px; }
-.pc-shell .status-row.depth-2 { opacity: 0.35; font-size: 8px; }
 
 .pc-shell .sev-pill {
   font-size: 7px; letter-spacing: 1px;
@@ -216,10 +221,10 @@ body::after {
 .pc-shell .sev-pill.sev-warning { color: var(--amber); background: var(--amber2); }
 .pc-shell .sev-pill.sev-error   { color: var(--red);   background: var(--red2); }
 
-.pc-shell .status-event { color: var(--cyan); font-weight: 700; letter-spacing: 1px; }
-.pc-shell .status-asset { color: var(--white); }
-.pc-shell .status-sep   { color: var(--w3); }
-.pc-shell .status-time  { color: var(--w2); }
+.pc-shell .system-event { color: var(--cyan); font-weight: 700; letter-spacing: 1px; }
+.pc-shell .system-asset { color: var(--white); }
+.pc-shell .system-time  { color: var(--w2); font-size: 8px; letter-spacing: 1px; }
+.pc-shell .system-divider { color: var(--w3); padding: 0 4px; }
 
 .pc-shell .news-row {
   flex: 1;
@@ -304,12 +309,16 @@ body::after {
   font-size: 9px;
   letter-spacing: 1px;
 }
+/* Portal v1.2 Change 4 (2026-05-26): macro marquee 180s → 90s. The 180s
+   loop was too slow — items barely moved. 90s matches per-asset
+   NewsTicker cadence (slightly faster since the macro feed is typically
+   leaner per cycle). Hover-to-pause preserved. */
 .pc-shell .macro-strip-inner {
   flex: 1;
   display: flex;
   white-space: nowrap;
   overflow: hidden;
-  animation: macro-scroll 180s linear infinite;
+  animation: macro-scroll 90s linear infinite;
 }
 .pc-shell .macro-strip-wrap:hover .macro-strip-inner { animation-play-state: paused; }
 @keyframes macro-scroll {
@@ -342,40 +351,33 @@ body::after {
 .mobile-shell .pos-card.card-closed { background: var(--navy3); }
 
 .mobile-shell .p-news-status { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
-/* Mobile mirrors the PC 3-visible cycle pattern with denser sizing. */
-.mobile-shell .p-news-status .status-strip {
+/* Mobile mirrors PC v1.2 Change 2: single-line horizontal SYSTEM EVENTS marquee. */
+.mobile-shell .p-news-status .system-strip-wrap {
   border-bottom: 1px solid var(--border);
-  padding: 5px 10px;
+  padding: 0 10px;
   font-family: var(--mono);
-  font-size: 9px;
   color: var(--w3);
   letter-spacing: 0.5px;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
-  min-height: 42px;
+  white-space: nowrap;
+  overflow: hidden;
+  height: 26px;
 }
-.mobile-shell .status-strip.empty { align-items: center; min-height: 22px; }
-.mobile-shell .status-strip-label {
+.mobile-shell .system-strip-wrap.empty { justify-content: flex-start; }
+.mobile-shell .system-strip-label {
   font-family: var(--disp); font-weight: 600; font-size: 8px;
   letter-spacing: 2px; color: var(--w3); text-transform: uppercase;
-  flex-shrink: 0; padding-top: 2px;
+  flex-shrink: 0;
 }
-.mobile-shell .status-strip-empty-text { color: var(--w3); letter-spacing: 1px; }
-
-.mobile-shell .status-stack {
-  flex: 1; display: flex; flex-direction: column; gap: 1px;
-  min-width: 0; overflow: hidden;
-  animation: stack-step 500ms ease-out;
+.mobile-shell .system-strip-empty-text { color: var(--w3); letter-spacing: 1px; font-size: 9px; }
+.mobile-shell .system-strip-inner {
+  flex: 1; display: flex; white-space: nowrap; overflow: hidden;
+  animation: system-scroll 90s linear infinite;
 }
-.mobile-shell .status-row {
-  display: flex; align-items: center; gap: 5px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  font-family: var(--mono);
-}
-.mobile-shell .status-row.depth-0 { opacity: 1;    font-size: 9px; }
-.mobile-shell .status-row.depth-1 { opacity: 0.6;  font-size: 8px; }
-.mobile-shell .status-row.depth-2 { opacity: 0.35; font-size: 8px; }
+.mobile-shell .system-strip-wrap:hover .system-strip-inner { animation-play-state: paused; }
+.mobile-shell .system-item { display: flex; align-items: center; gap: 5px; padding: 0 10px; font-family: var(--mono); font-size: 9px; }
 
 .mobile-shell .sev-pill {
   font-size: 7px; letter-spacing: 1px;
@@ -386,10 +388,10 @@ body::after {
 .mobile-shell .sev-pill.sev-warning { color: var(--amber); background: var(--amber2); }
 .mobile-shell .sev-pill.sev-error   { color: var(--red);   background: var(--red2); }
 
-.mobile-shell .status-event { color: var(--cyan); font-weight: 700; letter-spacing: 1px; }
-.mobile-shell .status-asset { color: var(--white); }
-.mobile-shell .status-sep   { color: var(--w3); }
-.mobile-shell .status-time  { color: var(--w2); }
+.mobile-shell .system-event { color: var(--cyan); font-weight: 700; letter-spacing: 1px; }
+.mobile-shell .system-asset { color: var(--white); }
+.mobile-shell .system-time  { color: var(--w2); font-size: 7px; letter-spacing: 1px; }
+.mobile-shell .system-divider { color: var(--w3); padding: 0 3px; }
 
 .mobile-shell .news-row { overflow: hidden; height: 32px; display: flex; align-items: center; }
 .mobile-shell .news-row.primary { border-bottom: 1px dashed rgba(0,194,255,0.15); }
@@ -412,7 +414,7 @@ body::after {
 .mobile-shell .macro-strip-empty { display: flex; align-items: center; width: 100%; height: 100%; gap: 6px; padding-left: 6px; }
 .mobile-shell .macro-label { flex-shrink: 0; font-family: var(--disp); font-weight: 700; font-size: 8px; letter-spacing: 2px; color: var(--amber); padding: 2px 5px; border: 1px solid var(--amber); background: var(--amber2); }
 .mobile-shell .macro-empty-text { color: var(--w3); font-family: var(--mono); font-size: 9px; letter-spacing: 1px; }
-.mobile-shell .macro-strip-inner { flex: 1; display: flex; white-space: nowrap; overflow: hidden; animation: macro-scroll 150s linear infinite; }
+.mobile-shell .macro-strip-inner { flex: 1; display: flex; white-space: nowrap; overflow: hidden; animation: macro-scroll 90s linear infinite; }
 .mobile-shell .macro-item { display: flex; align-items: center; gap: 5px; padding: 0 10px; font-family: var(--mono); font-size: 9px; }
 .mobile-shell .macro-time { color: var(--w3); font-size: 7px; }
 .mobile-shell .macro-source { color: var(--w2); font-weight: 700; letter-spacing: 0.5px; }

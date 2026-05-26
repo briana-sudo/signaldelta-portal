@@ -709,6 +709,9 @@ function DataTab({ mode, data, liveEvents }) {
 
       <div className="panel p-news-status">
         {(() => {
+          // Portal v1.2 (2026-05-26): order matches PC — SYSTEM EVENTS (top),
+          // MACRO (middle, moved up from bottom per Change 3), per-asset NEWS
+          // (bottom). All three are now horizontal scrolling marquees.
           const recentEvents = adaptRecentEvents(data, 5);
           const newsItems = adaptNewsTicker(data);
           const macroItems = adaptMacroNews(data);
@@ -716,13 +719,13 @@ function DataTab({ mode, data, liveEvents }) {
           return (
             <>
               <StatusStrip recentEvents={recentEvents} />
+              <div className="news-row macro">
+                <MacroNewsStrip items={macroItems} cacheStatus={cacheStatus} />
+              </div>
               <div className="news-row primary">
                 {bootstrap
                   ? <div className="news-ticker-empty">— LIVE MODE — PER-ASSET NEWS SUPPRESSED —</div>
                   : <NewsTicker items={newsItems} />}
-              </div>
-              <div className="news-row macro">
-                <MacroNewsStrip items={macroItems} cacheStatus={cacheStatus} />
               </div>
             </>
           );

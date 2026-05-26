@@ -524,10 +524,12 @@ function EquityCurvePanel({ mode, data }) {
 }
 
 function NewsAndStatusPanel({ mode, data }) {
-  // Portal v1.1 composite — three surfaces in one panel:
-  //   - StatusStrip   (top)   5-event vertical cycle (2026-05-26 expansion)
-  //   - NewsTicker    (~60%)  per-asset NewsContextNode marquee
-  //   - MacroNewsStrip(~40%)  Alpha Vantage macro feed marquee
+  // Portal v1.2 (2026-05-26) — three horizontal streaming marquees stacked:
+  //   - StatusStrip    (top)    SYSTEM EVENTS horizontal scroll (Change 2)
+  //   - MacroNewsStrip (middle) Alpha Vantage macro feed (Change 3: moved up
+  //                              from bottom so the operator sees Fed/macro
+  //                              news without scrolling; Change 4: 90s loop)
+  //   - NewsTicker     (bottom) per-asset NewsContextNode marquee
   const recentEvents = adaptRecentEvents(data, 5);
   const newsItems = adaptNewsTicker(data);
   const macroItems = adaptMacroNews(data);
@@ -539,13 +541,13 @@ function NewsAndStatusPanel({ mode, data }) {
   return (
     <div className="panel p-news-status">
       <StatusStrip recentEvents={recentEvents} />
+      <div className="news-row macro">
+        <MacroNewsStrip items={macroItems} cacheStatus={cacheStatus} />
+      </div>
       <div className="news-row primary">
         {bootstrap
           ? <div className="news-ticker-empty">— LIVE MODE — PER-ASSET NEWS SUPPRESSED —</div>
           : <NewsTicker items={newsItems} />}
-      </div>
-      <div className="news-row macro">
-        <MacroNewsStrip items={macroItems} cacheStatus={cacheStatus} />
       </div>
     </div>
   );

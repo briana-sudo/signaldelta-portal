@@ -75,21 +75,84 @@ function computeHold(entryIso) {
 }
 
 // ── Account bar ──────────────────────────────────────────────────────
+// Portal v1.2 Change 1 (2026-05-26): synthetic running equity fallback.
+//
+// The `account_bar` Cypher selects the latest EquitySnapshotNode AFTER
+// the post-cutoff date (2026-05-26). The nightly snapshot writer runs at
+// 23:55 UTC, so for the first ~24h after engine launch there is no
+// post-cutoff snapshot, and `current_value` arrives null. Without the
+// fallback below, the panel locked to $10,000 / $0 / 0% even after closed
+// trades had locked in realized P&L (operator-confirmed: 4 closed trades
+// with non-zero pnl_dollar, Account Bar reading flat).
+//
+// Fallback definition (when ab.current_value is null AND tradeList is
+// available): current_value = capital_base + Σ pnl_dollar over CLOSED
+// trades in the cutoff-filtered trade list. Today's P&L (single-day
+// Phase 1 horizon) = current_value − capital_base. Total return % is
+// the same delta as a percent of capital_base. This is realized-only —
+// unrealized P&L from OPEN positions is intentionally NOT included.
+//
+// Why no unrealized: computing it requires (current_price − entry_price)
+// × position_size for each OPEN trade. Current price is not stored on
+// TradeNode (would cause massive write volume) and is not exposed by any
+// portal-reachable surface — Layer 1 buffers are in-process Python on the
+// engine, the proxy whitelist returns Cypher only, and a CORS-direct
+// fetch to Alpaca/Polygon from the static portal is out of scope. Once a
+// current-price source exists (e.g., a /current_prices endpoint on the
+// proxy reading from a new in-graph node) extend this fn to add the
+// unrealized term. Until then realized-only is the honest fallback.
+//
+// `synthetic` flag is true when the fallback is active; consumers may
+// surface a small indicator (deferred — no UI signal in this dispatch).
 export function adaptAccountBar(data) {
   const ab = data?.accountBar;
   if (!ab) return null;
-  return {
-    capitalBase: Number(ab.capital_base) || 0,
-    currentValue: Number(ab.current_value) || Number(ab.capital_base) || 0,
-    todayPnl: Number(ab.today_pnl) || 0,
-    totalReturnPct:
-      ab.current_value && ab.capital_base
-        ? ((Number(ab.current_value) - Number(ab.capital_base)) / Number(ab.capital_base)) * 100
+  const capitalBase = Number(ab.capital_base) || 0;
+  const polledCurrent = ab.current_value != null ? Number(ab.current_value) : null;
+
+  // Snapshot-backed branch: polled EquitySnapshotNode present.
+  if (polledCurrent != null && Number.isFinite(polledCurrent)) {
+    return {
+      capitalBase,
+      currentValue: polledCurrent,
+      todayPnl: Number(ab.today_pnl) || 0,
+      totalReturnPct: capitalBase
+        ? ((polledCurrent - capitalBase) / capitalBase) * 100
         : 0,
-    trades: Number(ab.trade_count) || 0,
-    open: Number(ab.open_count) || 0,
+      trades: Number(ab.trade_count) || 0,
+      open: Number(ab.open_count) || 0,
+      currentPhase: ab.current_phase || 'Paper',
+      lastSync: ab.last_sync || null,
+      synthetic: false,
+    };
+  }
+
+  // Synthetic branch: derive from realized P&L in the trade list.
+  const rows = Array.isArray(data?.tradeList) ? data.tradeList : [];
+  let realizedSum = 0;
+  let closedCount = 0;
+  let openCount = 0;
+  for (const r of rows) {
+    if (r?.status === 'CLOSED') {
+      const v = r.pnl_dollar ?? r.realized_pnl;
+      const n = v != null ? Number(v) : 0;
+      if (Number.isFinite(n)) realizedSum += n;
+      closedCount += 1;
+    } else if (r?.status === 'OPEN') {
+      openCount += 1;
+    }
+  }
+  const currentValue = capitalBase + realizedSum;
+  return {
+    capitalBase,
+    currentValue,
+    todayPnl: realizedSum,
+    totalReturnPct: capitalBase ? (realizedSum / capitalBase) * 100 : 0,
+    trades: Number(ab.trade_count) || (closedCount + openCount),
+    open: Number(ab.open_count) || openCount,
     currentPhase: ab.current_phase || 'Paper',
     lastSync: ab.last_sync || null,
+    synthetic: true,
   };
 }
 
