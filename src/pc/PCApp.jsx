@@ -666,7 +666,15 @@ function MetricsPanel({ mode, data }) {
           ) : (
             <>
               <div className="mc-value" style={{ color: 'var(--amber)', fontSize: '18px' }}>{conviction.dominantLabel} {conviction.dominantPct.toFixed(0)}%</div>
-              <div className="mc-sub">High {conviction.high.toFixed(0)}% · Std {conviction.std.toFixed(0)}% · sizing ×1.5 / ×1.25 / ×1.0</div>
+              {/* Portal v1.2 conviction-tier display fix (2026-05-26):
+                  Previously the sub-line read "High N% · Std N% · sizing …"
+                  which duplicated the Std value already in the headline AND
+                  hid the Max tier entirely. New layout shows all three tiers
+                  in Max/High/Std order (highest sizing first) on one line,
+                  with the sizing multipliers on a second aligned line so
+                  ×1.5 sits under Max, ×1.25 under High, ×1.0 under Std. */}
+              <div className="mc-sub">Max {conviction.max.toFixed(0)}% · High {conviction.high.toFixed(0)}% · Std {conviction.std.toFixed(0)}%</div>
+              <div className="mc-sub">sizing ×1.5 · ×1.25 · ×1.0</div>
             </>
           )}
         </div>
@@ -683,6 +691,12 @@ function MetricsPanel({ mode, data }) {
 
 function ConvictionDonut({ conviction }) {
   // Circumference ≈ 138.23. Each segment occupies (pct/100) of the circumference.
+  // Three slices, STD-first ordering so the dash offset chain reads cleanly
+  // around the ring: STD (gray) → HIGH (cyan) → MAX (amber). Per the v1.2
+  // conviction-tier display-fix dispatch, the center-number text element was
+  // removed — it showed Max% which collapsed to a misleading "0%" whenever
+  // the engine wasn't producing maximum-conviction trades, AND it duplicated
+  // the headline's dominant-tier number. Three slices alone carry the visual.
   const C = 2 * Math.PI * 22;
   const stdLen = (conviction.std / 100) * C;
   const hiLen = (conviction.high / 100) * C;
@@ -695,7 +709,6 @@ function ConvictionDonut({ conviction }) {
         strokeDasharray={`${hiLen} ${C - hiLen}`} strokeDashoffset={-stdLen} transform="rotate(-90 28 28)" />
       <circle cx="28" cy="28" r="22" fill="none" stroke="var(--amber)" strokeWidth="7"
         strokeDasharray={`${maxLen} ${C - maxLen}`} strokeDashoffset={-(stdLen + hiLen)} transform="rotate(-90 28 28)" />
-      <text x="28" y="31" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--amber)">{Math.round(conviction.max)}%</text>
     </>
   );
 }

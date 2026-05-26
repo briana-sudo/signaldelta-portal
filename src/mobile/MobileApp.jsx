@@ -621,15 +621,20 @@ function SystemTab({ mode, data, onOpenKernel }) {
             <div className="mc-sub" style={{ marginTop: '6px' }}>AWAITING FIRST TRADE</div>
           ) : (
             <>
+              {/* Portal v1.2 conviction-tier display fix (2026-05-26):
+                  legend order flipped from Std/High/Max → Max/High/Std so the
+                  highest-sizing tier reads first, matching the PC sub-line
+                  ordering. Bar segment order also flipped so the amber Max
+                  slice anchors the left side, consistent with the legend. */}
               <div className="conv-bar">
-                <div className="conv-seg std" style={{ width: conviction.std + '%' }} />
-                <div className="conv-seg hi"  style={{ width: conviction.high + '%' }} />
                 <div className="conv-seg max" style={{ width: conviction.max + '%' }} />
+                <div className="conv-seg hi"  style={{ width: conviction.high + '%' }} />
+                <div className="conv-seg std" style={{ width: conviction.std + '%' }} />
               </div>
               <div className="conv-legend">
-                <span>STD <span style={{ color: 'var(--white)' }}>{conviction.std.toFixed(0)}%</span> ×1.0</span>
-                <span style={{ color: 'var(--cyan)' }}>HIGH <span>{conviction.high.toFixed(0)}%</span> ×1.25</span>
                 <span style={{ color: 'var(--amber)' }}>MAX <span>{conviction.max.toFixed(0)}%</span> ×1.5</span>
+                <span style={{ color: 'var(--cyan)' }}>HIGH <span>{conviction.high.toFixed(0)}%</span> ×1.25</span>
+                <span>STD <span style={{ color: 'var(--white)' }}>{conviction.std.toFixed(0)}%</span> ×1.0</span>
               </div>
             </>
           )}
