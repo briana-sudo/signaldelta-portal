@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
-import { useAccountDrift, usePositionDrift, useTickerWobble } from '../lib/useDrift.js';
+import { usePositionDrift, useTickerWobble } from '../lib/useDrift.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
 import {
   SCANNER_ASSETS, WEEKLY_WATERFALL, TICKER, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
@@ -66,7 +66,6 @@ export default function PCApp({ data, errors = {}, hasAnyData = false, error, lo
         mode={mode}
         liveAccountBar={liveAccountBar}
         liveWeeklyWaterfall={adaptWeeklyWaterfall(data)}
-        pollTimestamp={pollTimestamp}
       />
       <Main mode={mode} data={data} />
       <Ticker />
@@ -171,16 +170,16 @@ function PerformanceBadge({ mode, currentPhase }) {
   return <div className={'sim-tag t-' + tone}>{text}</div>;
 }
 
-function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, pollTimestamp }) {
+function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall }) {
+  // Drift removed 2026-05-26 per drift-scope-fix dispatch. Aggregate equity
+  // displays the polled values directly — static between polls, updates only
+  // when a new poll lands a fresh value. Drift remains on OPEN-position
+  // current price in the trade list (genuine market fluctuation there).
   const bootstrap = shouldRenderBootstrap(mode) || !liveAccountBar;
   const capitalBase = liveAccountBar?.capitalBase ?? 10000;
-  const { av, ap } = useAccountDrift({
-    initialValue: liveAccountBar?.currentValue ?? capitalBase,
-    initialPnl: liveAccountBar?.todayPnl ?? 0,
-    pollTimestamp,
-    enabled: !bootstrap,
-  });
-  const totalReturnPct = capitalBase ? ((av - capitalBase) / capitalBase) * 100 : 0;
+  const av = liveAccountBar?.currentValue ?? capitalBase;
+  const ap = liveAccountBar?.todayPnl ?? 0;
+  const totalReturnPct = liveAccountBar?.totalReturnPct ?? 0;
   const valFmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sign = (v) => (v >= 0 ? '+' : '');
   const cls = (v) => (v >= 0 ? 'g' : 'r');

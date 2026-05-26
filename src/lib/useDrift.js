@@ -1,57 +1,32 @@
 // ─────────────────────────────────────────────────────────────
-// Cosmetic drift hooks — re-anchored on every poll cycle.
+// Drift hooks.
 //
-// Bug history (fixed in this revision per Brian's Change 1 dispatch):
-//   The previous version reset its offset only when `initialValue` changed.
-//   When the engine was quiet, `initialValue` stayed constant across polls,
-//   the reset useEffect never fired, and drift accumulated indefinitely.
-//   Over a 7-hour stretch with no engine activity the displayed equity drifted
-//   from $9,994 to $13,240 — pure cosmetic accumulation.
+// `useAccountDrift` was removed in the 2026-05-26 drift-scope-fix dispatch.
+// Reason: wobbling aggregate equity by ±$6 per tick was overshadowing real
+// realized P&L on small-total-return days, flipping Current Value / Total
+// Return / Today P&L between green and red even when the underlying engine
+// state was unchanged. Aggregate equity isn't a "live market feel" surface —
+// it's a derived from-graph value. Static between polls is honest.
 //
-// Fix: tie the reset to `pollTimestamp` (set fresh by useNeo4jPoll on every
-// successful poll, even when query results are byte-identical). Within a 60s
-// poll window the offset accumulates via the ±$6 random walk; on each poll
-// the offset snaps back to 0 and the displayed value re-anchors to the
-// freshly-polled true value.
+// `usePositionDrift` is RETAINED, scoped to OPEN trades only (filtered by
+// caller via `openTrades = trades.filter(t => t.status === 'OPEN')` before
+// being passed to this hook). The Current price column on an OPEN row IS a
+// genuine real-time fluctuation between polls — the underlying asset price
+// moves second-to-second — so a cosmetic ±$4 wobble is honest representation.
+// CLOSED rows show exit_price (locked) and realized P&L — no drift.
 //
-// Returned values:
-//   av = initialValue + offset.av    (drifts within the poll window)
-//   ap = initialPnl   + offset.ap    (same)
-// offset gets reset to {0, 0} on every pollTimestamp change.
+// Per-poll re-anchor:
+// - offset state resets to zero on each `pollTimestamp` change (fresh ISO
+//   per cycle from useNeo4jPoll.pollOnce, even when polled values are
+//   byte-identical), so drift wobbles bounded within a single 60s window
+//   and snaps back to the polled-baseline current price on each tick.
 // ─────────────────────────────────────────────────────────────
 import { useEffect, useState } from 'react';
-
-export function useAccountDrift({ initialValue, initialPnl, pollTimestamp, enabled = true }) {
-  const [offset, setOffset] = useState({ av: 0, ap: 0 });
-
-  // RE-ANCHOR: reset offset on every successful poll. pollTimestamp is fresh
-  // per cycle (ISO string from useNeo4jPoll.pollOnce) even when the polled
-  // value itself is unchanged — so this fires regardless of engine activity.
-  useEffect(() => {
-    setOffset({ av: 0, ap: 0 });
-  }, [pollTimestamp]);
-
-  // Drift tick — accumulates within the current poll window only.
-  useEffect(() => {
-    if (!enabled) return;
-    const id = setInterval(() => {
-      const d = (Math.random() - 0.45) * 6;
-      setOffset((o) => ({ av: o.av + d, ap: o.ap + d }));
-    }, 2500);
-    return () => clearInterval(id);
-  }, [enabled]);
-
-  return {
-    av: (initialValue ?? 0) + offset.av,
-    ap: (initialPnl ?? 0) + offset.ap,
-  };
-}
 
 export function usePositionDrift(positions, { pollTimestamp, enabled = true } = {}) {
   const [offsets, setOffsets] = useState(() => positions.map(() => 0));
 
-  // RE-ANCHOR on poll tick OR on position-count change (engine opened/closed
-  // a position mid-session and the array shape changed).
+  // RE-ANCHOR on poll tick OR on position-count change.
   useEffect(() => {
     setOffsets(positions.map(() => 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -68,8 +43,8 @@ export function usePositionDrift(positions, { pollTimestamp, enabled = true } = 
   return offsets;
 }
 
-// Ticker price wobble — unchanged. This hook samples a fresh tick counter
-// and the consumer computes a bounded ±0.1% wobble per item; no accumulation.
+// Ticker price wobble — sampled tick counter; consumer derives a bounded
+// ±0.1% wobble per item; no accumulation.
 export function useTickerWobble(items, { enabled = true } = {}) {
   const [tick, setTick] = useState(0);
   useEffect(() => {

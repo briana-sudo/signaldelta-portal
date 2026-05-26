@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
-import { useAccountDrift, usePositionDrift } from '../lib/useDrift.js';
+import { usePositionDrift } from '../lib/useDrift.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
 import {
   SCANNER_ASSETS, WEEKLY_WATERFALL, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
@@ -68,7 +68,6 @@ export default function MobileApp({ data, errors = {}, hasAnyData = false, error
       <MobileAccountBar
         mode={mode}
         liveAccountBar={liveAccountBar}
-        pollTimestamp={pollTimestamp}
       />
       <div className="tab-wrap">
         <div className={'tab-content' + (tab === 'desk' ? ' active' : '')}>
@@ -182,16 +181,14 @@ function ModeToggle({ mode, setMode }) {
   );
 }
 
-function MobileAccountBar({ mode, liveAccountBar, pollTimestamp }) {
+function MobileAccountBar({ mode, liveAccountBar }) {
+  // Drift removed 2026-05-26 per drift-scope-fix dispatch — display polled
+  // values directly. usePositionDrift retained for OPEN trade rows in DeskTab.
   const bootstrap = shouldRenderBootstrap(mode) || !liveAccountBar;
   const capitalBase = liveAccountBar?.capitalBase ?? 10000;
-  const { av, ap } = useAccountDrift({
-    initialValue: liveAccountBar?.currentValue ?? capitalBase,
-    initialPnl: liveAccountBar?.todayPnl ?? 0,
-    pollTimestamp,
-    enabled: !bootstrap,
-  });
-  const totalReturnPct = capitalBase ? ((av - capitalBase) / capitalBase) * 100 : 0;
+  const av = liveAccountBar?.currentValue ?? capitalBase;
+  const ap = liveAccountBar?.todayPnl ?? 0;
+  const totalReturnPct = liveAccountBar?.totalReturnPct ?? 0;
   const valFmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sign = (v) => (v >= 0 ? '+' : '');
   const cls = (v) => (v >= 0 ? 'g' : 'r');
