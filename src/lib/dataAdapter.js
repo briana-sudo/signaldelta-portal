@@ -107,16 +107,26 @@ export function adaptWeeklyWaterfall(data) {
   }));
 }
 
-// ── Open positions ───────────────────────────────────────────────────
-export function adaptPositions(data) {
-  const rows = data?.positions;
+// ── Trade list (Portal v1.1 Change 2) ────────────────────────────────
+// Returns BOTH open and closed trades, server-side cutoff-filtered.
+// Each row carries enough fields for the new panel's render logic:
+//   - OPEN  rows: current price drifts via useDrift; pnl=0 initial
+//   - CLOSED rows: pnl_dollar/pnl_percent are realized; win_loss drives
+//     the WIN/LOSS final-outcome bar
+export function adaptTradeList(data) {
+  const rows = data?.tradeList;
   if (!Array.isArray(rows) || rows.length === 0) return null;
   return rows.map((r) => {
     const t = trackInfo(r.track);
     const c = convInfo(r.conviction);
     const entry = Number(r.entry_price) || 0;
+    const exit = r.exit_price != null ? Number(r.exit_price) : null;
     const stop = Number(r.stop_price) || 0;
     const target = Number(r.target_price) || 0;
+    const status = r.status || 'OPEN';
+    const realizedPnl = r.realized_pnl != null ? Number(r.realized_pnl)
+                      : r.pnl_dollar != null ? Number(r.pnl_dollar)
+                      : 0;
     return {
       asset: r.asset,
       track: t.cls,
@@ -124,17 +134,31 @@ export function adaptPositions(data) {
       conv: c.cls,
       cl: c.label,
       entry,
-      cur: entry, // Q1 default: cosmetic drift adds motion to entry baseline
+      cur: exit ?? entry,            // closed rows show exit_price in Current
+      exit,
       stop,
       target,
-      pnl: 0,
-      pnlPct: 0,
-      prog: 0,
-      hold: computeHold(r.entry_timestamp),
+      status,
+      pnl: status === 'CLOSED' ? realizedPnl : 0,
+      pnlPct: r.pnl_percent != null ? Number(r.pnl_percent) : 0,
+      hold: status === 'CLOSED' && r.hold_duration_min != null
+            ? formatHoldMinutes(Number(r.hold_duration_min))
+            : computeHold(r.entry_timestamp),
+      winLoss: r.win_loss || null,
+      exitReason: r.exit_reason || null,
       requestId: r.request_id,
       direction: r.direction,
+      entryTimestamp: r.entry_timestamp,
+      exitTimestamp: r.exit_timestamp,
     };
   });
+}
+
+function formatHoldMinutes(mins) {
+  if (!Number.isFinite(mins)) return '—';
+  const h = Math.floor(mins / 60);
+  const m = Math.floor(mins % 60);
+  return h > 0 ? `${h}h ${pad2(m)}m` : `${m}m`;
 }
 
 // ── Event feed ───────────────────────────────────────────────────────
@@ -320,6 +344,119 @@ export function adaptHeartbeat(data) {
               : 'stopped';
   const lastWriteEt = ET_HEARTBEAT_FORMATTER.format(new Date(iso));
   return { state, minutesAgo, lastWriteEt, lastWriteIso: iso };
+}
+
+// ── News ticker (Portal v1.1 Change 3A) ──────────────────────────────
+// Per-asset NewsContextNode feed (non-QUIET only). Each ticker item:
+//   asset (string), impact_level (HIGH|MEDIUM|LOW|NONE), impact_class
+//   ('high'|'med'|'low'), event_summary (string), source (string), time_ago
+export function adaptNewsTicker(data) {
+  const rows = data?.newsTicker;
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  return rows.map((r) => ({
+    asset: r.asset || '—',
+    impact_level: r.impact_level || 'NONE',
+    impact_class: impactClass(r.impact_level),
+    event_summary: r.event_summary || '',
+    source: r.source || '',
+    time_ago: r.written_at ? minutesAgoLabel(r.written_at) : '',
+    written_at: r.written_at,
+    event_type: r.event_type,
+  }));
+}
+
+function impactClass(label) {
+  if (label === 'HIGH') return 'high';
+  if (label === 'MEDIUM') return 'med';
+  if (label === 'LOW') return 'low';
+  return 'low';
+}
+
+function minutesAgoLabel(iso) {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return '';
+  const ms = Date.now() - t;
+  if (ms < 60_000) return 'now';
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d`;
+}
+
+// ── Macro news (Portal v1.1 Change 4) ────────────────────────────────
+// Alpha Vantage NEWS_SENTIMENT feed via proxy GET /macro_news.
+// Dedup by url, parse AV time_published "YYYYMMDDTHHMMSS", classify sentiment.
+const AV_TIME_RE = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/;
+
+function parseAvTimePublished(ts) {
+  if (!ts || typeof ts !== 'string') return null;
+  const m = AV_TIME_RE.exec(ts);
+  if (!m) return null;
+  const [, y, mo, d, h, mi, s] = m;
+  return new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s));
+}
+
+function sentimentClass(label) {
+  if (!label) return 'neu';
+  const l = String(label).toLowerCase();
+  if (l.includes('bullish')) return 'pos';
+  if (l.includes('bearish')) return 'neg';
+  return 'neu';
+}
+
+export function adaptMacroNews(data) {
+  const mn = data?.macroNews;
+  if (!mn || !Array.isArray(mn.feed) || mn.feed.length === 0) return null;
+  const seen = new Set();
+  const items = [];
+  for (const article of mn.feed) {
+    const url = article?.url;
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    const pubDate = parseAvTimePublished(article.time_published);
+    items.push({
+      url,
+      title: article.title || '(untitled)',
+      source: article.source || '?',
+      time_ago: pubDate ? minutesAgoLabel(pubDate.toISOString()) : '',
+      time_published: article.time_published,
+      sentiment_class: sentimentClass(article.overall_sentiment_label),
+      sentiment_label: article.overall_sentiment_label,
+    });
+    if (items.length >= 30) break;
+  }
+  return items.length > 0 ? items : null;
+}
+
+// ── Last system event (Portal v1.1 Change 3B status strip) ────────────
+const STATUS_EVENT_FRIENDLY = {
+  TRADE_OPENED: 'Trade opened',
+  TRADE_CLOSED: 'Trade closed',
+  THRESHOLD_HIT: 'Threshold hit',
+  SHARPE_BAND_TRANSITION: 'Sharpe band changed',
+  LEARNING_LOOP_COMPLETE: 'Learning loop complete',
+  RULE_WRITTEN: 'Rule written',
+  PHASE_GATE_PASSED: 'Phase gate passed',
+  MANUAL_OVERRIDE: 'Manual override',
+};
+
+export function adaptLastEvent(data) {
+  const rows = data?.events;
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const e = rows[0];   // events query already ORDER BY timestamp DESC
+  if (!e) return null;
+  const friendly = STATUS_EVENT_FRIENDLY[e.event_type] || e.event_type || '?';
+  return {
+    eventType: e.event_type,
+    friendly,
+    asset: e.asset || null,
+    summary: e.summary || '',
+    severity: e.severity || 'INFO',
+    timestamp: e.event_timestamp,
+    timeAgo: e.event_timestamp ? minutesAgoLabel(e.event_timestamp) + ' ago' : '—',
+  };
 }
 
 // ── Kernel counts (for the overlays — not the scene itself) ──────────

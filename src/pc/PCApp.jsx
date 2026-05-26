@@ -6,17 +6,21 @@ import {
   SCANNER_ASSETS, WEEKLY_WATERFALL, TICKER, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
 } from '../lib/placeholders.js';
 import {
-  adaptAccountBar, adaptWeeklyWaterfall, adaptPositions, adaptEvents,
+  adaptAccountBar, adaptWeeklyWaterfall, adaptEvents,
   adaptWinRate, adaptSharpe, adaptLane2, adaptConviction,
   adaptEquityCurve, adaptEquityHeader,
   adaptRulesThisWeek, adaptRulesFoot,
   adaptHeartbeat,
+  adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptLastEvent,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
 import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
+import NewsTicker from '../lib/NewsTicker.jsx';
+import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
+import StatusStrip from '../lib/StatusStrip.jsx';
 import TradeOverlay from './TradeOverlay.jsx';
 
 const MODES = ['live', 'training', 'combined'];
@@ -274,9 +278,9 @@ function Main({ mode, data }) {
         <ScannerPanel mode={mode} />
       </div>
       <div className="col-center">
-        <PositionsPanel mode={mode} data={data} />
+        <TradeListPanel mode={mode} data={data} />
         <EquityCurvePanel mode={mode} data={data} />
-        <EventFeedPanel mode={mode} data={data} />
+        <NewsAndStatusPanel mode={mode} data={data} />
       </div>
       <div className="col-metrics">
         <MetricsPanel mode={mode} data={data} />
@@ -363,19 +367,32 @@ function ScannerPanel({ mode }) {
   );
 }
 
-function PositionsPanel({ mode, data }) {
-  const livePositions = adaptPositions(data);
-  const bootstrap = shouldRenderBootstrap(mode) || !livePositions;
-  const positions = livePositions ?? [];
-  const offsets = usePositionDrift(positions, { pollTimestamp: data?.pollTimestamp, enabled: !bootstrap });
+function TradeListPanel({ mode, data }) {
+  // Portal v1.1 Change 2: chronological list of OPEN + CLOSED trades,
+  // cutoff-filtered at the proxy. OPEN rows get a green-tint background
+  // + drifting current price + progress-toward-target bar. CLOSED rows
+  // show exit_price in Current, WIN/LOSS final bar, realized P&L.
+  const liveTrades = adaptTradeList(data);
+  const bootstrap = shouldRenderBootstrap(mode) || !liveTrades;
+  const trades = liveTrades ?? [];
+  const openTrades = trades.filter((t) => t.status === 'OPEN');
+  // Drift only over the OPEN rows. usePositionDrift expects positions[i]; we
+  // pass open-only and look up by request_id when rendering.
+  const openOffsets = usePositionDrift(openTrades, {
+    pollTimestamp: data?.pollTimestamp,
+    enabled: !bootstrap,
+  });
+  const openOffsetByReq = new Map(openTrades.map((t, i) => [t.requestId, openOffsets[i] ?? 0]));
 
   return (
     <div className="panel p-positions">
       <div className="ptitle">
-        <span><span className="ptitle-bar" />OPEN POSITIONS</span>
-        <span className="ptitle-r">{bootstrap ? 'AWAITING LIVE TRADES' : `${positions.length} ACTIVE · P&L LIVE`}</span>
+        <span><span className="ptitle-bar" />TRADES</span>
+        <span className="ptitle-r">
+          {bootstrap ? 'AWAITING TRADES SINCE MARKET OPEN' : `${openTrades.length} OPEN · ${trades.length} TOTAL`}
+        </span>
       </div>
-      <table className="pos-table">
+      <table className="pos-table trade-list">
         <thead>
           <tr>
             <th>Asset</th><th>Track</th><th>Conv</th>
@@ -386,40 +403,71 @@ function PositionsPanel({ mode, data }) {
         </thead>
         <tbody>
           {bootstrap ? (
-            <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING LIVE TRADES —</td></tr>
-          ) : positions.map((p, i) => {
-            const offset = offsets[i] ?? 0;
-            const pv = p.pnl + offset;
-            const pp = p.pnlPct + (p.entry ? (offset / p.entry) * 100 : 0);
-            const cur = p.cur + offset * 0.01;
-            const range = p.target - p.entry;
-            const progPct = range ? Math.max(0, Math.min(100, ((cur - p.entry) / range) * 100)) : 0;
-            const pos = pv >= 0;
-            const clr = pos ? 'var(--green)' : 'var(--red)';
-            return (
-              <tr key={p.requestId || p.asset}>
-                <td><span className="passet">{p.asset}</span></td>
-                <td><span className={'ptrack ' + p.track}>{p.tl}</span></td>
-                <td><span className={'pconv ' + p.conv}>{p.cl}</span></td>
-                <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w2)' }}>{p.entry.toLocaleString()}</td>
-                <td style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--white)' }}>{cur.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-                <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--red)' }}>{p.stop.toLocaleString()}</td>
-                <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--green)' }}>{p.target.toLocaleString()}</td>
-                <td className="prog-wrap">
-                  <div className="prog-bg"><div className="prog-fill" style={{ width: progPct + '%', background: clr }} /></div>
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: 'var(--w3)', marginTop: '2px' }}>{progPct.toFixed(0)}% TO TARGET</div>
-                </td>
-                <td>
-                  <div className="ppnl" style={{ color: clr }}>{pos ? '+' : ''}${Math.abs(pv).toFixed(2)}</div>
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: clr }}>{pos ? '+' : ''}{pp.toFixed(2)}%</div>
-                </td>
-                <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w3)' }}>{p.hold}</td>
-              </tr>
-            );
-          })}
+            <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING TRADES SINCE MARKET OPEN —</td></tr>
+          ) : trades.map((t) => (
+            <TradeListRow key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
+                          t={t} offset={openOffsetByReq.get(t.requestId) ?? 0} />
+          ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function TradeListRow({ t, offset }) {
+  const isOpen = t.status === 'OPEN';
+  if (isOpen) {
+    const pv = t.pnl + offset;
+    const pp = t.pnlPct + (t.entry ? (offset / t.entry) * 100 : 0);
+    const cur = t.cur + offset * 0.01;
+    const range = t.target - t.entry;
+    const progPct = range ? Math.max(0, Math.min(100, ((cur - t.entry) / range) * 100)) : 0;
+    const pos = pv >= 0;
+    const clr = pos ? 'var(--green)' : 'var(--red)';
+    return (
+      <tr className="row-open">
+        <td><span className="passet">{t.asset}</span></td>
+        <td><span className={'ptrack ' + t.track}>{t.tl}</span></td>
+        <td><span className={'pconv ' + t.conv}>{t.cl}</span></td>
+        <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w2)' }}>{t.entry.toLocaleString()}</td>
+        <td style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--white)' }}>{cur.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+        <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--red)' }}>{t.stop.toLocaleString()}</td>
+        <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--green)' }}>{t.target.toLocaleString()}</td>
+        <td className="prog-wrap">
+          <div className="prog-bg"><div className="prog-fill" style={{ width: progPct + '%', background: clr }} /></div>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: 'var(--w3)', marginTop: '2px' }}>{progPct.toFixed(0)}% TO TARGET</div>
+        </td>
+        <td>
+          <div className="ppnl" style={{ color: clr }}>{pos ? '+' : ''}${Math.abs(pv).toFixed(2)}</div>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: clr }}>{pos ? '+' : ''}{pp.toFixed(2)}%</div>
+        </td>
+        <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w3)' }}>{t.hold}</td>
+      </tr>
+    );
+  }
+  // Closed
+  const isWin = t.winLoss === 'Win';
+  const finalClr = isWin ? 'var(--green)' : 'var(--red)';
+  const outcomeLabel = isWin ? 'WIN' : 'LOSS';
+  return (
+    <tr className="row-closed">
+      <td><span className="passet">{t.asset}</span></td>
+      <td><span className={'ptrack ' + t.track}>{t.tl}</span></td>
+      <td><span className={'pconv ' + t.conv}>{t.cl}</span></td>
+      <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w2)' }}>{t.entry.toLocaleString()}</td>
+      <td style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--w2)' }}>{t.exit != null ? t.exit.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}</td>
+      <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w3)' }}>{t.stop.toLocaleString()}</td>
+      <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w3)' }}>{t.target.toLocaleString()}</td>
+      <td className="prog-wrap">
+        <div className="prog-bg"><div className="prog-fill" style={{ width: '100%', background: finalClr }} /></div>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: finalClr, marginTop: '2px', letterSpacing: '1px' }}>{outcomeLabel}</div>
+      </td>
+      <td>
+        <div className="ppnl" style={{ color: finalClr }}>{t.pnl >= 0 ? '+' : ''}${Math.abs(t.pnl).toFixed(2)}</div>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: finalClr }}>{t.pnlPct >= 0 ? '+' : ''}{t.pnlPct.toFixed(2)}%</div>
+      </td>
+      <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w3)' }}>{t.hold}</td>
+    </tr>
   );
 }
 
@@ -476,27 +524,29 @@ function EquityCurvePanel({ mode, data }) {
   );
 }
 
-function EventFeedPanel({ mode, data }) {
-  const liveEvents = adaptEvents(data);
-  const bootstrap = shouldRenderBootstrap(mode) || !liveEvents;
-  const events = liveEvents ?? [];
+function NewsAndStatusPanel({ mode, data }) {
+  // Portal v1.1 Change 3: replaces the System Event Feed with a composite
+  //  - StatusStrip   (line)  most recent SystemEventNode (Change 3B)
+  //  - NewsTicker    (~60%)  per-asset NewsContextNode marquee (Change 3A)
+  //  - MacroNewsStrip(~40%)  Alpha Vantage macro feed marquee (Change 4)
+  const lastEvent = adaptLastEvent(data);
+  const newsItems = adaptNewsTicker(data);
+  const macroItems = adaptMacroNews(data);
+  const cacheStatus = data?.macroNews?.cache;
+  // Mode toggle filtering: under LIVE, suppress per-asset content per the
+  // existing bootstrap convention. Macro news is market-wide and always shows.
+  const bootstrap = shouldRenderBootstrap(mode);
+
   return (
-    <div className="panel p-events">
-      <div className="ptitle">
-        <span><span className="ptitle-bar" />SYSTEM EVENT FEED</span>
-        <span className="ptitle-r">{bootstrap ? '0 EVENTS' : `${events.length} EVENTS`}</span>
+    <div className="panel p-news-status">
+      <StatusStrip lastEvent={lastEvent} />
+      <div className="news-row primary">
+        {bootstrap
+          ? <div className="news-ticker-empty">— LIVE MODE — PER-ASSET NEWS SUPPRESSED —</div>
+          : <NewsTicker items={newsItems} />}
       </div>
-      <div className="event-feed">
-        {bootstrap ? (
-          <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '12px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING LIVE EVENTS —</div>
-        ) : events.slice(0, 8).map((e) => (
-          <div className={'ev ' + e.cls} key={e.eventId || (e.t + e.text)}>
-            <span className="ev-icon">{e.icon}</span>
-            <span className="ev-time">{e.t}</span>
-            <span className="ev-text">{e.text}</span>
-            {e.val && <span className={'ev-val ' + e.valcls}>{e.val}</span>}
-          </div>
-        ))}
+      <div className="news-row macro">
+        <MacroNewsStrip items={macroItems} cacheStatus={cacheStatus} />
       </div>
     </div>
   );

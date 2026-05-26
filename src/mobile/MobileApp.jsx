@@ -6,17 +6,21 @@ import {
   SCANNER_ASSETS, WEEKLY_WATERFALL, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
 } from '../lib/placeholders.js';
 import {
-  adaptAccountBar, adaptWeeklyWaterfall, adaptPositions, adaptEvents,
+  adaptAccountBar, adaptWeeklyWaterfall, adaptEvents,
   adaptWinRate, adaptSharpe, adaptConviction,
   adaptEquityCurve, adaptEquityHeader,
   adaptRulesThisWeek, adaptRulesFoot,
   adaptHeartbeat,
+  adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptLastEvent,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
 import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
+import NewsTicker from '../lib/NewsTicker.jsx';
+import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
+import StatusStrip from '../lib/StatusStrip.jsx';
 
 const MODES = ['live', 'training', 'combined'];
 const DEFAULT_MODE = 'training';
@@ -233,64 +237,34 @@ function TabBar({ tab, setTab }) {
 }
 
 function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
-  const livePositions = adaptPositions(data);
+  // Portal v1.1 Change 2 — TradeList (OPEN + CLOSED cards, cutoff-filtered)
+  const liveTrades = adaptTradeList(data);
   const liveWaterfall = adaptWeeklyWaterfall(data);
   const liveAccountBar = adaptAccountBar(data);
-  const posBoot = shouldRenderBootstrap(mode) || !livePositions;
+  const tradesBoot = shouldRenderBootstrap(mode) || !liveTrades;
   const wfBoot = shouldRenderBootstrap(mode) || !liveWaterfall;
-  const positions = livePositions ?? [];
-  const offsets = usePositionDrift(positions, { pollTimestamp, enabled: !posBoot });
+  const trades = liveTrades ?? [];
+  const openTrades = trades.filter((t) => t.status === 'OPEN');
+  const openOffsets = usePositionDrift(openTrades, { pollTimestamp, enabled: !tradesBoot });
+  const openOffsetByReq = new Map(openTrades.map((t, i) => [t.requestId, openOffsets[i] ?? 0]));
 
   return (
     <>
       <div className="panel">
         <div className="ptitle">
-          <span><span className="ptitle-bar" />OPEN POSITIONS</span>
-          <span className="ptitle-r">{posBoot ? 'AWAITING LIVE TRADES' : `${positions.length} ACTIVE · P&L LIVE`}</span>
+          <span><span className="ptitle-bar" />TRADES</span>
+          <span className="ptitle-r">
+            {tradesBoot ? 'AWAITING TRADES SINCE MARKET OPEN' : `${openTrades.length} OPEN · ${trades.length} TOTAL`}
+          </span>
         </div>
-        {posBoot ? (
+        {tradesBoot ? (
           <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>
-            — AWAITING LIVE TRADES —
+            — AWAITING TRADES SINCE MARKET OPEN —
           </div>
-        ) : positions.map((p, i) => {
-          const offset = offsets[i] ?? 0;
-          const pv = p.pnl + offset;
-          const pp = p.pnlPct + (p.entry ? (offset / p.entry) * 100 : 0);
-          const cur = p.cur + offset * 0.01;
-          const range = p.target - p.entry;
-          const progPct = range ? Math.max(0, Math.min(100, ((cur - p.entry) / range) * 100)) : 0;
-          const pos = pv >= 0;
-          const clr = pos ? 'var(--green)' : 'var(--red)';
-          return (
-            <div className="pos-card" key={p.requestId || p.asset}>
-              <div className="pc-row1">
-                <div className="pc-asset">{p.asset}</div>
-                <div className="pc-pills">
-                  <span className={'ptrack ' + p.track}>{p.tl}</span>
-                  <span className={'pconv ' + p.conv}>{p.cl}</span>
-                </div>
-                <div className="pc-spacer" />
-                <div className="pc-pnl-wrap">
-                  <div className="pc-pnl" style={{ color: clr }}>{pos ? '+' : ''}${Math.abs(pv).toFixed(2)}</div>
-                  <div className="pc-pnl-pct" style={{ color: clr }}>{pos ? '+' : ''}{pp.toFixed(2)}%</div>
-                </div>
-              </div>
-              <div className="pc-row2">
-                <div className="pc-cell"><div className="pc-cell-lbl">Entry</div><div className="pc-cell-val">{p.entry.toLocaleString()}</div></div>
-                <div className="pc-cell"><div className="pc-cell-lbl">Current</div><div className="pc-cell-val">{cur.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div></div>
-                <div className="pc-cell"><div className="pc-cell-lbl">Stop</div><div className="pc-cell-val r">{p.stop.toLocaleString()}</div></div>
-                <div className="pc-cell"><div className="pc-cell-lbl">Target</div><div className="pc-cell-val g">{p.target.toLocaleString()}</div></div>
-              </div>
-              <div className="pc-row3">
-                <div className="pc-prog-wrap">
-                  <div className="pc-prog-bg"><div className="pc-prog-fill" style={{ width: progPct + '%', background: clr }} /></div>
-                  <div className="pc-prog-lbl">{progPct.toFixed(0)}% TO TARGET</div>
-                </div>
-                <div className="pc-hold">{p.hold}</div>
-              </div>
-            </div>
-          );
-        })}
+        ) : trades.map((t) => (
+          <MobileTradeCard key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
+                           t={t} offset={openOffsetByReq.get(t.requestId) ?? 0} />
+        ))}
       </div>
 
       <div className="panel eq-panel">
@@ -298,9 +272,9 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
       </div>
 
       <div className="stats-chip">
-        <div className="sc-item"><div className="sc-val">{posBoot ? 0 : (liveAccountBar?.open ?? 0)}</div><div className="sc-lbl">Open</div></div>
-        <div className="sc-item"><div className="sc-val">{posBoot ? 0 : (liveAccountBar?.trades ?? 0)}</div><div className="sc-lbl">Trades</div></div>
-        <div className="sc-item"><div className="sc-val">{posBoot ? 0 : eventsCount}</div><div className="sc-lbl">Events Today</div></div>
+        <div className="sc-item"><div className="sc-val">{tradesBoot ? 0 : openTrades.length}</div><div className="sc-lbl">Open</div></div>
+        <div className="sc-item"><div className="sc-val">{tradesBoot ? 0 : (liveAccountBar?.trades ?? 0)}</div><div className="sc-lbl">Trades</div></div>
+        <div className="sc-item"><div className="sc-val">{tradesBoot ? 0 : eventsCount}</div><div className="sc-lbl">Events Today</div></div>
       </div>
 
       <div className="panel wf-panel">
@@ -311,6 +285,81 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
         <MobileWaterfall mode={mode} liveWaterfall={liveWaterfall} />
       </div>
     </>
+  );
+}
+
+function MobileTradeCard({ t, offset }) {
+  const isOpen = t.status === 'OPEN';
+  if (isOpen) {
+    const pv = t.pnl + offset;
+    const pp = t.pnlPct + (t.entry ? (offset / t.entry) * 100 : 0);
+    const cur = t.cur + offset * 0.01;
+    const range = t.target - t.entry;
+    const progPct = range ? Math.max(0, Math.min(100, ((cur - t.entry) / range) * 100)) : 0;
+    const pos = pv >= 0;
+    const clr = pos ? 'var(--green)' : 'var(--red)';
+    return (
+      <div className="pos-card card-open">
+        <div className="pc-row1">
+          <div className="pc-asset">{t.asset}</div>
+          <div className="pc-pills">
+            <span className={'ptrack ' + t.track}>{t.tl}</span>
+            <span className={'pconv ' + t.conv}>{t.cl}</span>
+          </div>
+          <div className="pc-spacer" />
+          <div className="pc-pnl-wrap">
+            <div className="pc-pnl" style={{ color: clr }}>{pos ? '+' : ''}${Math.abs(pv).toFixed(2)}</div>
+            <div className="pc-pnl-pct" style={{ color: clr }}>{pos ? '+' : ''}{pp.toFixed(2)}%</div>
+          </div>
+        </div>
+        <div className="pc-row2">
+          <div className="pc-cell"><div className="pc-cell-lbl">Entry</div><div className="pc-cell-val">{t.entry.toLocaleString()}</div></div>
+          <div className="pc-cell"><div className="pc-cell-lbl">Current</div><div className="pc-cell-val">{cur.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div></div>
+          <div className="pc-cell"><div className="pc-cell-lbl">Stop</div><div className="pc-cell-val r">{t.stop.toLocaleString()}</div></div>
+          <div className="pc-cell"><div className="pc-cell-lbl">Target</div><div className="pc-cell-val g">{t.target.toLocaleString()}</div></div>
+        </div>
+        <div className="pc-row3">
+          <div className="pc-prog-wrap">
+            <div className="pc-prog-bg"><div className="pc-prog-fill" style={{ width: progPct + '%', background: clr }} /></div>
+            <div className="pc-prog-lbl">{progPct.toFixed(0)}% TO TARGET</div>
+          </div>
+          <div className="pc-hold">{t.hold}</div>
+        </div>
+      </div>
+    );
+  }
+  // Closed
+  const isWin = t.winLoss === 'Win';
+  const finalClr = isWin ? 'var(--green)' : 'var(--red)';
+  const outcomeLabel = isWin ? 'WIN' : 'LOSS';
+  return (
+    <div className="pos-card card-closed">
+      <div className="pc-row1">
+        <div className="pc-asset">{t.asset}</div>
+        <div className="pc-pills">
+          <span className={'ptrack ' + t.track}>{t.tl}</span>
+          <span className={'pconv ' + t.conv}>{t.cl}</span>
+        </div>
+        <div className="pc-spacer" />
+        <div className="pc-pnl-wrap">
+          <div className="pc-pnl" style={{ color: finalClr }}>{t.pnl >= 0 ? '+' : ''}${Math.abs(t.pnl).toFixed(2)}</div>
+          <div className="pc-pnl-pct" style={{ color: finalClr }}>{t.pnlPct >= 0 ? '+' : ''}{t.pnlPct.toFixed(2)}%</div>
+        </div>
+      </div>
+      <div className="pc-row2">
+        <div className="pc-cell"><div className="pc-cell-lbl">Entry</div><div className="pc-cell-val">{t.entry.toLocaleString()}</div></div>
+        <div className="pc-cell"><div className="pc-cell-lbl">Exit</div><div className="pc-cell-val">{t.exit != null ? t.exit.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}</div></div>
+        <div className="pc-cell"><div className="pc-cell-lbl">Stop</div><div className="pc-cell-val r">{t.stop.toLocaleString()}</div></div>
+        <div className="pc-cell"><div className="pc-cell-lbl">Target</div><div className="pc-cell-val g">{t.target.toLocaleString()}</div></div>
+      </div>
+      <div className="pc-row3">
+        <div className="pc-prog-wrap">
+          <div className="pc-prog-bg"><div className="pc-prog-fill" style={{ width: '100%', background: finalClr }} /></div>
+          <div className="pc-prog-lbl" style={{ color: finalClr, letterSpacing: '1px' }}>{outcomeLabel}</div>
+        </div>
+        <div className="pc-hold">{t.hold}</div>
+      </div>
+    </div>
   );
 }
 
@@ -661,23 +710,26 @@ function DataTab({ mode, data, liveEvents }) {
         <div className="rules-foot">{foot?.thisWeek ?? 0} RULES · CYCLE <span>{foot?.cycle ?? 0}</span> · TOTAL <span>{foot?.total ?? 0}</span></div>
       </div>
 
-      <div className="panel">
-        <div className="ptitle">
-          <span><span className="ptitle-bar" />SYSTEM EVENT FEED</span>
-          <span className="ptitle-r">{eventsBoot ? '0 EVENTS' : `${events.length} EVENTS`}</span>
-        </div>
-        <div className="event-feed">
-          {eventsBoot ? (
-            <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '12px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING LIVE EVENTS —</div>
-          ) : events.map((e) => (
-            <div className={'ev ' + e.cls} key={e.eventId || (e.t + e.text)}>
-              <span className="ev-icon">{e.icon}</span>
-              <span className="ev-time">{e.t}</span>
-              <span className="ev-text">{e.text}</span>
-              {e.val && <span className={'ev-val ' + e.valcls}>{e.val}</span>}
-            </div>
-          ))}
-        </div>
+      <div className="panel p-news-status">
+        {(() => {
+          const lastEvent = adaptLastEvent(data);
+          const newsItems = adaptNewsTicker(data);
+          const macroItems = adaptMacroNews(data);
+          const cacheStatus = data?.macroNews?.cache;
+          return (
+            <>
+              <StatusStrip lastEvent={lastEvent} />
+              <div className="news-row primary">
+                {bootstrap
+                  ? <div className="news-ticker-empty">— LIVE MODE — PER-ASSET NEWS SUPPRESSED —</div>
+                  : <NewsTicker items={newsItems} />}
+              </div>
+              <div className="news-row macro">
+                <MacroNewsStrip items={macroItems} cacheStatus={cacheStatus} />
+              </div>
+            </>
+          );
+        })()}
       </div>
     </>
   );

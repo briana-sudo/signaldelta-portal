@@ -148,7 +148,212 @@ body::after {
 .pc-shell .engine-dot.dot-stale   { background:var(--amber); box-shadow:0 0 6px var(--amber); animation:pdot 4s ease-in-out infinite; }
 .pc-shell .engine-dot.dot-stopped { background:var(--red);   box-shadow:0 0 6px var(--red);   animation:none; }
 
-/* ─── Change 3: Prominent poll indicator in header ─── */
+/* ─── Portal v1.1 Change 2: Trade list row tints (PC + mobile shared rules below) ─── */
+.pc-shell .trade-list tr.row-open td { background: rgba(0, 230, 118, 0.08); }
+.pc-shell .trade-list tr.row-closed td { background: transparent; }
+.pc-shell .trade-list tr.row-open:hover td { background: rgba(0, 230, 118, 0.14); }
+.pc-shell .trade-list tr.row-closed:hover td { background: var(--navy3); }
+
+/* ─── Portal v1.1 Changes 3+4: News + Macro panel composite ─── */
+.pc-shell .p-news-status {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.pc-shell .p-news-status .status-strip {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 4px 10px;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--w3);
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.pc-shell .status-label { color: var(--w3); }
+.pc-shell .status-event { color: var(--cyan); font-weight: 700; letter-spacing: 1px; }
+.pc-shell .status-event.sev-warning { color: var(--amber); }
+.pc-shell .status-event.sev-error { color: var(--red); }
+.pc-shell .status-asset { color: var(--white); }
+.pc-shell .status-sep { color: var(--w3); }
+.pc-shell .status-time { color: var(--w2); }
+.pc-shell .status-value.dim { color: var(--w3); }
+
+.pc-shell .news-row {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  min-height: 0;
+  position: relative;
+}
+.pc-shell .news-row.primary {
+  border-bottom: 1px dashed rgba(0, 194, 255, 0.15);
+}
+.pc-shell .news-row.macro {
+  background: linear-gradient(180deg, rgba(255, 171, 0, 0.04), transparent);
+  border-top: 1px solid rgba(255, 171, 0, 0.18);
+}
+
+/* News ticker — per-asset, horizontal marquee */
+.pc-shell .news-ticker-wrap { overflow: hidden; width: 100%; height: 100%; display: flex; align-items: center; }
+.pc-shell .news-ticker-inner {
+  display: flex;
+  white-space: nowrap;
+  animation: news-scroll 120s linear infinite;
+}
+.pc-shell .news-ticker-wrap:hover .news-ticker-inner { animation-play-state: paused; }
+@keyframes news-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.pc-shell .news-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.pc-shell .news-asset { color: var(--white); font-weight: 700; letter-spacing: 0.5px; }
+.pc-shell .news-pill {
+  font-size: 8px;
+  padding: 1px 5px;
+  letter-spacing: 1px;
+  border: 1px solid currentColor;
+}
+.pc-shell .news-pill.pill-high { color: var(--red); background: var(--red2); }
+.pc-shell .news-pill.pill-med  { color: var(--amber); background: var(--amber2); }
+.pc-shell .news-pill.pill-low  { color: var(--w2); background: rgba(0,0,0,0.25); border-color: var(--w3); }
+.pc-shell .news-summary {
+  color: var(--w2);
+  max-width: 600px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pc-shell .news-time { color: var(--w3); font-size: 8px; letter-spacing: 1px; }
+.pc-shell .news-divider { color: var(--w3); padding: 0 4px; }
+.pc-shell .news-ticker-empty {
+  flex: 1;
+  text-align: center;
+  color: var(--w3);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+
+/* Macro strip — Alpha Vantage feed, distinct amber-tinted treatment */
+.pc-shell .macro-strip-wrap { display: flex; align-items: center; width: 100%; height: 100%; overflow: hidden; gap: 8px; padding-left: 8px; }
+.pc-shell .macro-strip-empty { display: flex; align-items: center; width: 100%; height: 100%; gap: 8px; padding-left: 8px; }
+.pc-shell .macro-label {
+  flex-shrink: 0;
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--amber);
+  padding: 2px 6px;
+  border: 1px solid var(--amber);
+  background: var(--amber2);
+}
+.pc-shell .macro-empty-text {
+  color: var(--w3);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+.pc-shell .macro-strip-inner {
+  flex: 1;
+  display: flex;
+  white-space: nowrap;
+  overflow: hidden;
+  animation: macro-scroll 180s linear infinite;
+}
+.pc-shell .macro-strip-wrap:hover .macro-strip-inner { animation-play-state: paused; }
+@keyframes macro-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.pc-shell .macro-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.pc-shell .macro-time { color: var(--w3); font-size: 8px; letter-spacing: 1px; }
+.pc-shell .macro-source { color: var(--w2); font-weight: 700; letter-spacing: 0.5px; }
+.pc-shell .macro-title {
+  max-width: 600px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pc-shell .macro-title.sent-pos { color: var(--green); }
+.pc-shell .macro-title.sent-neg { color: var(--red); }
+.pc-shell .macro-title.sent-neu { color: var(--white); }
+.pc-shell .macro-divider { color: var(--amber); padding: 0 4px; opacity: 0.6; }
+
+/* Mobile mirrors — same component classes, narrower sizing */
+.mobile-shell .trade-list tr.row-open td { background: rgba(0, 230, 118, 0.08); }
+.mobile-shell .pos-card.card-open { background: linear-gradient(180deg, rgba(0,230,118,0.07), var(--navy3)); border-color: rgba(0,230,118,0.18); }
+.mobile-shell .pos-card.card-closed { background: var(--navy3); }
+
+.mobile-shell .p-news-status { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.mobile-shell .p-news-status .status-strip {
+  border-bottom: 1px solid var(--border);
+  padding: 6px 10px;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--w3);
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mobile-shell .status-event { color: var(--cyan); font-weight: 700; letter-spacing: 1px; }
+.mobile-shell .status-event.sev-warning { color: var(--amber); }
+.mobile-shell .status-event.sev-error { color: var(--red); }
+.mobile-shell .status-asset { color: var(--white); }
+.mobile-shell .status-time { color: var(--w2); }
+
+.mobile-shell .news-row { overflow: hidden; height: 32px; display: flex; align-items: center; }
+.mobile-shell .news-row.primary { border-bottom: 1px dashed rgba(0,194,255,0.15); }
+.mobile-shell .news-row.macro { background: linear-gradient(180deg, rgba(255,171,0,0.05), transparent); border-top: 1px solid rgba(255,171,0,0.2); }
+
+.mobile-shell .news-ticker-wrap { overflow: hidden; width: 100%; height: 100%; display: flex; align-items: center; }
+.mobile-shell .news-ticker-inner { display: flex; white-space: nowrap; animation: news-scroll 90s linear infinite; }
+.mobile-shell .news-item { display: flex; align-items: center; gap: 5px; padding: 0 10px; font-family: var(--mono); font-size: 9px; }
+.mobile-shell .news-asset { color: var(--white); font-weight: 700; letter-spacing: 0.5px; }
+.mobile-shell .news-pill { font-size: 7px; padding: 1px 4px; letter-spacing: 1px; border: 1px solid currentColor; }
+.mobile-shell .news-pill.pill-high { color: var(--red); background: var(--red2); }
+.mobile-shell .news-pill.pill-med  { color: var(--amber); background: var(--amber2); }
+.mobile-shell .news-pill.pill-low  { color: var(--w2); background: rgba(0,0,0,0.25); border-color: var(--w3); }
+.mobile-shell .news-summary { color: var(--w2); max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.mobile-shell .news-time { color: var(--w3); font-size: 7px; }
+.mobile-shell .news-divider { color: var(--w3); padding: 0 3px; }
+.mobile-shell .news-ticker-empty { flex: 1; text-align: center; color: var(--w3); font-family: var(--mono); font-size: 9px; letter-spacing: 1px; }
+
+.mobile-shell .macro-strip-wrap { display: flex; align-items: center; width: 100%; height: 100%; overflow: hidden; gap: 6px; padding-left: 6px; }
+.mobile-shell .macro-strip-empty { display: flex; align-items: center; width: 100%; height: 100%; gap: 6px; padding-left: 6px; }
+.mobile-shell .macro-label { flex-shrink: 0; font-family: var(--disp); font-weight: 700; font-size: 8px; letter-spacing: 2px; color: var(--amber); padding: 2px 5px; border: 1px solid var(--amber); background: var(--amber2); }
+.mobile-shell .macro-empty-text { color: var(--w3); font-family: var(--mono); font-size: 9px; letter-spacing: 1px; }
+.mobile-shell .macro-strip-inner { flex: 1; display: flex; white-space: nowrap; overflow: hidden; animation: macro-scroll 150s linear infinite; }
+.mobile-shell .macro-item { display: flex; align-items: center; gap: 5px; padding: 0 10px; font-family: var(--mono); font-size: 9px; }
+.mobile-shell .macro-time { color: var(--w3); font-size: 7px; }
+.mobile-shell .macro-source { color: var(--w2); font-weight: 700; letter-spacing: 0.5px; }
+.mobile-shell .macro-title { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.mobile-shell .macro-title.sent-pos { color: var(--green); }
+.mobile-shell .macro-title.sent-neg { color: var(--red); }
+.mobile-shell .macro-title.sent-neu { color: var(--white); }
+.mobile-shell .macro-divider { color: var(--amber); padding: 0 3px; opacity: 0.6; }
+
+/* ─── Change 3 (legacy): Prominent poll indicator in header ─── */
 .pc-shell .poll-prom {
   display:flex; align-items:center; gap:6px;
   font-family:var(--mono); letter-spacing:1px;

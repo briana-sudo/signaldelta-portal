@@ -57,6 +57,15 @@ export const Q_TRADE_OVERLAY_ENRICHMENT = 'trade_overlay_enrichment';
 // engine-written node types. Drives the LIVE/STALE/STOPPED EnginePill.
 export const Q_ENGINE_HEARTBEAT = 'engine_heartbeat';
 
+// ── Portal v1.1 Change 2: trade list (replaces open_positions panel) ──
+// Both OPEN and CLOSED TradeNodes, cutoff-filtered server-side, ordered
+// DESC by entry_timestamp, LIMIT 12.
+export const Q_TRADE_LIST = 'trade_list_recent';
+
+// ── Portal v1.1 Change 3A: news ticker (per-asset NewsContextNode feed) ──
+// Non-QUIET only, ordered DESC by written_at, LIMIT 50.
+export const Q_NEWS_TICKER = 'news_ticker_recent';
+
 // Mode toggle helper — Phase 4 will append phase filter server-side once
 // §14 amendments land the `phase` field on TradeNode + WeeklyContextNode
 // + EquitySnapshotNode. Phase 1.1 returns null (no filter) since the
