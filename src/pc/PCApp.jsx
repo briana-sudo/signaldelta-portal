@@ -11,7 +11,7 @@ import {
   adaptEquityCurve, adaptEquityHeader,
   adaptRulesThisWeek, adaptRulesFoot,
   adaptHeartbeat,
-  adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptLastEvent,
+  adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
@@ -525,21 +525,21 @@ function EquityCurvePanel({ mode, data }) {
 }
 
 function NewsAndStatusPanel({ mode, data }) {
-  // Portal v1.1 Change 3: replaces the System Event Feed with a composite
-  //  - StatusStrip   (line)  most recent SystemEventNode (Change 3B)
-  //  - NewsTicker    (~60%)  per-asset NewsContextNode marquee (Change 3A)
-  //  - MacroNewsStrip(~40%)  Alpha Vantage macro feed marquee (Change 4)
-  const lastEvent = adaptLastEvent(data);
+  // Portal v1.1 composite — three surfaces in one panel:
+  //   - StatusStrip   (top)   5-event vertical cycle (2026-05-26 expansion)
+  //   - NewsTicker    (~60%)  per-asset NewsContextNode marquee
+  //   - MacroNewsStrip(~40%)  Alpha Vantage macro feed marquee
+  const recentEvents = adaptRecentEvents(data, 5);
   const newsItems = adaptNewsTicker(data);
   const macroItems = adaptMacroNews(data);
   const cacheStatus = data?.macroNews?.cache;
   // Mode toggle filtering: under LIVE, suppress per-asset content per the
-  // existing bootstrap convention. Macro news is market-wide and always shows.
+  // existing bootstrap convention. Macro news + system events stay visible.
   const bootstrap = shouldRenderBootstrap(mode);
 
   return (
     <div className="panel p-news-status">
-      <StatusStrip lastEvent={lastEvent} />
+      <StatusStrip recentEvents={recentEvents} />
       <div className="news-row primary">
         {bootstrap
           ? <div className="news-ticker-empty">— LIVE MODE — PER-ASSET NEWS SUPPRESSED —</div>

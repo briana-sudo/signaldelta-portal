@@ -11,7 +11,7 @@ import {
   adaptEquityCurve, adaptEquityHeader,
   adaptRulesThisWeek, adaptRulesFoot,
   adaptHeartbeat,
-  adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptLastEvent,
+  adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
@@ -712,13 +712,13 @@ function DataTab({ mode, data, liveEvents }) {
 
       <div className="panel p-news-status">
         {(() => {
-          const lastEvent = adaptLastEvent(data);
+          const recentEvents = adaptRecentEvents(data, 5);
           const newsItems = adaptNewsTicker(data);
           const macroItems = adaptMacroNews(data);
           const cacheStatus = data?.macroNews?.cache;
           return (
             <>
-              <StatusStrip lastEvent={lastEvent} />
+              <StatusStrip recentEvents={recentEvents} />
               <div className="news-row primary">
                 {bootstrap
                   ? <div className="news-ticker-empty">— LIVE MODE — PER-ASSET NEWS SUPPRESSED —</div>

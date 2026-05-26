@@ -430,7 +430,11 @@ export function adaptMacroNews(data) {
   return items.length > 0 ? items : null;
 }
 
-// ── Last system event (Portal v1.1 Change 3B status strip) ────────────
+// ── Recent system events (Portal v1.1 status-strip 5-event cycle) ─────
+// Maps up to N most recent SystemEventNodes to display-ready rows. The
+// StatusStrip component cycles through this array, showing 3 at a time
+// (top sharp, others dimmer). `relativeTimeAgo` formats per spec:
+// "Xs ago" / "Xm ago" / "Xh ago" / "Xd ago".
 const STATUS_EVENT_FRIENDLY = {
   TRADE_OPENED: 'Trade opened',
   TRADE_CLOSED: 'Trade closed',
@@ -442,21 +446,46 @@ const STATUS_EVENT_FRIENDLY = {
   MANUAL_OVERRIDE: 'Manual override',
 };
 
-export function adaptLastEvent(data) {
+function relativeTimeAgo(iso) {
+  const t = iso ? new Date(iso).getTime() : NaN;
+  if (!Number.isFinite(t)) return '—';
+  const ms = Date.now() - t;
+  if (ms < 60_000) {
+    const s = Math.max(1, Math.floor(ms / 1000));
+    return `${s}s ago`;
+  }
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+export function adaptRecentEvents(data, max = 5) {
   const rows = data?.events;
   if (!Array.isArray(rows) || rows.length === 0) return null;
-  const e = rows[0];   // events query already ORDER BY timestamp DESC
-  if (!e) return null;
-  const friendly = STATUS_EVENT_FRIENDLY[e.event_type] || e.event_type || '?';
-  return {
-    eventType: e.event_type,
-    friendly,
-    asset: e.asset || null,
-    summary: e.summary || '',
-    severity: e.severity || 'INFO',
-    timestamp: e.event_timestamp,
-    timeAgo: e.event_timestamp ? minutesAgoLabel(e.event_timestamp) + ' ago' : '—',
-  };
+  return rows.slice(0, max).map((e) => {
+    const sev = (e.severity || 'INFO').toUpperCase();
+    return {
+      eventType: e.event_type || '?',
+      friendly: STATUS_EVENT_FRIENDLY[e.event_type] || e.event_type || '?',
+      asset: e.asset || null,
+      summary: e.summary || '',
+      severity: sev,
+      severityClass: sev === 'WARNING' ? 'warning' : sev === 'ERROR' ? 'error' : 'info',
+      timestamp: e.event_timestamp,
+      timeAgo: relativeTimeAgo(e.event_timestamp),
+      eventId: e.event_id,
+    };
+  });
+}
+
+// Back-compat shim — any remaining caller of adaptLastEvent returns the
+// single most recent event from adaptRecentEvents.
+export function adaptLastEvent(data) {
+  const arr = adaptRecentEvents(data, 1);
+  return arr && arr[0] ? arr[0] : null;
 }
 
 // ── Kernel counts (for the overlays — not the scene itself) ──────────
