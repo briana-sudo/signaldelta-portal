@@ -184,18 +184,31 @@ body::after {
 .pc-shell .system-strip-wrap.empty {
   justify-content: flex-start;
 }
+/* Portal v1.5 fix (2026-05-26): position:relative + z-index gives the
+   label its own stacking context above the now-content-sized inner. The
+   inner is a later DOM sibling; without this it paints over the label.
+   Opaque navy2 background closes the see-through hole (label had no
+   background previously). */
 .pc-shell .system-strip-label {
   font-family: var(--disp); font-weight: 600; font-size: 8px;
   letter-spacing: 3px; color: var(--w3); text-transform: uppercase;
   flex-shrink: 0;
+  position: relative; z-index: 2;
+  background: var(--navy2); padding: 0 6px;
 }
 .pc-shell .system-strip-empty-text { color: var(--w3); letter-spacing: 1px; font-size: 9px; }
 
+/* Portal v1.5 fix (2026-05-26): dropped `flex: 1` and `overflow: hidden`.
+   That pair clipped the doubled-content trick — `flex: 1` sized the inner
+   to wrap_width−label_width (NOT to content), and `overflow: hidden` on
+   the inner hid the second copy of items. translateX(-50%) of a flex-1
+   inner ≠ 50% of doubled content, so the loop snap-jumped at iteration
+   boundary. Now mirrors the working bottom asset ticker pattern: wrap
+   does the single clipping, inner sizes to natural (doubled) content,
+   translateX(-50%) = exactly one copy = seamless. */
 .pc-shell .system-strip-inner {
-  flex: 1;
   display: flex;
   white-space: nowrap;
-  overflow: hidden;
   animation: system-scroll 120s linear infinite;
 }
 .pc-shell .system-strip-wrap:hover .system-strip-inner { animation-play-state: paused; }
@@ -244,10 +257,14 @@ body::after {
 
 /* News ticker — per-asset, horizontal marquee */
 .pc-shell .news-ticker-wrap { overflow: hidden; width: 100%; height: 100%; display: flex; align-items: center; }
+/* Portal v1.5 fix (2026-05-26): 120s → 75s. Operator-confirmed too slow.
+   ~2.5 sec/item at 30 doubled items — feels active without outpacing the
+   macro strip (60s) which deliberately sits faster as the more urgent
+   surface. Bottom asset ticker remains 28s. */
 .pc-shell .news-ticker-inner {
   display: flex;
   white-space: nowrap;
-  animation: news-scroll 120s linear infinite;
+  animation: news-scroll 75s linear infinite;
 }
 .pc-shell .news-ticker-wrap:hover .news-ticker-inner { animation-play-state: paused; }
 @keyframes news-scroll {
@@ -292,6 +309,8 @@ body::after {
 /* Macro strip — Alpha Vantage feed, distinct amber-tinted treatment */
 .pc-shell .macro-strip-wrap { display: flex; align-items: center; width: 100%; height: 100%; overflow: hidden; gap: 8px; padding-left: 8px; }
 .pc-shell .macro-strip-empty { display: flex; align-items: center; width: 100%; height: 100%; gap: 8px; padding-left: 8px; }
+/* Portal v1.5 fix (2026-05-26): position:relative + z-index puts label
+   above the inner (background + border already opaque-enough). */
 .pc-shell .macro-label {
   flex-shrink: 0;
   font-family: var(--disp);
@@ -302,6 +321,7 @@ body::after {
   padding: 2px 6px;
   border: 1px solid var(--amber);
   background: var(--amber2);
+  position: relative; z-index: 2;
 }
 .pc-shell .macro-empty-text {
   color: var(--w3);
@@ -314,11 +334,12 @@ body::after {
    ~2.0 sec/item rhythm. 60s aligns macro cadence with the bottom ticker
    (~30 macro items × 2.0 sec = 60s) so the two streaming surfaces share
    visual rhythm. Hover-to-pause preserved. */
+/* Portal v1.5 fix (2026-05-26): same as .system-strip-inner above —
+   dropped flex:1 + overflow:hidden so the doubled-content seamless loop
+   actually loops seamlessly. */
 .pc-shell .macro-strip-inner {
-  flex: 1;
   display: flex;
   white-space: nowrap;
-  overflow: hidden;
   animation: macro-scroll 60s linear infinite;
 }
 .pc-shell .macro-strip-wrap:hover .macro-strip-inner { animation-play-state: paused; }
@@ -367,14 +388,18 @@ body::after {
   height: 26px;
 }
 .mobile-shell .system-strip-wrap.empty { justify-content: flex-start; }
+/* Portal v1.5 fix (2026-05-26): mobile mirror of PC label stacking. */
 .mobile-shell .system-strip-label {
   font-family: var(--disp); font-weight: 600; font-size: 8px;
   letter-spacing: 2px; color: var(--w3); text-transform: uppercase;
   flex-shrink: 0;
+  position: relative; z-index: 2;
+  background: var(--navy2); padding: 0 6px;
 }
 .mobile-shell .system-strip-empty-text { color: var(--w3); letter-spacing: 1px; font-size: 9px; }
+/* Portal v1.5 fix (2026-05-26): mobile mirror — dropped flex:1 + overflow:hidden. */
 .mobile-shell .system-strip-inner {
-  flex: 1; display: flex; white-space: nowrap; overflow: hidden;
+  display: flex; white-space: nowrap;
   animation: system-scroll 90s linear infinite;
 }
 .mobile-shell .system-strip-wrap:hover .system-strip-inner { animation-play-state: paused; }
@@ -399,7 +424,8 @@ body::after {
 .mobile-shell .news-row.macro { background: linear-gradient(180deg, rgba(255,171,0,0.05), transparent); border-top: 1px solid rgba(255,171,0,0.2); }
 
 .mobile-shell .news-ticker-wrap { overflow: hidden; width: 100%; height: 100%; display: flex; align-items: center; }
-.mobile-shell .news-ticker-inner { display: flex; white-space: nowrap; animation: news-scroll 90s linear infinite; }
+/* Portal v1.5 fix (2026-05-26): mobile parity with PC — 90s → 75s. */
+.mobile-shell .news-ticker-inner { display: flex; white-space: nowrap; animation: news-scroll 75s linear infinite; }
 .mobile-shell .news-item { display: flex; align-items: center; gap: 5px; padding: 0 10px; font-family: var(--mono); font-size: 9px; }
 .mobile-shell .news-asset { color: var(--white); font-weight: 700; letter-spacing: 0.5px; }
 .mobile-shell .news-pill { font-size: 7px; padding: 1px 4px; letter-spacing: 1px; border: 1px solid currentColor; }
@@ -413,9 +439,11 @@ body::after {
 
 .mobile-shell .macro-strip-wrap { display: flex; align-items: center; width: 100%; height: 100%; overflow: hidden; gap: 6px; padding-left: 6px; }
 .mobile-shell .macro-strip-empty { display: flex; align-items: center; width: 100%; height: 100%; gap: 6px; padding-left: 6px; }
-.mobile-shell .macro-label { flex-shrink: 0; font-family: var(--disp); font-weight: 700; font-size: 8px; letter-spacing: 2px; color: var(--amber); padding: 2px 5px; border: 1px solid var(--amber); background: var(--amber2); }
+/* Portal v1.5 fix (2026-05-26): mobile mirror of PC macro-label stacking. */
+.mobile-shell .macro-label { flex-shrink: 0; font-family: var(--disp); font-weight: 700; font-size: 8px; letter-spacing: 2px; color: var(--amber); padding: 2px 5px; border: 1px solid var(--amber); background: var(--amber2); position: relative; z-index: 2; }
 .mobile-shell .macro-empty-text { color: var(--w3); font-family: var(--mono); font-size: 9px; letter-spacing: 1px; }
-.mobile-shell .macro-strip-inner { flex: 1; display: flex; white-space: nowrap; overflow: hidden; animation: macro-scroll 60s linear infinite; }
+/* Portal v1.5 fix (2026-05-26): mobile mirror — dropped flex:1 + overflow:hidden. */
+.mobile-shell .macro-strip-inner { display: flex; white-space: nowrap; animation: macro-scroll 60s linear infinite; }
 .mobile-shell .macro-item { display: flex; align-items: center; gap: 5px; padding: 0 10px; font-family: var(--mono); font-size: 9px; }
 .mobile-shell .macro-time { color: var(--w3); font-size: 7px; }
 .mobile-shell .macro-source { color: var(--w2); font-weight: 700; letter-spacing: 0.5px; }
