@@ -12,6 +12,7 @@ import {
   adaptRulesThisWeek, adaptRulesFoot,
   adaptHeartbeat,
   adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
+  adaptScanner,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
@@ -74,7 +75,7 @@ export default function MobileApp({ data, errors = {}, hasAnyData = false, error
           <DeskTab mode={mode} data={data} eventsCount={liveEvents?.length ?? 0} pollTimestamp={pollTimestamp} />
         </div>
         <div className={'tab-content' + (tab === 'scan' ? ' active' : '')}>
-          <ScanTab mode={mode} />
+          <ScanTab mode={mode} data={data} />
         </div>
         <div className={'tab-content' + (tab === 'system' ? ' active' : '')}>
           <SystemTab mode={mode} data={data} onOpenKernel={() => setKernelOpen(true)} />
@@ -463,72 +464,62 @@ function MobileWaterfall({ mode, liveWaterfall }) {
   );
 }
 
-function ScanTab({ mode }) {
+function ScanTab({ mode, data }) {
+  // Portal v1.2 scanner-cycle dispatch (2026-05-26): mirror of PC
+  // ScannerPanel — full asset list vertical scroll, FIRED pulse on OPEN
+  // rows, BUILDING DATA placeholder when no recent score in cutoff window.
+  // See ScannerPanel in PCApp.jsx for the full motion-model commentary.
   const bootstrap = shouldRenderBootstrap(mode);
-  const [rows, setRows] = useState(() =>
-    SCANNER_ASSETS.map((a) => ({ ...a, score: 0, bar: 0, evaluating: false })),
-  );
-  useEffect(() => {
-    if (bootstrap) return;
-    let stepTimer = null;
-    const tick = setInterval(() => {
-      const i = Math.floor(Math.random() * rows.length);
-      setRows((cur) => {
-        if (cur[i].fired) return cur;
-        const next = [...cur];
-        next[i] = { ...next[i], evaluating: true };
-        return next;
-      });
-      const target = Math.floor(Math.random() * 95) + 5;
-      let curScore = 0;
-      stepTimer = setInterval(() => {
-        curScore = Math.min(curScore + Math.floor(Math.random() * 7) + 3, target);
-        setRows((cur) => {
-          const next = [...cur];
-          if (next[i].fired) return cur;
-          next[i] = { ...next[i], score: curScore, bar: curScore };
-          if (curScore >= target) next[i] = { ...next[i], evaluating: false };
-          return next;
-        });
-        if (curScore >= target) { clearInterval(stepTimer); stepTimer = null; }
-      }, 35);
-    }, 500);
-    return () => {
-      clearInterval(tick);
-      if (stepTimer) clearInterval(stepTimer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bootstrap]);
-  const rowClass = (a) => {
-    if (bootstrap) return 'srow';
-    if (a.fired) return 'srow fired';
-    if (a.evaluating) return 'srow eval';
-    if (a.score >= 65) return 'srow thresh';
-    return 'srow';
-  };
+  const scanRows = adaptScanner(data);
+  const fallback = bootstrap || !scanRows;
+  const rows = fallback
+    ? SCANNER_ASSETS.map((a) => ({
+        sym: a.sym, sub: a.track, score: 0, hasScore: false, fired: false,
+      }))
+    : scanRows;
+  const doubled = [...rows, ...rows];
   return (
     <div className="panel">
       <div className="ptitle">
         <span><span className="ptitle-bar" />SIGNAL SCANNER</span>
-        <span className="ptitle-r">{SCANNER_ASSETS.length} ASSETS</span>
+        <span className="ptitle-r">{rows.length} ASSETS</span>
       </div>
       <div className="scanner-list">
-        {rows.map((a) => (
-          <div className={rowClass(a)} key={a.sym}>
-            <div>
-              <div className="sasset">{a.sym}</div>
-              <div className="strack">{a.track}</div>
-            </div>
-            <div>
-              <div className="sbar-bg">
-                <div className="sbar-fill" style={{ width: (bootstrap ? 0 : a.bar) + '%', background: barClr(bootstrap ? 0 : a.score) }} />
-              </div>
-            </div>
-            <div className={'sscore ' + scoreCls(bootstrap ? 0 : a.score)}>{bootstrap || !a.score ? '—' : a.score}</div>
-            {!bootstrap && a.fired && <div className="fired-badge">FIRED</div>}
-          </div>
-        ))}
+        <div className="scanner-list-inner">
+          {doubled.map((a, i) => (
+            <MobileScannerRow a={a} key={`${a.sym}-${i}`} fallback={fallback} />
+          ))}
+        </div>
       </div>
+    </div>
+  );
+}
+
+function MobileScannerRow({ a, fallback }) {
+  const showScore = !fallback && a.hasScore;
+  const isFired = !fallback && a.fired;
+  let cls = 'srow';
+  if (isFired) cls += ' fired';
+  else if (showScore && a.score >= 65) cls += ' thresh';
+  return (
+    <div className={cls}>
+      <div>
+        <div className="sasset">{a.sym}</div>
+        <div className="strack">{a.sub}</div>
+      </div>
+      <div>
+        {showScore ? (
+          <div className="sbar-bg">
+            <div className="sbar-fill" style={{ width: a.score + '%', background: barClr(a.score) }} />
+          </div>
+        ) : (
+          <div className="sbuilding">BUILDING DATA</div>
+        )}
+      </div>
+      <div className={'sscore ' + (showScore ? scoreCls(a.score) : 'lo')}>
+        {showScore ? a.score : '·'}
+      </div>
+      {isFired && <div className="fired-badge">FIRED</div>}
     </div>
   );
 }

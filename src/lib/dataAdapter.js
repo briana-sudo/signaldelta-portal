@@ -551,6 +551,59 @@ export function adaptLastEvent(data) {
   return arr && arr[0] ? arr[0] : null;
 }
 
+// ── Signal Scanner (Portal v1.2 scanner-cycle dispatch 2026-05-26) ───
+// Joins three live inputs to produce the full-asset-list row set the
+// ScannerPanel renders. Inputs:
+//   - data.monitoredAssets : string[] (mount-time read from TradingConfigNode)
+//   - data.scannerScores   : [{asset, last_score, last_track, last_seen}] —
+//                            per-asset most-recent TradeNode composite_score
+//                            within the cutoff window; assets with no trade
+//                            in-window simply don't appear (intentional)
+//   - data.tradeList       : trade list rows, used to derive the OPEN-asset
+//                            set so the row pulses while a position is live
+//
+// Per-asset output:
+//   { sym, sub, score, hasScore, fired, lastSeen }
+// `sub` derives the existing track sub-label from the most-recent trade
+// (CON/MOD/AGG); when the asset has no recent trade we fall back to the
+// asset-class lozenge (CRY / STK) so the row still has a sub-label slot.
+// `hasScore=false` triggers the BUILDING DATA placeholder render in the
+// component (no score number, no bar, no fired badge, still cycles).
+const SUB_TRACK_MAP = { Conservative: 'CON', Moderate: 'MOD', Aggressive: 'AGG' };
+function subFallback(sym) {
+  return typeof sym === 'string' && sym.includes('/') ? 'CRY' : 'STK';
+}
+export function adaptScanner(data) {
+  const assets = Array.isArray(data?.monitoredAssets) ? data.monitoredAssets : [];
+  if (assets.length === 0) return null;
+  const scoreRows = Array.isArray(data?.scannerScores) ? data.scannerScores : [];
+  const scoreMap = new Map();
+  for (const r of scoreRows) {
+    if (r && r.asset) scoreMap.set(r.asset, r);
+  }
+  const tradeRows = Array.isArray(data?.tradeList) ? data.tradeList : [];
+  const openSet = new Set();
+  for (const t of tradeRows) {
+    if (t && t.status === 'OPEN' && t.asset) openSet.add(t.asset);
+  }
+  return assets.map((sym) => {
+    const sr = scoreMap.get(sym);
+    const rawScore = sr ? sr.last_score : null;
+    const score = rawScore != null ? Math.round(Number(rawScore)) : null;
+    const sub = sr && sr.last_track && SUB_TRACK_MAP[sr.last_track]
+      ? SUB_TRACK_MAP[sr.last_track]
+      : subFallback(sym);
+    return {
+      sym,
+      sub,
+      score: score != null && Number.isFinite(score) ? score : 0,
+      hasScore: score != null && Number.isFinite(score),
+      fired: openSet.has(sym),
+      lastSeen: sr?.last_seen || null,
+    };
+  });
+}
+
 // ── Kernel counts (for the overlays — not the scene itself) ──────────
 // Phase 1.1: IndicatorNodes don't exist yet (Phase 4+). When they do, this
 // returns the real node/edge counts. Until then, null → the Three.js scene

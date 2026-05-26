@@ -27,6 +27,7 @@ import {
   Q_RULES_THIS_WEEK, Q_RULES_FOOT,
   Q_ENGINE_HEARTBEAT,
   Q_TRADE_LIST, Q_NEWS_TICKER,
+  Q_SCANNER_SCORES,
 } from '../lib/queries.js';
 
 const POLL_INTERVAL_MS = 60_000;
@@ -101,16 +102,25 @@ async function callMacroNews() {
   return await res.json(); // { feed, cache, age_seconds, ... }
 }
 
-async function pollOnce() {
-  // Single allSettled batch: every Cypher query + the macro news GET.
-  // Order matters — macro_news lands at index = QUERY_SPECS.length.
+async function pollOnce(monitoredAssets) {
+  // Portal v1.2 scanner-cycle dispatch (2026-05-26):
+  // scanner_scores joins the batch when `monitoredAssets` is populated by
+  // the mount-time fetch. Until then it's skipped (the first tick may run
+  // before mount-fetch completes; the second tick onward picks it up).
+  // The mount-time list is reused every poll — assets are stable for the
+  // session and don't need to be re-fetched on the 60s cadence.
+  const includeScanner = Array.isArray(monitoredAssets) && monitoredAssets.length > 0;
+
   const calls = [
     ...QUERY_SPECS.map((spec) => callProxy(spec.name)),
     callMacroNews(),
   ];
+  if (includeScanner) {
+    calls.push(callProxy('scanner_scores', { asset_list: monitoredAssets }));
+  }
   const settled = await Promise.allSettled(calls);
 
-  const data = { pollTimestamp: new Date().toISOString() };
+  const data = { pollTimestamp: new Date().toISOString(), monitoredAssets: monitoredAssets || [] };
   const errors = {};
   let anyData = false;
 
@@ -136,7 +146,7 @@ async function pollOnce() {
     }
   }
 
-  // Macro news result (last entry)
+  // Macro news result (next entry)
   const macroResult = settled[QUERY_SPECS.length];
   if (macroResult.status === 'fulfilled') {
     data.macroNews = macroResult.value;
@@ -152,6 +162,24 @@ async function pollOnce() {
     data.macroNews = null;
   }
 
+  // Scanner scores (last entry — conditionally appended)
+  if (includeScanner) {
+    const scannerResult = settled[QUERY_SPECS.length + 1];
+    if (scannerResult.status === 'fulfilled') {
+      data.scannerScores = scannerResult.value;
+      if (Array.isArray(scannerResult.value) && scannerResult.value.length > 0) anyData = true;
+    } else {
+      // eslint-disable-next-line no-console
+      console.error(`[signaldelta] poll 'scanner_scores' failed:`, scannerResult.reason);
+      errors.scanner_scores = scannerResult.reason instanceof Error
+        ? scannerResult.reason.message
+        : String(scannerResult.reason);
+      data.scannerScores = [];
+    }
+  } else {
+    data.scannerScores = [];
+  }
+
   return { data, errors, hasAnyData: anyData };
 }
 
@@ -162,13 +190,31 @@ export function useNeo4jPoll() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const mounted = useRef(true);
+  const monitoredAssetsRef = useRef(null);
 
   useEffect(() => {
     mounted.current = true;
     let timer = null;
+
+    // Mount-time fetch of the canonical monitored asset list. Used by every
+    // subsequent poll to drive scanner_scores. Failure here is non-fatal —
+    // the scanner panel will render BUILDING DATA placeholders.
+    (async () => {
+      try {
+        const rows = await callProxy('monitored_assets');
+        const list = rows?.[0]?.asset_list ?? [];
+        if (Array.isArray(list) && list.length > 0) {
+          monitoredAssetsRef.current = list;
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('[signaldelta] mount-time monitored_assets fetch failed:', e);
+      }
+    })();
+
     async function tick() {
       try {
-        const next = await pollOnce();
+        const next = await pollOnce(monitoredAssetsRef.current);
         if (!mounted.current) return;
         setData(next.data);
         setErrors(next.errors);

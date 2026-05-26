@@ -66,6 +66,13 @@ export const Q_TRADE_LIST = 'trade_list_recent';
 // Non-QUIET only, ordered DESC by written_at, LIMIT 50.
 export const Q_NEWS_TICKER = 'news_ticker_recent';
 
+// ── Portal v1.2 scanner-cycle dispatch (2026-05-26): per-asset most-recent
+// composite_score for the Signal Scanner panel. Caller must supply
+// { asset_list: string[] } (from a mount-time monitored_assets read).
+// Cutoff is auto-injected by the proxy. Rows missing for any asset → that
+// asset renders as "BUILDING DATA" (no recent trade).
+export const Q_SCANNER_SCORES = 'scanner_scores';
+
 // Mode toggle helper — Phase 4 will append phase filter server-side once
 // §14 amendments land the `phase` field on TradeNode + WeeklyContextNode
 // + EquitySnapshotNode. Phase 1.1 returns null (no filter) since the
