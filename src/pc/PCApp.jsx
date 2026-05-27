@@ -19,6 +19,7 @@ import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
 import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
+import MarketStatusPill from '../lib/MarketStatusPill.jsx';
 import NewsTicker from '../lib/NewsTicker.jsx';
 import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
 import StatusStrip from '../lib/StatusStrip.jsx';
@@ -155,6 +156,11 @@ function Header({ clock, mode, setMode, currentPhase, heartbeat, pollSecs, pollP
             >{m.toUpperCase()}</div>
           ))}
         </div>
+        {/* Market status clock (2026-05-26 dispatch) — placed to the left
+            of PollIndicator (SYNC) per dispatch's "plenty of empty space"
+            placement. Two pills: stocks (OPEN/CLOSED/HOLIDAY with countdown)
+            + crypto (static 24/7). */}
+        <MarketStatusPill variant="pc" />
         <PollIndicator secs={pollSecs} pulse={pollPulse} variant="pc" />
       </div>
       <div className="clock">

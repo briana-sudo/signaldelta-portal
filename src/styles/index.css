@@ -458,6 +458,77 @@ body::after {
 .mobile-shell .macro-title.sent-neu { color: var(--white); }
 .mobile-shell .macro-divider { color: var(--amber); padding: 0 3px; opacity: 0.6; }
 
+/* ─── Market status clock (2026-05-26 dispatch) — header pills ───
+   Two pills side by side on PC: stocks (state-driven, with countdown) +
+   crypto (static cyan 24/7). On mobile a single compact pill. Uses the
+   same dot+label+text rhythm as EnginePill / PollIndicator so the header
+   feels cohesive. */
+.pc-shell .mkt-cluster {
+  display: flex; align-items: center; gap: 4px;
+}
+.pc-shell .mkt-pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  font-family: var(--mono); font-size: 9px; letter-spacing: 1px;
+  white-space: nowrap;
+  background: var(--navy3);
+  color: var(--w2);
+}
+.pc-shell .mkt-pill .mkt-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--w3); flex-shrink: 0;
+}
+.pc-shell .mkt-pill .mkt-label { font-weight: 700; letter-spacing: 1.5px; color: var(--white); }
+.pc-shell .mkt-pill .mkt-cd { color: var(--w2); font-size: 8px; letter-spacing: 0.8px; }
+.pc-shell .mkt-pill .mkt-fallback { color: var(--amber); font-size: 7px; letter-spacing: 1px; margin-left: 2px; }
+
+/* State colors */
+.pc-shell .mkt-pill.mkt-open    { border-color: var(--green); background: rgba(0,230,118,0.10); }
+.pc-shell .mkt-pill.mkt-open    .mkt-dot { background: var(--green); animation: mkt-pulse 1.6s ease-in-out infinite; }
+.pc-shell .mkt-pill.mkt-open    .mkt-label { color: var(--green); }
+.pc-shell .mkt-pill.mkt-closed  { border-color: var(--w3); background: rgba(255,255,255,0.04); }
+.pc-shell .mkt-pill.mkt-closed  .mkt-dot { background: var(--w3); }
+.pc-shell .mkt-pill.mkt-closed  .mkt-label { color: var(--w2); }
+.pc-shell .mkt-pill.mkt-holiday { border-color: var(--amber); background: var(--amber2); }
+.pc-shell .mkt-pill.mkt-holiday .mkt-dot { background: var(--amber); }
+.pc-shell .mkt-pill.mkt-holiday .mkt-label { color: var(--amber); }
+.pc-shell .mkt-pill.mkt-loading { border-color: var(--w3); }
+.pc-shell .mkt-pill.mkt-loading .mkt-label { color: var(--w3); }
+.pc-shell .mkt-pill.mkt-crypto  { border-color: var(--cyan); background: var(--cyan2); }
+.pc-shell .mkt-pill.mkt-crypto  .mkt-dot { background: var(--cyan); }
+.pc-shell .mkt-pill.mkt-crypto  .mkt-label { color: var(--cyan); }
+
+@keyframes mkt-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,230,118,0.0); }
+  50%      { opacity: 0.6; box-shadow: 0 0 0 3px rgba(0,230,118,0.18); }
+}
+
+/* Mobile: single compact pill, no crypto. */
+.mobile-shell .mkt-pill {
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  font-family: var(--mono); font-size: 8px; letter-spacing: 1px;
+  background: var(--navy3); color: var(--w2);
+  white-space: nowrap;
+}
+.mobile-shell .mkt-pill .mkt-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--w3); flex-shrink: 0;
+}
+.mobile-shell .mkt-pill .mkt-label { font-weight: 700; letter-spacing: 1.2px; color: var(--white); }
+.mobile-shell .mkt-pill .mkt-time { color: var(--w2); font-size: 7px; letter-spacing: 0.6px; }
+.mobile-shell .mkt-pill.mkt-open    { border-color: var(--green); background: rgba(0,230,118,0.10); }
+.mobile-shell .mkt-pill.mkt-open    .mkt-dot { background: var(--green); animation: mkt-pulse 1.6s ease-in-out infinite; }
+.mobile-shell .mkt-pill.mkt-open    .mkt-label { color: var(--green); }
+.mobile-shell .mkt-pill.mkt-closed  { border-color: var(--w3); background: rgba(255,255,255,0.04); }
+.mobile-shell .mkt-pill.mkt-closed  .mkt-dot { background: var(--w3); }
+.mobile-shell .mkt-pill.mkt-closed  .mkt-label { color: var(--w2); }
+.mobile-shell .mkt-pill.mkt-holiday { border-color: var(--amber); background: var(--amber2); }
+.mobile-shell .mkt-pill.mkt-holiday .mkt-dot { background: var(--amber); }
+.mobile-shell .mkt-pill.mkt-holiday .mkt-label { color: var(--amber); }
+
 /* ─── Change 3 (legacy): Prominent poll indicator in header ─── */
 .pc-shell .poll-prom {
   display:flex; align-items:center; gap:6px;

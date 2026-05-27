@@ -19,6 +19,7 @@ import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
 import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
+import MarketStatusPill from '../lib/MarketStatusPill.jsx';
 import NewsTicker from '../lib/NewsTicker.jsx';
 import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
 import StatusStrip from '../lib/StatusStrip.jsx';
@@ -162,6 +163,10 @@ function MobileHeader({ clock, mode, currentPhase, heartbeat, pollSecs, pollPuls
           <span className="clock-sep">·</span>
           <span className="clock-utc">{clock.utcCompact}</span>
         </div>
+        {/* Market status clock (2026-05-26 dispatch) — compact mobile
+            variant, placed just before SYNC. Crypto pill dropped on mobile
+            per dispatch (always-on context). */}
+        <MarketStatusPill variant="mobile" />
         <PollIndicator secs={pollSecs} pulse={pollPulse} variant="mobile" />
       </div>
     </div>
