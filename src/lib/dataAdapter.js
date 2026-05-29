@@ -131,11 +131,13 @@ export function adaptAccountBar(data) {
   // CURRENT VALUE — broker equity (live).
   const currentValue = brokerOk ? Number(acct.equity) : null;
 
-  // OPEN count — broker positions length.
-  const positionsArr = Array.isArray(data?.brokerAccount?.positions)
-    ? data.brokerAccount.positions
-    : [];
-  const open = brokerOk ? positionsArr.length : null;
+  // OPEN count — v1.8 (2026-05-29): bound to account_bar.open_count (graph
+  // OPEN TradeNode count, post-cutoff + forensic-excluded) so the banner
+  // matches the trade-list panel's OPEN count. Was broker positions.length
+  // (per-symbol, 3); now the graph-open count (also 3 once the orphan
+  // TS-20260529-0001 is excluded). Mirrors the `ab?.x != null ? Number(...) : null`
+  // null-safety pattern used by the other ab.* reads on this object.
+  const open = ab?.open_count != null ? Number(ab.open_count) : null;
 
   // TODAY P&L — v1.6 fix (2026-05-29): broker equity minus broker
   // `last_equity` (Alpaca's prior trading-day close). This replaces the
@@ -163,10 +165,11 @@ export function adaptAccountBar(data) {
     ? ((graphEquity - capitalBase) / capitalBase) * 100
     : null;
 
-  // TRADES — CLOSED count from the forensic-excluded win_rate query.
-  const trades = data?.winRate?.total_closed != null
-    ? Number(data.winRate.total_closed)
-    : (ab?.trade_count != null ? Number(ab.trade_count) : 0);
+  // TRADES — v1.8 (2026-05-29): banner shows TOTAL (open+closed), current-era.
+  // Bound to account_bar.trade_count (= count of ALL post-cutoff,
+  // forensic-excluded TradeNodes — same cutoff+forensic scope as win_rate).
+  // Dropped the prior winRate.total_closed (closed-only) binding entirely.
+  const trades = ab?.trade_count != null ? Number(ab.trade_count) : 0;
 
   return {
     capitalBase,
