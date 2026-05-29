@@ -237,11 +237,16 @@ export function useNeo4jPoll() {
   useEffect(() => {
     mounted.current = true;
     let timer = null;
+    let assetsTimer = null;
 
-    // Mount-time fetch of the canonical monitored asset list. Used by every
-    // subsequent poll to drive scanner_scores. Failure here is non-fatal —
-    // the scanner panel will render BUILDING DATA placeholders.
-    (async () => {
+    // Canonical monitored asset list. Drives scanner_scores' asset_list param
+    // and the scanner column's row set. v1.7 Fix 2 (2026-05-29): refresh on a
+    // 5-min cadence instead of caching once at mount — Session 40 confirmed
+    // TradingConfigNode.monitored_assets is edited mid-session, and the prior
+    // mount-only read left the scanner showing a stale list until page reload.
+    // The next 60s poll picks up the updated ref automatically (pollOnce reads
+    // monitoredAssetsRef.current each tick). Failure is non-fatal.
+    async function refreshMonitoredAssets() {
       try {
         const rows = await callProxy('monitored_assets');
         const list = rows?.[0]?.asset_list ?? [];
@@ -250,9 +255,11 @@ export function useNeo4jPoll() {
         }
       } catch (e) {
         // eslint-disable-next-line no-console
-        console.error('[signaldelta] mount-time monitored_assets fetch failed:', e);
+        console.error('[signaldelta] monitored_assets refresh failed:', e);
       }
-    })();
+    }
+    refreshMonitoredAssets();                         // mount
+    assetsTimer = setInterval(refreshMonitoredAssets, 300_000);  // every 5 min
 
     async function tick() {
       try {
@@ -274,6 +281,7 @@ export function useNeo4jPoll() {
     return () => {
       mounted.current = false;
       if (timer) clearInterval(timer);
+      if (assetsTimer) clearInterval(assetsTimer);
     };
   }, []);
 

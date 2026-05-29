@@ -356,22 +356,32 @@ export function adaptWinRate(data) {
 }
 
 // ── Sharpe ratio ─────────────────────────────────────────────────────
-export function adaptSharpe(data) {
-  // v1.6 Sharpe gate (2026-05-29): the sharpe_ratio query reads
-  // WeeklyContextNode — a weekly pre-aggregate with no cutoff/forensic/
-  // closed-count guard. The only WeeklyContextNode is the stale 2026-05-18
-  // pre-rebuild node (sharpe −2.18), so the card showed −2.18 even with no
-  // qualifying closed trades. Gate on the SAME closed-trade signal the Win
-  // Rate card uses: when post-cutoff forensic-excluded CLOSED count is 0,
-  // return null → the card renders AWAITING (matching Win Rate). This is a
-  // band-aid until §10/§11 writes a fresh forensic-excluded WeeklyContextNode
-  // for the current week, after which the gate releases automatically.
-  const closed = data?.winRate?.total_closed != null
-    ? Number(data.winRate.total_closed) : 0;
-  if (!(closed > 0)) return null;  // AWAITING — no qualifying closed trades
+// v1.7 Fix 1 staleness cutoff (2026-05-29): hide the Sharpe card whenever the
+// source WeeklyContextNode's week_start_date predates this date. The only WCN
+// in the graph is the stale pre-rebuild 2026-05-18 node (sharpe −2.18); the
+// v1.6 closed-count gate released the moment closed trades existed, letting
+// the stale −2.18 reappear. This staleness gate hides it regardless of closed
+// count. Cutoff is 2026-05-25 (Monday) NOT 2026-05-26: the current trading
+// week starts Mon 2026-05-25, so a fresh current-week WCN (week_start_date
+// 2026-05-25) must pass the gate once §10/§11 writes it — using 2026-05-26
+// would wrongly hide that legitimate node too. When the engine writes the
+// fresh WCN, this gate releases automatically.
+const SHARPE_STALE_CUTOFF = '2026-05-25';
 
+export function adaptSharpe(data) {
   const s = data?.sharpe;
   if (!s || s.sr == null) return null;
+
+  // Staleness gate (v1.7): week_start_date is an ISO 'YYYY-MM-DD' string —
+  // lexicographic compare is correct. Missing or pre-cutoff → AWAITING.
+  const weekStart = s.as_of != null ? String(s.as_of) : null;
+  if (!weekStart || weekStart < SHARPE_STALE_CUTOFF) return null;
+
+  // Closed-count gate (v1.6): AWAITING until qualifying closed trades exist.
+  const closed = data?.winRate?.total_closed != null
+    ? Number(data.winRate.total_closed) : 0;
+  if (!(closed > 0)) return null;
+
   return {
     sr: Number(s.sr) || 0,
     weekTrades: Number(s.week_trades) || 0,
