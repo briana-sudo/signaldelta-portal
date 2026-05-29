@@ -73,6 +73,11 @@ export const Q_NEWS_TICKER = 'news_ticker_recent';
 // asset renders as "BUILDING DATA" (no recent trade).
 export const Q_SCANNER_SCORES = 'scanner_scores';
 
+// ── Session 40 portal rebuild (2026-05-29): latest EquitySnapshotNode.
+// Provides the equity_total denominator for the broker-sourced Today P&L
+// (Today P&L = broker equity − latest snapshot equity_total). No cutoff.
+export const Q_EQUITY_SNAPSHOT_LATEST = 'equity_snapshot_latest';
+
 // Mode toggle helper — Phase 4 will append phase filter server-side once
 // §14 amendments land the `phase` field on TradeNode + WeeklyContextNode
 // + EquitySnapshotNode. Phase 1.1 returns null (no filter) since the

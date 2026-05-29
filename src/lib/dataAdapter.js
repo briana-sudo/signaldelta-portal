@@ -74,85 +74,134 @@ function computeHold(entryIso) {
   return h > 0 ? `${h}h ${pad2(m)}m` : `${m}m`;
 }
 
-// ── Account bar ──────────────────────────────────────────────────────
-// Portal v1.2 Change 1 (2026-05-26): synthetic running equity fallback.
+// ── Symbol normalization ─────────────────────────────────────────────
+// Alpaca keys crypto positions as "BTCUSD"; the graph stores "BTC/USD".
+// Normalize both to the slash-less broker form for cross-source matching.
+function normSymbol(s) {
+  return typeof s === 'string' ? s.replace('/', '').toUpperCase() : '';
+}
+
+// ── Broker positions (Session 40) ─────────────────────────────────────
+// Build a lookup of normalized-symbol → current_price from the live
+// /broker_account positions array, for the trade-list OPEN-row Current
+// column and the reconciliation indicator.
+export function adaptBrokerPositions(data) {
+  const positions = Array.isArray(data?.brokerAccount?.positions)
+    ? data.brokerAccount.positions
+    : [];
+  const priceBySymbol = new Map();
+  const symbols = new Set();
+  for (const p of positions) {
+    const sym = normSymbol(p?.symbol);
+    if (!sym) continue;
+    symbols.add(sym);
+    const cp = p?.current_price != null ? Number(p.current_price) : null;
+    if (cp != null && Number.isFinite(cp)) priceBySymbol.set(sym, cp);
+  }
+  return { priceBySymbol, symbols, count: positions.length };
+}
+
+// ── Account bar (Session 40 rebuild 2026-05-29) ───────────────────────
+// Live-state surfaces now read from Alpaca broker directly (via the
+// proxy's /broker_account), NOT from a graph-derived synthetic equity.
+// History/analytics surfaces stay on the graph.
 //
-// The `account_bar` Cypher selects the latest EquitySnapshotNode AFTER
-// the post-cutoff date (2026-05-26). The nightly snapshot writer runs at
-// 23:55 UTC, so for the first ~24h after engine launch there is no
-// post-cutoff snapshot, and `current_value` arrives null. Without the
-// fallback below, the panel locked to $10,000 / $0 / 0% even after closed
-// trades had locked in realized P&L (operator-confirmed: 4 closed trades
-// with non-zero pnl_dollar, Account Bar reading flat).
+// Source-of-truth map (Session 40 spec):
+//   CAPITAL BASE  ← graph: TradingConfigNode.paper_starting_capital (account_bar.capital_base)
+//   CURRENT VALUE ← broker: brokerAccount.account.equity (live, no drift)
+//   TOTAL RETURN  ← graph: (latest snapshot equity_total − capital_base)/capital_base (unchanged path)
+//   TODAY P&L     ← hybrid: broker equity − latest EquitySnapshotNode.equity_total
+//   TRADES        ← graph: win_rate.total_closed (CLOSED count, forensic-excluded at proxy)
+//   OPEN          ← broker: brokerAccount.positions.length
 //
-// Fallback definition (when ab.current_value is null AND tradeList is
-// available): current_value = capital_base + Σ pnl_dollar over CLOSED
-// trades in the cutoff-filtered trade list. Today's P&L (single-day
-// Phase 1 horizon) = current_value − capital_base. Total return % is
-// the same delta as a percent of capital_base. This is realized-only —
-// unrealized P&L from OPEN positions is intentionally NOT included.
-//
-// Why no unrealized: computing it requires (current_price − entry_price)
-// × position_size for each OPEN trade. Current price is not stored on
-// TradeNode (would cause massive write volume) and is not exposed by any
-// portal-reachable surface — Layer 1 buffers are in-process Python on the
-// engine, the proxy whitelist returns Cypher only, and a CORS-direct
-// fetch to Alpaca/Polygon from the static portal is out of scope. Once a
-// current-price source exists (e.g., a /current_prices endpoint on the
-// proxy reading from a new in-graph node) extend this fn to add the
-// unrealized term. Until then realized-only is the honest fallback.
-//
-// `synthetic` flag is true when the fallback is active; consumers may
-// surface a small indicator (deferred — no UI signal in this dispatch).
+// The v1.2 synthetic-equity fallback is removed — Alpaca is now the
+// source of truth for current value. `brokerOk=false` when the broker
+// read failed (proxy 503); the component shows dashes for broker-sourced
+// fields while keeping graph-sourced fields (capital base, total return).
 export function adaptAccountBar(data) {
   const ab = data?.accountBar;
-  if (!ab) return null;
-  const capitalBase = Number(ab.capital_base) || 0;
-  const polledCurrent = ab.current_value != null ? Number(ab.current_value) : null;
+  const acct = data?.brokerAccount?.account ?? null;
+  const brokerOk = acct != null && acct.equity != null && Number.isFinite(Number(acct.equity));
 
-  // Snapshot-backed branch: polled EquitySnapshotNode present.
-  if (polledCurrent != null && Number.isFinite(polledCurrent)) {
-    return {
-      capitalBase,
-      currentValue: polledCurrent,
-      todayPnl: Number(ab.today_pnl) || 0,
-      totalReturnPct: capitalBase
-        ? ((polledCurrent - capitalBase) / capitalBase) * 100
-        : 0,
-      trades: Number(ab.trade_count) || 0,
-      open: Number(ab.open_count) || 0,
-      currentPhase: ab.current_phase || 'Paper',
-      lastSync: ab.last_sync || null,
-      synthetic: false,
-    };
-  }
+  // Need at least the graph config row to render anything meaningful.
+  if (!ab && !brokerOk) return null;
 
-  // Synthetic branch: derive from realized P&L in the trade list.
-  const rows = Array.isArray(data?.tradeList) ? data.tradeList : [];
-  let realizedSum = 0;
-  let closedCount = 0;
-  let openCount = 0;
-  for (const r of rows) {
-    if (r?.status === 'CLOSED') {
-      const v = r.pnl_dollar ?? r.realized_pnl;
-      const n = v != null ? Number(v) : 0;
-      if (Number.isFinite(n)) realizedSum += n;
-      closedCount += 1;
-    } else if (r?.status === 'OPEN') {
-      openCount += 1;
-    }
-  }
-  const currentValue = capitalBase + realizedSum;
+  const capitalBase = Number(ab?.capital_base) || 0;
+
+  // CURRENT VALUE — broker equity (live).
+  const currentValue = brokerOk ? Number(acct.equity) : null;
+
+  // OPEN count — broker positions length.
+  const positionsArr = Array.isArray(data?.brokerAccount?.positions)
+    ? data.brokerAccount.positions
+    : [];
+  const open = brokerOk ? positionsArr.length : null;
+
+  // TODAY P&L — broker equity minus latest snapshot equity_total (the day's
+  // opening baseline). Null if either side is missing.
+  const snapEquity = data?.equitySnapshotLatest?.equity_total != null
+    ? Number(data.equitySnapshotLatest.equity_total)
+    : null;
+  const todayPnl = (brokerOk && snapEquity != null && Number.isFinite(snapEquity))
+    ? Number(acct.equity) - snapEquity
+    : null;
+
+  // TOTAL RETURN — graph path, unchanged: latest snapshot equity vs capital
+  // base. Uses the account_bar Cypher's current_value (cutoff-filtered
+  // EquitySnapshotNode equity_total). Stays graph-sourced per Session 40.
+  const graphEquity = ab?.current_value != null ? Number(ab.current_value) : null;
+  const totalReturnPct = (graphEquity != null && Number.isFinite(graphEquity) && capitalBase)
+    ? ((graphEquity - capitalBase) / capitalBase) * 100
+    : null;
+
+  // TRADES — CLOSED count from the forensic-excluded win_rate query.
+  const trades = data?.winRate?.total_closed != null
+    ? Number(data.winRate.total_closed)
+    : (ab?.trade_count != null ? Number(ab.trade_count) : 0);
+
   return {
     capitalBase,
     currentValue,
-    todayPnl: realizedSum,
-    totalReturnPct: capitalBase ? (realizedSum / capitalBase) * 100 : 0,
-    trades: Number(ab.trade_count) || (closedCount + openCount),
-    open: Number(ab.open_count) || openCount,
-    currentPhase: ab.current_phase || 'Paper',
-    lastSync: ab.last_sync || null,
-    synthetic: true,
+    todayPnl,
+    totalReturnPct,
+    trades,
+    open,
+    currentPhase: ab?.current_phase || 'Paper',
+    lastSync: data?.brokerAccount?.fetched_at_ms ?? ab?.last_sync ?? null,
+    brokerOk,
+    cash: brokerOk && acct.cash != null ? Number(acct.cash) : null,
+    buyingPower: brokerOk && acct.buying_power != null ? Number(acct.buying_power) : null,
+  };
+}
+
+// ── Reconciliation indicator (Session 40 CHANGE 5) ────────────────────
+// Compares broker open positions against graph OPEN TradeNodes (already
+// forensic-excluded at the proxy via trade_list_recent). Returns
+// { diff:boolean, brokerCount, graphCount, onlyBroker:[...], onlyGraph:[...] }.
+// diff=true → the portal shows the amber "RECON DIFF" pill near EnginePill.
+export function adaptReconciliation(data) {
+  // Broker side
+  const broker = adaptBrokerPositions(data);
+  if (data?.brokerAccount?.account == null) {
+    // Broker unavailable — can't reconcile; suppress the pill (don't false-alarm).
+    return { diff: false, brokerCount: null, graphCount: null, unavailable: true };
+  }
+  // Graph side — OPEN trades from the cutoff+forensic-filtered trade list.
+  const tradeRows = Array.isArray(data?.tradeList) ? data.tradeList : [];
+  const graphOpen = new Set();
+  for (const t of tradeRows) {
+    if (t?.status === 'OPEN' && t.asset) graphOpen.add(normSymbol(t.asset));
+  }
+  const onlyBroker = [...broker.symbols].filter((s) => !graphOpen.has(s));
+  const onlyGraph = [...graphOpen].filter((s) => !broker.symbols.has(s));
+  const diff = onlyBroker.length > 0 || onlyGraph.length > 0;
+  return {
+    diff,
+    brokerCount: broker.symbols.size,
+    graphCount: graphOpen.size,
+    onlyBroker,
+    onlyGraph,
+    unavailable: false,
   };
 }
 
@@ -170,15 +219,18 @@ export function adaptWeeklyWaterfall(data) {
   }));
 }
 
-// ── Trade list (Portal v1.1 Change 2) ────────────────────────────────
-// Returns BOTH open and closed trades, server-side cutoff-filtered.
-// Each row carries enough fields for the new panel's render logic:
-//   - OPEN  rows: current price drifts via useDrift; pnl=0 initial
-//   - CLOSED rows: pnl_dollar/pnl_percent are realized; win_loss drives
-//     the WIN/LOSS final-outcome bar
+// ── Trade list (Portal v1.1 Change 2; Session 40 CHANGE 3) ───────────
+// Returns BOTH open and closed trades, server-side cutoff + forensic
+// filtered. Each row carries enough fields for the panel's render logic:
+//   - OPEN  rows: Current column = live broker current_price (Session 40),
+//     matched by normalized symbol against /broker_account positions;
+//     falls back to entry_price if the broker has no matching position.
+//   - CLOSED rows: Current column = exit_price; pnl_dollar/pnl_percent are
+//     realized; win_loss drives the WIN/LOSS final-outcome bar.
 export function adaptTradeList(data) {
   const rows = data?.tradeList;
   if (!Array.isArray(rows) || rows.length === 0) return null;
+  const { priceBySymbol } = adaptBrokerPositions(data);
   return rows.map((r) => {
     const t = trackInfo(r.track);
     const c = convInfo(r.conviction);
@@ -190,6 +242,10 @@ export function adaptTradeList(data) {
     const realizedPnl = r.realized_pnl != null ? Number(r.realized_pnl)
                       : r.pnl_dollar != null ? Number(r.pnl_dollar)
                       : 0;
+    // OPEN current price from the live broker position (Session 40 CHANGE 3),
+    // matched on normalized symbol. Fall back to entry when no broker match.
+    const brokerCur = priceBySymbol.get(normSymbol(r.asset));
+    const openCur = (brokerCur != null && Number.isFinite(brokerCur)) ? brokerCur : entry;
     return {
       asset: r.asset,
       track: t.cls,
@@ -197,7 +253,8 @@ export function adaptTradeList(data) {
       conv: c.cls,
       cl: c.label,
       entry,
-      cur: exit ?? entry,            // closed rows show exit_price in Current
+      cur: status === 'CLOSED' ? (exit ?? entry) : openCur,
+      brokerPriced: status !== 'CLOSED' && brokerCur != null && Number.isFinite(brokerCur),
       exit,
       stop,
       target,

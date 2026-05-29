@@ -529,6 +529,43 @@ body::after {
 .mobile-shell .mkt-pill.mkt-holiday .mkt-dot { background: var(--amber); }
 .mobile-shell .mkt-pill.mkt-holiday .mkt-label { color: var(--amber); }
 
+/* ─── Session 40 reconciliation pill (2026-05-29) ───
+   Amber pill near EnginePill when broker open positions disagree with graph
+   OPEN TradeNodes. The §11 broker/graph drift signal. Hidden when they agree
+   or when the broker is unavailable (can't compare → no false alarm). */
+.pc-shell .recon-pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--amber);
+  background: var(--amber2);
+  color: var(--amber);
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 1px; white-space: nowrap;
+}
+.pc-shell .recon-pill .recon-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--amber); flex-shrink: 0;
+  animation: recon-pulse 1.4s ease-in-out infinite;
+}
+@keyframes recon-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+.mobile-shell .recon-pill {
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--amber);
+  background: var(--amber2);
+  color: var(--amber);
+  font-family: var(--mono); font-size: 8px; font-weight: 700;
+  letter-spacing: 1px; white-space: nowrap;
+}
+.mobile-shell .recon-pill .recon-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--amber); flex-shrink: 0;
+  animation: recon-pulse 1.4s ease-in-out infinite;
+}
+
 /* ─── Change 3 (legacy): Prominent poll indicator in header ─── */
 .pc-shell .poll-prom {
   display:flex; align-items:center; gap:6px;

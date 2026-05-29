@@ -12,7 +12,7 @@ import {
   adaptRulesThisWeek, adaptRulesFoot,
   adaptHeartbeat,
   adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
-  adaptScanner,
+  adaptScanner, adaptReconciliation,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
@@ -50,6 +50,7 @@ export default function PCApp({ data, errors = {}, hasAnyData = false, error, lo
   const liveAccountBar = adaptAccountBar(data);
   const currentPhase = liveAccountBar?.currentPhase || CURRENT_PHASE;
   const heartbeat = adaptHeartbeat(data);
+  const recon = adaptReconciliation(data);
   const pollTimestamp = data?.pollTimestamp;
 
   return (
@@ -61,6 +62,7 @@ export default function PCApp({ data, errors = {}, hasAnyData = false, error, lo
         setMode={setMode}
         currentPhase={currentPhase}
         heartbeat={heartbeat}
+        recon={recon}
         pollSecs={pollSecs}
         pollPulse={pollPulse}
       />
@@ -132,7 +134,24 @@ function LoadingBadge() {
   );
 }
 
-function Header({ clock, mode, setMode, currentPhase, heartbeat, pollSecs, pollPulse }) {
+function ReconPill({ recon }) {
+  // Session 40 CHANGE 5: amber pill when broker open positions disagree with
+  // graph OPEN TradeNodes. Suppressed when broker unavailable (can't compare)
+  // or when they agree. This is the §11 broker/graph drift signal.
+  if (!recon || recon.unavailable || !recon.diff) return null;
+  const detail = [
+    recon.onlyBroker?.length ? `broker-only: ${recon.onlyBroker.join(', ')}` : '',
+    recon.onlyGraph?.length ? `graph-only: ${recon.onlyGraph.join(', ')}` : '',
+  ].filter(Boolean).join(' · ');
+  return (
+    <div className="recon-pill" title={detail}>
+      <span className="recon-dot" />
+      RECON DIFF: {recon.brokerCount} broker vs {recon.graphCount} graph
+    </div>
+  );
+}
+
+function Header({ clock, mode, setMode, currentPhase, heartbeat, recon, pollSecs, pollPulse }) {
   return (
     <div className="hdr">
       <div className="logo">
@@ -145,6 +164,7 @@ function Header({ clock, mode, setMode, currentPhase, heartbeat, pollSecs, pollP
       </div>
       <div className="hdr-mid">
         <EnginePill heartbeat={heartbeat} variant="pc" />
+        <ReconPill recon={recon} />
         <div className="pill"><div className="dot dot-cyan" />{currentPhase === 'Paper' ? 'PAPER TRADING' : currentPhase.toUpperCase()}</div>
         <PerformanceBadge mode={mode} currentPhase={currentPhase} />
         <div className="mode-toggle">
@@ -178,42 +198,48 @@ function PerformanceBadge({ mode, currentPhase }) {
 }
 
 function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall }) {
-  // Drift removed 2026-05-26 per drift-scope-fix dispatch. Aggregate equity
-  // displays the polled values directly — static between polls, updates only
-  // when a new poll lands a fresh value. Drift remains on OPEN-position
-  // current price in the trade list (genuine market fluctuation there).
+  // Session 40 rebuild (2026-05-29): live-state surfaces are broker-sourced.
+  //   Current Value  ← brokerAccount.account.equity (null when broker down)
+  //   Open           ← brokerAccount.positions.length
+  //   Today P&L      ← broker equity − latest snapshot equity_total
+  //   Total Return   ← graph snapshot equity vs capital base (unchanged path)
+  //   Trades         ← graph CLOSED count (forensic-excluded)
+  // Null broker-sourced fields render as dashes (broker outage), while the
+  // graph-sourced fields (Capital Base, Total Return) stay populated.
   const bootstrap = shouldRenderBootstrap(mode) || !liveAccountBar;
   const capitalBase = liveAccountBar?.capitalBase ?? 10000;
-  const av = liveAccountBar?.currentValue ?? capitalBase;
-  const ap = liveAccountBar?.todayPnl ?? 0;
-  const totalReturnPct = liveAccountBar?.totalReturnPct ?? 0;
+  const av = liveAccountBar?.currentValue;            // broker equity or null
+  const ap = liveAccountBar?.todayPnl;                // hybrid or null
+  const totalReturnPct = liveAccountBar?.totalReturnPct; // graph or null
+  const openCount = liveAccountBar?.open;             // broker or null
   const valFmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sign = (v) => (v >= 0 ? '+' : '');
   const cls = (v) => (v >= 0 ? 'g' : 'r');
+  const dash = <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>;
 
   return (
     <div className="acct">
       <div className="aitem"><span className="alabel">Capital Base</span><span className="aval">${capitalBase.toLocaleString()}</span></div>
       <div className="aitem"><span className="alabel">Current Value</span>
-        {bootstrap
-          ? <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>
+        {bootstrap || av == null
+          ? dash
           : <span className={'aval ' + cls(av - capitalBase)}>${valFmt(av)}</span>}
       </div>
       <div className="aitem"><span className="alabel">Total Return</span>
-        {bootstrap
-          ? <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>
+        {bootstrap || totalReturnPct == null
+          ? dash
           : <span className={'aval ' + cls(totalReturnPct)}>{sign(totalReturnPct)}{totalReturnPct.toFixed(2)}%</span>}
       </div>
       <div className="aitem"><span className="alabel">Today P&amp;L</span>
-        {bootstrap
-          ? <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>
+        {bootstrap || ap == null
+          ? dash
           : <span className={'aval ' + cls(ap)}>{sign(ap)}${Math.abs(ap).toFixed(2)}</span>}
       </div>
       <div className="aitem"><span className="alabel">Trades</span>
         <span className="aval c">{bootstrap ? 0 : (liveAccountBar?.trades ?? 0)}</span>
       </div>
       <div className="aitem"><span className="alabel">Open</span>
-        <span className="aval c">{bootstrap ? 0 : (liveAccountBar?.open ?? 0)}</span>
+        <span className="aval c">{bootstrap || openCount == null ? '—' : openCount}</span>
       </div>
       <div className="acct-divider" />
       <MiniWaterfall mode={mode} liveWeeklyWaterfall={liveWeeklyWaterfall} />

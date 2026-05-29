@@ -12,7 +12,7 @@ import {
   adaptRulesThisWeek, adaptRulesFoot,
   adaptHeartbeat,
   adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
-  adaptScanner,
+  adaptScanner, adaptReconciliation,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
@@ -53,6 +53,7 @@ export default function MobileApp({ data, errors = {}, hasAnyData = false, error
   const currentPhase = liveAccountBar?.currentPhase || CURRENT_PHASE;
   const liveEvents = adaptEvents(data);
   const heartbeat = adaptHeartbeat(data);
+  const recon = adaptReconciliation(data);
   const pollTimestamp = data?.pollTimestamp;
 
   return (
@@ -63,6 +64,7 @@ export default function MobileApp({ data, errors = {}, hasAnyData = false, error
         mode={mode}
         currentPhase={currentPhase}
         heartbeat={heartbeat}
+        recon={recon}
         pollSecs={pollSecs}
         pollPulse={pollPulse}
       />
@@ -141,7 +143,18 @@ function MobileLoadingBadge() {
   );
 }
 
-function MobileHeader({ clock, mode, currentPhase, heartbeat, pollSecs, pollPulse }) {
+function MobileReconPill({ recon }) {
+  // Session 40 CHANGE 5 (mobile): compact amber recon-diff pill.
+  if (!recon || recon.unavailable || !recon.diff) return null;
+  return (
+    <div className="recon-pill recon-compact" title={`broker-only: ${(recon.onlyBroker||[]).join(', ')||'—'} · graph-only: ${(recon.onlyGraph||[]).join(', ')||'—'}`}>
+      <span className="recon-dot" />
+      {recon.brokerCount}v{recon.graphCount}
+    </div>
+  );
+}
+
+function MobileHeader({ clock, mode, currentPhase, heartbeat, recon, pollSecs, pollPulse }) {
   // Section E.1 phase badge dot + Section K engine heartbeat dot + Section K
   // prominent poll indicator. Phase dot reflects paper/live/split per the
   // performanceBadge selector; engine dot reflects engine liveness independently.
@@ -158,6 +171,7 @@ function MobileHeader({ clock, mode, currentPhase, heartbeat, pollSecs, pollPuls
       <div className="hdr-right">
         <div className={'status-dot dot-' + dot} title={badgeText} />
         <EnginePill heartbeat={heartbeat} variant="mobile" />
+        <MobileReconPill recon={recon} />
         <div className="clock">
           <span className="clock-et">{clock.etCompact}</span>
           <span className="clock-sep">·</span>
@@ -188,33 +202,35 @@ function ModeToggle({ mode, setMode }) {
 }
 
 function MobileAccountBar({ mode, liveAccountBar }) {
-  // Drift removed 2026-05-26 per drift-scope-fix dispatch — display polled
-  // values directly. usePositionDrift retained for OPEN trade rows in DeskTab.
+  // Session 40 rebuild (2026-05-29): broker-sourced live state, same as PC.
+  // Current Value / Today P&L are broker-derived (null when broker down →
+  // dash); Total Return stays graph-sourced.
   const bootstrap = shouldRenderBootstrap(mode) || !liveAccountBar;
   const capitalBase = liveAccountBar?.capitalBase ?? 10000;
-  const av = liveAccountBar?.currentValue ?? capitalBase;
-  const ap = liveAccountBar?.todayPnl ?? 0;
-  const totalReturnPct = liveAccountBar?.totalReturnPct ?? 0;
+  const av = liveAccountBar?.currentValue;
+  const ap = liveAccountBar?.todayPnl;
+  const totalReturnPct = liveAccountBar?.totalReturnPct;
   const valFmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sign = (v) => (v >= 0 ? '+' : '');
   const cls = (v) => (v >= 0 ? 'g' : 'r');
+  const dash = <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>;
 
   return (
     <div className="acct">
       <div className="aitem"><span className="alabel">Capital Base</span><span className="aval">${capitalBase.toLocaleString()}</span></div>
       <div className="aitem"><span className="alabel">Current Value</span>
-        {bootstrap
-          ? <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>
+        {bootstrap || av == null
+          ? dash
           : <span className={'aval ' + cls(av - capitalBase)}>${valFmt(av)}</span>}
       </div>
       <div className="aitem"><span className="alabel">Total Return</span>
-        {bootstrap
-          ? <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>
+        {bootstrap || totalReturnPct == null
+          ? dash
           : <span className={'aval ' + cls(totalReturnPct)}>{sign(totalReturnPct)}{totalReturnPct.toFixed(2)}%</span>}
       </div>
       <div className="aitem"><span className="alabel">Today P&amp;L</span>
-        {bootstrap
-          ? <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>
+        {bootstrap || ap == null
+          ? dash
           : <span className={'aval ' + cls(ap)}>{sign(ap)}${Math.abs(ap).toFixed(2)}</span>}
       </div>
       {/* Poll indicator moved to mobile header per Change 3 dispatch */}

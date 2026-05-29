@@ -28,6 +28,7 @@ import {
   Q_ENGINE_HEARTBEAT,
   Q_TRADE_LIST, Q_NEWS_TICKER,
   Q_SCANNER_SCORES,
+  Q_EQUITY_SNAPSHOT_LATEST,
 } from '../lib/queries.js';
 
 const POLL_INTERVAL_MS = 60_000;
@@ -49,6 +50,7 @@ const QUERY_SPECS = [
   { key: 'rulesFoot',        name: Q_RULES_FOOT,       singleton: true  },
   { key: 'heartbeat',        name: Q_ENGINE_HEARTBEAT, singleton: true  },
   { key: 'newsTicker',       name: Q_NEWS_TICKER,      singleton: false },
+  { key: 'equitySnapshotLatest', name: Q_EQUITY_SNAPSHOT_LATEST, singleton: true },
 ];
 
 function getProxyConfig() {
@@ -102,6 +104,26 @@ async function callMacroNews() {
   return await res.json(); // { feed, cache, age_seconds, ... }
 }
 
+// Session 40: live Alpaca account + positions via GET /broker_account.
+// No proxy cache — each 60s poll hits the broker fresh. On 503/failure the
+// proxy returns {error, account:null, positions:[]}; we surface that shape
+// so the Account Bar degrades to dashes rather than crashing.
+async function callBrokerAccount() {
+  const { url, token } = getProxyConfig();
+  const res = await fetch(`${url}/broker_account`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  // 503 returns a JSON body {error, account:null, positions:[]} — read it
+  // rather than throwing, so a broker outage degrades gracefully.
+  let payload = null;
+  try { payload = await res.json(); } catch { /* ignore */ }
+  if (!res.ok) {
+    return payload ?? { error: `HTTP ${res.status}`, account: null, positions: [] };
+  }
+  return payload; // { account, positions, fetched_at_ms }
+}
+
 async function pollOnce(monitoredAssets) {
   // Portal v1.2 scanner-cycle dispatch (2026-05-26):
   // scanner_scores joins the batch when `monitoredAssets` is populated by
@@ -113,9 +135,11 @@ async function pollOnce(monitoredAssets) {
 
   const calls = [
     ...QUERY_SPECS.map((spec) => callProxy(spec.name)),
-    callMacroNews(),
+    callMacroNews(),       // index = QUERY_SPECS.length
+    callBrokerAccount(),   // index = QUERY_SPECS.length + 1
   ];
   if (includeScanner) {
+    // index = QUERY_SPECS.length + 2 (after macro + broker)
     calls.push(callProxy('scanner_scores', { asset_list: monitoredAssets }));
   }
   const settled = await Promise.allSettled(calls);
@@ -162,9 +186,27 @@ async function pollOnce(monitoredAssets) {
     data.macroNews = null;
   }
 
+  // Broker account (Session 40) — index = QUERY_SPECS.length + 1
+  const brokerResult = settled[QUERY_SPECS.length + 1];
+  if (brokerResult.status === 'fulfilled') {
+    data.brokerAccount = brokerResult.value; // {account, positions, fetched_at_ms} or {error,...}
+    if (data.brokerAccount?.account != null) {
+      anyData = true;
+    } else if (data.brokerAccount?.error) {
+      errors.broker_account = data.brokerAccount.error;
+    }
+  } else {
+    // eslint-disable-next-line no-console
+    console.error(`[signaldelta] poll '/broker_account' failed:`, brokerResult.reason);
+    errors.broker_account = brokerResult.reason instanceof Error
+      ? brokerResult.reason.message
+      : String(brokerResult.reason);
+    data.brokerAccount = { error: 'fetch_failed', account: null, positions: [] };
+  }
+
   // Scanner scores (last entry — conditionally appended)
   if (includeScanner) {
-    const scannerResult = settled[QUERY_SPECS.length + 1];
+    const scannerResult = settled[QUERY_SPECS.length + 2];
     if (scannerResult.status === 'fulfilled') {
       data.scannerScores = scannerResult.value;
       if (Array.isArray(scannerResult.value) && scannerResult.value.length > 0) anyData = true;
