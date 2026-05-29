@@ -137,13 +137,22 @@ export function adaptAccountBar(data) {
     : [];
   const open = brokerOk ? positionsArr.length : null;
 
-  // TODAY P&L — broker equity minus latest snapshot equity_total (the day's
-  // opening baseline). Null if either side is missing.
+  // TODAY P&L — v1.6 fix (2026-05-29): broker equity minus broker
+  // `last_equity` (Alpaca's prior trading-day close). This replaces the
+  // stale-EquitySnapshotNode baseline that produced a phantom −$406 (the
+  // latest snapshot was 2026-05-28's inflated 10414.91, >1 day old).
+  // last_equity is always the broker's real prior-day close, fresh from the
+  // same /broker_account read. Falls back to the snapshot baseline only if
+  // last_equity is absent (older proxy not yet restarted).
+  const lastEquity = acct?.last_equity != null ? Number(acct.last_equity) : null;
   const snapEquity = data?.equitySnapshotLatest?.equity_total != null
     ? Number(data.equitySnapshotLatest.equity_total)
     : null;
-  const todayPnl = (brokerOk && snapEquity != null && Number.isFinite(snapEquity))
-    ? Number(acct.equity) - snapEquity
+  const todayBaseline = (lastEquity != null && Number.isFinite(lastEquity) && lastEquity > 0)
+    ? lastEquity
+    : (snapEquity != null && Number.isFinite(snapEquity) ? snapEquity : null);
+  const todayPnl = (brokerOk && todayBaseline != null)
+    ? Number(acct.equity) - todayBaseline
     : null;
 
   // TOTAL RETURN — graph path, unchanged: latest snapshot equity vs capital
@@ -189,18 +198,33 @@ export function adaptReconciliation(data) {
   // Graph side — OPEN trades from the cutoff+forensic-filtered trade list.
   const tradeRows = Array.isArray(data?.tradeList) ? data.tradeList : [];
   const graphOpen = new Set();
+  let graphOpenCount = 0;          // raw OPEN trade count (per-trade)
   for (const t of tradeRows) {
-    if (t?.status === 'OPEN' && t.asset) graphOpen.add(normSymbol(t.asset));
+    if (t?.status === 'OPEN' && t.asset) {
+      graphOpen.add(normSymbol(t.asset));
+      graphOpenCount += 1;
+    }
   }
+  // v1.6 Fix 3 (2026-05-29): count-aware reconciliation. The prior symbol-
+  // set diff missed the 2-positions-vs-3-trades case (two SPY trades dedupe
+  // to one symbol). Compare RAW COUNTS — broker positions.length vs graph
+  // OPEN TradeNode count — as the primary trigger, AND keep the symbol-set
+  // diff for cases where counts match but assets differ.
+  const brokerPosCount = Array.isArray(data?.brokerAccount?.positions)
+    ? data.brokerAccount.positions.length : broker.symbols.size;
   const onlyBroker = [...broker.symbols].filter((s) => !graphOpen.has(s));
   const onlyGraph = [...graphOpen].filter((s) => !broker.symbols.has(s));
-  const diff = onlyBroker.length > 0 || onlyGraph.length > 0;
+  const countMismatch = brokerPosCount !== graphOpenCount;
+  const symbolMismatch = onlyBroker.length > 0 || onlyGraph.length > 0;
+  const diff = countMismatch || symbolMismatch;
   return {
     diff,
-    brokerCount: broker.symbols.size,
-    graphCount: graphOpen.size,
+    brokerCount: brokerPosCount,   // raw broker positions
+    graphCount: graphOpenCount,    // raw graph OPEN trades
     onlyBroker,
     onlyGraph,
+    countMismatch,
+    symbolMismatch,
     unavailable: false,
   };
 }
@@ -333,6 +357,19 @@ export function adaptWinRate(data) {
 
 // ── Sharpe ratio ─────────────────────────────────────────────────────
 export function adaptSharpe(data) {
+  // v1.6 Sharpe gate (2026-05-29): the sharpe_ratio query reads
+  // WeeklyContextNode — a weekly pre-aggregate with no cutoff/forensic/
+  // closed-count guard. The only WeeklyContextNode is the stale 2026-05-18
+  // pre-rebuild node (sharpe −2.18), so the card showed −2.18 even with no
+  // qualifying closed trades. Gate on the SAME closed-trade signal the Win
+  // Rate card uses: when post-cutoff forensic-excluded CLOSED count is 0,
+  // return null → the card renders AWAITING (matching Win Rate). This is a
+  // band-aid until §10/§11 writes a fresh forensic-excluded WeeklyContextNode
+  // for the current week, after which the gate releases automatically.
+  const closed = data?.winRate?.total_closed != null
+    ? Number(data.winRate.total_closed) : 0;
+  if (!(closed > 0)) return null;  // AWAITING — no qualifying closed trades
+
   const s = data?.sharpe;
   if (!s || s.sr == null) return null;
   return {
