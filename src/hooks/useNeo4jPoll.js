@@ -124,6 +124,25 @@ async function callBrokerAccount() {
   return payload; // { account, positions, fetched_at_ms }
 }
 
+// Portal v1.11 (2026-05-29): live bottom price ticker via GET /price_ticker.
+// Replaces the hardcoded TICKER literal + cosmetic wobble. Proxy fans out to
+// two batched Alpaca snapshot calls (stocks SIP + crypto) keyed off the
+// graph's monitored_assets. 503 returns {error, stocks:[], crypto:[]} —
+// surfaced so the Ticker shows "PRICE FEED OFFLINE" instead of stale list.
+async function callPriceTicker() {
+  const { url, token } = getProxyConfig();
+  const res = await fetch(`${url}/price_ticker`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  let payload = null;
+  try { payload = await res.json(); } catch { /* ignore */ }
+  if (!res.ok) {
+    return payload ?? { error: `HTTP ${res.status}`, stocks: [], crypto: [] };
+  }
+  return payload; // { fetched_at_ms, stocks: [...], crypto: [...] }
+}
+
 async function pollOnce(monitoredAssets) {
   // Portal v1.2 scanner-cycle dispatch (2026-05-26):
   // scanner_scores joins the batch when `monitoredAssets` is populated by
@@ -137,9 +156,10 @@ async function pollOnce(monitoredAssets) {
     ...QUERY_SPECS.map((spec) => callProxy(spec.name)),
     callMacroNews(),       // index = QUERY_SPECS.length
     callBrokerAccount(),   // index = QUERY_SPECS.length + 1
+    callPriceTicker(),     // index = QUERY_SPECS.length + 2 (v1.11)
   ];
   if (includeScanner) {
-    // index = QUERY_SPECS.length + 2 (after macro + broker)
+    // index = QUERY_SPECS.length + 3 (after macro + broker + price ticker)
     calls.push(callProxy('scanner_scores', { asset_list: monitoredAssets }));
   }
   const settled = await Promise.allSettled(calls);
@@ -204,9 +224,29 @@ async function pollOnce(monitoredAssets) {
     data.brokerAccount = { error: 'fetch_failed', account: null, positions: [] };
   }
 
+  // Price ticker (v1.11) — index = QUERY_SPECS.length + 2
+  const tickerResult = settled[QUERY_SPECS.length + 2];
+  if (tickerResult.status === 'fulfilled') {
+    data.priceTicker = tickerResult.value; // {fetched_at_ms, stocks, crypto} or {error,...}
+    const okStocks = Array.isArray(data.priceTicker?.stocks) && data.priceTicker.stocks.length > 0;
+    const okCrypto = Array.isArray(data.priceTicker?.crypto) && data.priceTicker.crypto.length > 0;
+    if (okStocks || okCrypto) {
+      anyData = true;
+    } else if (data.priceTicker?.error) {
+      errors.price_ticker = data.priceTicker.error;
+    }
+  } else {
+    // eslint-disable-next-line no-console
+    console.error(`[signaldelta] poll '/price_ticker' failed:`, tickerResult.reason);
+    errors.price_ticker = tickerResult.reason instanceof Error
+      ? tickerResult.reason.message
+      : String(tickerResult.reason);
+    data.priceTicker = { error: 'fetch_failed', stocks: [], crypto: [] };
+  }
+
   // Scanner scores (last entry — conditionally appended)
   if (includeScanner) {
-    const scannerResult = settled[QUERY_SPECS.length + 2];
+    const scannerResult = settled[QUERY_SPECS.length + 3];
     if (scannerResult.status === 'fulfilled') {
       data.scannerScores = scannerResult.value;
       if (Array.isArray(scannerResult.value) && scannerResult.value.length > 0) anyData = true;

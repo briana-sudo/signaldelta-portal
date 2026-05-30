@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
-import { usePositionDrift, useTickerWobble } from '../lib/useDrift.js';
+import { usePositionDrift } from '../lib/useDrift.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
 import {
-  SCANNER_ASSETS, WEEKLY_WATERFALL, TICKER, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
+  SCANNER_ASSETS, WEEKLY_WATERFALL, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
 } from '../lib/placeholders.js';
 import {
   adaptAccountBar, adaptWeeklyWaterfall, adaptEvents,
@@ -12,7 +12,7 @@ import {
   adaptRulesThisWeek, adaptRulesFoot,
   adaptHeartbeat,
   adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
-  adaptScanner, adaptReconciliation,
+  adaptScanner, adaptReconciliation, adaptPriceTicker,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
@@ -72,7 +72,7 @@ export default function PCApp({ data, errors = {}, hasAnyData = false, error, lo
         liveWeeklyWaterfall={adaptWeeklyWaterfall(data)}
       />
       <Main mode={mode} data={data} />
-      <Ticker />
+      <Ticker data={data} />
       <TradeOverlay trigger={overlayTrigger} />
       {/* loading hint: visible while first poll is in flight */}
       {loading && !data && !error && <LoadingBadge />}
@@ -872,32 +872,53 @@ function RulesAddedPanel({ mode, data }) {
   );
 }
 
-function Ticker() {
-  const tick = useTickerWobble(TICKER);
-  const wobbled = useMemo(() => TICKER.map((t, i) => {
-    const seed = Math.sin((tick + 1) * (i + 1) * 0.37);
-    const wobble = seed * 0.001;
-    const numericPx = parseFloat(t.p.replace(/,/g, ''));
-    if (Number.isFinite(numericPx)) {
-      const next = numericPx * (1 + wobble);
-      const decimals = t.p.includes('.') ? (t.p.split('.')[1].length) : 0;
-      const formatted = next.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-      return { ...t, p: formatted };
-    }
-    return t;
-  }), [tick]);
-  const all = [...wobbled, ...wobbled];
+// Portal v1.11 (2026-05-29): Ticker now reads live Alpaca SIP stocks +
+// crypto via the proxy /price_ticker endpoint (full 32-asset monitored
+// universe sourced server-side from TradingConfigNode). Retires the
+// hardcoded TICKER literal + the cosmetic ±0.1% setInterval wobble.
+//
+// Refresh: piggybacks on the 60s useNeo4jPoll cadence — no own interval.
+// The 28s marquee scroll is cosmetic and unchanged.
+// Offline: when proxy returns 503/error or both arrays empty, renders
+// "PRICE FEED OFFLINE" instead of a frozen stale list.
+// Freshness: small dim pill at the right edge shows "as of Ns" computed
+// from fetched_at_ms, re-rendered every second.
+function Ticker({ data }) {
+  const { items, fetchedAtMs, offline } = adaptPriceTicker(data);
+  // 1s timer for the freshness counter — independent of the data poll.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const ageSeconds = fetchedAtMs != null
+    ? Math.max(0, Math.floor((nowMs - fetchedAtMs) / 1000))
+    : null;
+
+  if (offline) {
+    return (
+      <div className="ticker ticker-offline">
+        <div className="ticker-offline-msg">— PRICE FEED OFFLINE —</div>
+      </div>
+    );
+  }
+  const all = [...items, ...items]; // doubled for seamless marquee loop
   return (
     <div className="ticker">
       <div className="ticker-inner">
         {all.map((t, i) => (
-          <div className="ti" key={i}>
+          <div className="ti" key={`${t.s}-${i}`}>
             <span className="ti-sym">{t.s}</span>
             <span className="ti-px">{t.p}</span>
             <span className={'ti-ch ' + t.d}>{t.c}</span>
           </div>
         ))}
       </div>
+      {ageSeconds != null && (
+        <div className="ticker-asof" title={`Last fetched ${ageSeconds}s ago`}>
+          as of {ageSeconds}s
+        </div>
+      )}
     </div>
   );
 }

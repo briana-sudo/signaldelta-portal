@@ -746,3 +746,59 @@ export function summarizePoll(data) {
     },
   };
 }
+
+// ── Bottom price ticker (Portal v1.11, 2026-05-29) ────────────────────
+// Adapts the proxy /price_ticker response to the shape the existing
+// <Ticker /> JSX consumes (drop-in for the retired TICKER literal):
+//   { s: symbol, p: priceString, c: changeString (signed, "+1.01%"),
+//     d: 'u' | 'd' }
+// Concatenates stocks + crypto in the order the proxy returned them
+// (alpha-sorted per class). Stocks first, then crypto — operator-locked
+// 32-asset universe sourced from monitored_assets server-side.
+//
+// Returns { items, fetchedAtMs, offline } so the Ticker can render:
+//   - items: the array above (empty when offline)
+//   - fetchedAtMs: server-side timestamp for the "as of Ns" freshness pill
+//   - offline: true when proxy returned 503/error or both arrays empty
+function formatTickerPrice(price) {
+  if (!Number.isFinite(price)) return '—';
+  // Match the placeholder convention: 2dp for prices < $1000, else thousands-
+  // separated with the smallest decimal count that preserves precision.
+  const abs = Math.abs(price);
+  let decimals;
+  if (abs >= 1000) decimals = price >= 10000 ? 0 : 2;
+  else if (abs >= 100) decimals = 2;
+  else if (abs >= 10) decimals = 2;
+  else decimals = price >= 1 ? 2 : 4;
+  return price.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+function formatTickerChange(changePct) {
+  if (!Number.isFinite(changePct)) return '—';
+  const sign = changePct >= 0 ? '+' : '';
+  return `${sign}${changePct.toFixed(2)}%`;
+}
+
+export function adaptPriceTicker(data) {
+  const pt = data?.priceTicker;
+  const stocks = Array.isArray(pt?.stocks) ? pt.stocks : [];
+  const crypto = Array.isArray(pt?.crypto) ? pt.crypto : [];
+  const fetchedAtMs = Number.isFinite(Number(pt?.fetched_at_ms))
+    ? Number(pt.fetched_at_ms)
+    : null;
+  const errored = !!pt?.error;
+  const empty = stocks.length === 0 && crypto.length === 0;
+  const offline = errored || empty;
+  const mapRow = (r) => ({
+    s: r.symbol,
+    p: formatTickerPrice(Number(r.price)),
+    c: formatTickerChange(Number(r.change_pct)),
+    d: r.direction === 'd' ? 'd' : 'u',
+  });
+  // Stocks first, then crypto. Within each class, server returns alpha-sorted.
+  const items = [...stocks.map(mapRow), ...crypto.map(mapRow)];
+  return { items, fetchedAtMs, offline };
+}

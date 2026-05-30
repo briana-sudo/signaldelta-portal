@@ -862,13 +862,29 @@ body::after {
 .pc-shell .ov-countdown { position:absolute; bottom:0; left:0; right:0; height:2px; background:var(--cyan); transform-origin:left; }
 
 /* ticker */
-.pc-shell .ticker { height:24px; background:var(--navy); border-top:1px solid var(--border); overflow:hidden; flex-shrink:0; display:flex; align-items:center; }
+.pc-shell .ticker { height:24px; background:var(--navy); border-top:1px solid var(--border); overflow:hidden; flex-shrink:0; display:flex; align-items:center; position:relative; }
 .pc-shell .ticker-inner { display:flex; white-space:nowrap; animation:tick 28s linear infinite; }
 .pc-shell .ti { display:flex; align-items:center; gap:6px; padding:0 16px; border-right:1px solid var(--border); font-family:var(--mono); font-size:9px; }
 .pc-shell .ti-sym { color:var(--w2); letter-spacing:1px; }
 .pc-shell .ti-px { color:var(--white); }
 .pc-shell .ti-ch.u { color:var(--green); }
 .pc-shell .ti-ch.d { color:var(--red); }
+/* Portal v1.11 (2026-05-29): freshness pill + offline state for the live
+   Alpaca-fed bottom ticker. Pill anchors top-right of the strip with a
+   solid navy background so the scrolling marquee doesn't bleed through.
+   Offline state replaces the marquee with a centered dim message. */
+.pc-shell .ticker-asof {
+  position:absolute; right:0; top:0; bottom:0;
+  display:flex; align-items:center; padding:0 8px 0 12px;
+  font-family:var(--mono); font-size:8px; letter-spacing:1px; color:var(--w3);
+  background:var(--navy); border-left:1px solid var(--border);
+  z-index:2;
+}
+.pc-shell .ticker-offline { justify-content:center; }
+.pc-shell .ticker-offline-msg {
+  font-family:var(--mono); font-size:9px; letter-spacing:2px; color:var(--w3);
+  width:100%; text-align:center;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    MOBILE SHELL — scoped under .mobile-shell
