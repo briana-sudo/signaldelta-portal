@@ -13,6 +13,7 @@ import {
   adaptHeartbeat,
   adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation,
+  fmtCloseET,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
@@ -399,7 +400,10 @@ function MobileTradeCard({ t, offset }) {
           <div className="pc-prog-bg"><div className="pc-prog-fill" style={{ width: '100%', background: finalClr }} /></div>
           <div className="pc-prog-lbl" style={{ color: finalClr, letterSpacing: '1px' }}>{outcomeLabel}</div>
         </div>
-        <div className="pc-hold">{t.hold}</div>
+        <div className="pc-hold">
+          {t.hold}
+          {t.exitTimestamp && <div className="hold-closed">Closed {fmtCloseET(t.exitTimestamp)}</div>}
+        </div>
       </div>
     </div>
   );

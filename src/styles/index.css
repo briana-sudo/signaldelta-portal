@@ -730,6 +730,12 @@ body::after {
 .pc-shell .pos-table th { text-align:left; color:var(--w3); font-size:8px; letter-spacing:2px; padding:4px 8px; border-bottom:1px solid var(--border); font-family:var(--disp); font-weight:600; text-transform:uppercase; }
 .pc-shell .pos-table td { padding:7px 8px; border-bottom:1px solid rgba(0,194,255,0.04); vertical-align:middle; }
 .pc-shell .pos-table tr:hover td { background:var(--navy3); }
+/* Portal v1.13 (2026-05-29): closed-trade close-time sub-line under the
+   HOLD duration. Dim greyed font, smaller than the duration line; mirrors
+   the existing two-line P&L cell pattern. Renders only when t.exitTimestamp
+   is present (CLOSED rows). */
+.pc-shell .hold-closed { font-family:var(--mono); font-size:7px; color:var(--w3); letter-spacing:.5px; margin-top:2px; line-height:1.1; }
+.mobile-shell .hold-closed { font-family:var(--mono); font-size:7px; color:var(--w3); letter-spacing:.5px; margin-top:2px; line-height:1.1; }
 .pc-shell .passet { font-size:11px; font-weight:700; color:var(--white); letter-spacing:.5px; }
 .pc-shell .ptrack { font-size:7px; padding:2px 4px; border-radius:1px; letter-spacing:1px; }
 .pc-shell .ptrack.con { color:var(--w2); border:1px solid var(--w3); }

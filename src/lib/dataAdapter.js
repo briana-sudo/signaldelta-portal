@@ -64,6 +64,33 @@ function dayAbbrevET(iso) {
   return ET_WEEKDAY_FORMATTER.format(new Date(iso)).toUpperCase();
 }
 
+// Portal v1.13 (2026-05-29): closed-trade close-time sub-line.
+// Used by PCApp TradeListRow + MobileApp MobileTradeCard CLOSED branches
+// to render "Closed HH:MM ET" (same-day) or "Closed Mon HH:MM ET"
+// (different ET day from now). Returns '' for null so the JSX can guard
+// without rendering an empty "Closed " prefix.
+const ET_YMD_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: TZ,
+  year: 'numeric', month: '2-digit', day: '2-digit',
+});
+function dayKeyET(d) { return ET_YMD_FORMATTER.format(d); }   // e.g. "2026-05-29"
+const ET_WEEKDAY_SHORT_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: TZ,
+  weekday: 'short',
+});
+function dayShortET(d) {
+  // Title-cased "Sat", "Mon" (matches the dispatch's "Sat 13:53 ET" example).
+  return ET_WEEKDAY_SHORT_FORMATTER.format(d);
+}
+export function fmtCloseET(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const sameDay = dayKeyET(d) === dayKeyET(new Date());
+  const hhmm = ET_HHMM_FORMATTER.format(d);
+  return sameDay ? `${hhmm} ET` : `${dayShortET(d)} ${hhmm} ET`;
+}
+
 function computeHold(entryIso) {
   if (!entryIso) return '—';
   const entry = new Date(entryIso).getTime();
