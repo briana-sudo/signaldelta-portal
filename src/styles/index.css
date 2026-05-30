@@ -1513,6 +1513,80 @@ body::after {
 .mobile-shell .rm-row-h { font-size: 10px; }
 .mobile-shell .rm-grid { padding: 10px 12px 12px; }
 
+/* ─────────────────────────────────────────────────────────────────────
+   Portal v1.17.1 (2026-05-30) — PC-scoped layout fix.
+   The 200 px .col-extra panel can't fit a nowrap "Large-cap stock"
+   label + 3 track cells + Σ at the original `minmax(80, 1.2fr)` label
+   width — content overflowed the panel's overflow:hidden boundary and
+   clipped Σ off the right edge. Fix: tight fixed label gutter (44 px)
+   with stacked-wrap labels, 4 EQUAL data columns (CONS / MOD / AGG /
+   Σ — Σ now matches a track-column width), smaller cell font so
+   "-0.14%" fits comfortably, 2 px column gap for visual separation.
+   Mobile is full-width (its DataTab panel) so the base rules are kept
+   for that surface; PC overrides scope strictly under .pc-shell .
+   ───────────────────────────────────────────────────────────────────── */
+.pc-shell .rm-grid {
+  grid-template-columns: 44px repeat(4, 1fr);
+  column-gap: 2px;
+  row-gap: 3px;
+  padding: 6px 8px 8px;
+}
+
+/* Asset-class row labels — wrap to multiple lines so the gutter stays
+   narrow. "Large-cap stock" / "Growth stock" → 2 lines; "Crypto" → 1.
+   Vertically centered (.rm-h `align-items: center`); right-aligned to
+   sit against the cell border. */
+.pc-shell .rm-row-h {
+  white-space: normal;
+  text-align: right;
+  padding-right: 3px;
+  line-height: 1.05;
+  font-size: 7px;
+  letter-spacing: 0;
+  text-transform: none;
+  word-break: normal;
+  hyphens: auto;
+  color: var(--w2);
+  font-family: var(--mono);
+  font-weight: 400;
+  justify-content: flex-end;
+}
+/* Bottom-row Σ label stays centered + cyan-tinted (single-char). */
+.pc-shell .rm-row-h.rm-sigma-h {
+  text-align: center;
+  padding-right: 0;
+  font-size: 9px;
+  color: var(--cyan);
+  font-family: var(--mono);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 600;
+  justify-content: center;
+}
+
+/* Track column headers — shrink to match the new tight columns. */
+.pc-shell .rm-col-h {
+  font-size: 7px;
+  letter-spacing: 1px;
+}
+
+/* Cells — tighter padding so "-0.14%" fits the ~25 px content width,
+   and smaller fonts for the same. Column-gap of 2 px on the grid above
+   provides the separation between adjacent cells. */
+.pc-shell .rm-cell {
+  padding: 3px 1px;
+}
+.pc-shell .rm-cell-pct {
+  font-size: 9px;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+.pc-shell .rm-cell-n {
+  font-size: 6px;
+  letter-spacing: 0;
+  margin-top: 1px;
+}
+
 /* A — look-ahead week-tracker placeholder (PC + mobile). Faint grey fill,
    no glow, no animation; reuses the existing column flex sizing so the
    frame keeps even slot widths whether placeholders are present or not.
