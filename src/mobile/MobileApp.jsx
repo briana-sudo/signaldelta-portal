@@ -498,7 +498,11 @@ function ScanTab({ mode, data }) {
         sym: a.sym, sub: a.track, score: 0, hasScore: false, fired: false,
       }))
     : scanRows;
-  const doubled = [...rows, ...rows];
+  // Portal v1.8 P2 (2026-05-29): mobile renders a SINGLE copy of the rows.
+  // The `doubled = [...rows, ...rows]` was only there to seam the desktop-
+  // style vscroll ticker. With the mobile animation disabled in CSS, a
+  // doubled list would just show every asset twice to a manually-scrolling
+  // operator. Desktop ScannerPanel in PCApp.jsx still doubles for its ticker.
   return (
     <div className="panel">
       <div className="ptitle">
@@ -507,7 +511,7 @@ function ScanTab({ mode, data }) {
       </div>
       <div className="scanner-list">
         <div className="scanner-list-inner">
-          {doubled.map((a, i) => (
+          {rows.map((a, i) => (
             <MobileScannerRow a={a} key={`${a.sym}-${i}`} fallback={fallback} />
           ))}
         </div>

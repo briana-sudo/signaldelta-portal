@@ -258,9 +258,6 @@ export function useNeo4jPoll() {
         console.error('[signaldelta] monitored_assets refresh failed:', e);
       }
     }
-    refreshMonitoredAssets();                         // mount
-    assetsTimer = setInterval(refreshMonitoredAssets, 300_000);  // every 5 min
-
     async function tick() {
       try {
         const next = await pollOnce(monitoredAssetsRef.current);
@@ -276,8 +273,24 @@ export function useNeo4jPoll() {
         setLoading(false);
       }
     }
-    tick();
-    timer = setInterval(tick, POLL_INTERVAL_MS);
+
+    // v1.8 P1 (2026-05-29): cold-open fetch-on-mount. The prior pattern
+    // fired `tick()` SYNCHRONOUSLY right after kicking off the mount-time
+    // monitored_assets fetch, so tick #1 ran with ref=null → includeScanner
+    // false → scanner_scores skipped → whole scanner showed BUILDING DATA
+    // until tick #2 at +60s. Now: await the mount fetch first so the ref is
+    // populated, THEN fire tick (scanner_scores enters the first batch),
+    // THEN start the 60s poll interval + the 5-min monitored_assets refresh.
+    // Net: scores populate at t<2s instead of t≈60s.
+    async function bootstrap() {
+      await refreshMonitoredAssets();              // sets monitoredAssetsRef.current
+      if (!mounted.current) return;
+      await tick();                                // first poll with scanner_scores
+      if (!mounted.current) return;
+      timer = setInterval(tick, POLL_INTERVAL_MS);
+      assetsTimer = setInterval(refreshMonitoredAssets, 300_000);  // every 5 min
+    }
+    bootstrap();
     return () => {
       mounted.current = false;
       if (timer) clearInterval(timer);

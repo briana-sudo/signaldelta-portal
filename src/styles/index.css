@@ -1018,18 +1018,20 @@ body::after {
 .mobile-shell .wf-lbl { font-family:var(--mono); font-size:6px; color:var(--w3); letter-spacing:.5px; }
 
 /* mobile scanner */
-/* Mobile mirror of PC v1.2 scanner cycle. The tab-content slot bounds
-   the height so .scanner-list overflow:hidden clips the cycle correctly. */
-.mobile-shell .scanner-list { display:flex; flex-direction:column; overflow:hidden; position:relative; max-height: 70vh; }
+/* Mobile mirror of PC v1.2 scanner cycle.
+   Portal v1.8 P2 (2026-05-29): mobile auto-scroll ticker disabled. Operator
+   actively touch-scrolls the scanner to review on mobile; the animation was
+   fighting the manual scroll (snap-back, empty-gap visuals from
+   touch-vs-animation conflict + iOS dynamic-vh + placeholder->real-height
+   swap). With the animation off, mobile is a plain touch-scrollable column
+   of N rows, scrolled by the parent .tab-content overflow-y:auto. Dropped
+   overflow:hidden and max-height:70vh which existed only to clip the
+   ticker. Desktop .pc-shell .scanner-list-inner ticker is untouched. */
+.mobile-shell .scanner-list { display:flex; flex-direction:column; position:relative; }
 .mobile-shell .scanner-list-inner {
   display:flex; flex-direction:column;
-  /* Portal v1.4 fix (2026-05-26): mobile parity with PC — 60s → 40s.
-     Portal v1.7 (2026-05-29): dropped `gap: 3px` → moved to .srow
-     margin-bottom so the doubled-content loop is exactly 2× (seamless). */
-  animation: scanner-vscroll 40s linear infinite;
+  animation: none;
 }
-.mobile-shell .scanner-list:hover .scanner-list-inner,
-.mobile-shell .scanner-list:active .scanner-list-inner { animation-play-state: paused; }
 .mobile-shell .srow { display:grid; grid-template-columns:64px 1fr 42px; align-items:center; gap:8px; padding:8px 10px; background:var(--navy3); border:1px solid transparent; font-family:var(--mono); font-size:9px; transition:border-color .3s,background .3s; position:relative; min-height:44px; margin-bottom:3px; /* v1.7: inter-row spacing for seamless scroll loop */ }
 .mobile-shell .srow.eval { border-color:rgba(0,194,255,0.3); background:var(--cyan3); }
 .mobile-shell .srow.fired {
