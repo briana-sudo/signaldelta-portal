@@ -88,7 +88,7 @@ export default function MobileApp({ data, errors = {}, hasAnyData = false, error
         </div>
       </div>
       <TabBar tab={tab} setTab={setTab} />
-      <KernelOverlay open={kernelOpen} onClose={() => setKernelOpen(false)} />
+      <KernelOverlay open={kernelOpen} data={data} onClose={() => setKernelOpen(false)} />
       {loading && !data && !error && <MobileLoadingBadge />}
     </div>
   );
@@ -313,10 +313,31 @@ function MobileTradeCard({ t, offset }) {
     const pv = t.pnl + offset;
     const pp = t.pnlPct + (t.entry ? (offset / t.entry) * 100 : 0);
     const cur = t.cur + offset * 0.01;
-    const range = t.target - t.entry;
-    const progPct = range ? Math.max(0, Math.min(100, ((cur - t.entry) / range) * 100)) : 0;
     const pos = pv >= 0;
     const clr = pos ? 'var(--green)' : 'var(--red)';
+    // Portal v1.9 F2 (2026-05-29): mobile mirror of PC TradeListRow.
+    // Directional progress (signed by Long/Short) splits the bar into a
+    // green "toward target" or red "toward stop" fill, plus a grey
+    // "NO LIVE PRICE" state when no broker position matches this row.
+    // Was: clamp(0,100, (cur-entry)/(target-entry)) — hid every loss
+    // direction and silently fell back to entry on broker miss. See PC
+    // TradeListRow comment for the full rationale.
+    const livePriced = !!t.brokerPriced;
+    const isShort = t.direction === 'Short' || (t.target != null && t.entry != null && t.target < t.entry);
+    const sign = isShort ? -1 : 1;
+    const targetRange = Math.abs((t.target ?? 0) - (t.entry ?? 0));
+    const stopRange = Math.abs((t.entry ?? 0) - (t.stop ?? 0));
+    const signedMove = (cur - (t.entry ?? 0)) * sign;
+    const winning = signedMove >= 0;
+    const progPct = winning
+      ? (targetRange ? Math.min(100, (signedMove / targetRange) * 100) : 0)
+      : (stopRange   ? Math.min(100, (-signedMove / stopRange) * 100) : 0);
+    const progClr = !livePriced ? 'var(--w3)' : (winning ? 'var(--green)' : 'var(--red)');
+    const progLabel = !livePriced
+      ? 'NO LIVE PRICE'
+      : winning
+        ? `${progPct.toFixed(0)}% TO TARGET`
+        : `${progPct.toFixed(0)}% TO STOP`;
     return (
       <div className="pos-card card-open">
         <div className="pc-row1">
@@ -339,8 +360,10 @@ function MobileTradeCard({ t, offset }) {
         </div>
         <div className="pc-row3">
           <div className="pc-prog-wrap">
-            <div className="pc-prog-bg"><div className="pc-prog-fill" style={{ width: progPct + '%', background: clr }} /></div>
-            <div className="pc-prog-lbl">{progPct.toFixed(0)}% TO TARGET</div>
+            <div className="pc-prog-bg">
+              {livePriced && <div className="pc-prog-fill" style={{ width: progPct + '%', background: progClr }} />}
+            </div>
+            <div className="pc-prog-lbl" style={{ color: progClr }}>{progLabel}</div>
           </div>
           <div className="pc-hold">{t.hold}</div>
         </div>
@@ -557,6 +580,13 @@ function SystemTab({ mode, data, onOpenKernel }) {
   const wrBoot = liveMode || !winRate;
   const srBoot = liveMode || !sharpe;
   const ctBoot = liveMode || !conviction;
+  // Portal v1.9 F1 (2026-05-29): kernel-chip CYCLES now reads the real
+  // learning-loop cycle count from `rules_footer.max(r.cycle_number)`, same
+  // source as the Rules-footer CYCLE pill. Replaces the placeholder literal
+  // KERNEL_COUNTS.cycles = 6 that pre-dated live wiring. With zero loop
+  // runs this shows 0.
+  const sysFoot = adaptRulesFoot(data);
+  const sysCyclesCount = sysFoot?.cycle ?? 0;
 
   return (
     <>
@@ -675,7 +705,7 @@ function SystemTab({ mode, data, onOpenKernel }) {
           <div className="kc-stats">
             <span><span className="c">{KERNEL_COUNTS.nodes}</span> NODES</span>
             <span><span className="c">{KERNEL_COUNTS.edges}</span> EDGES</span>
-            <span>CYCLES <span className="c">{KERNEL_COUNTS.cycles}</span></span>
+            <span>CYCLES <span className="c">{sysCyclesCount}</span></span>
             <span>LANE 2 <span className="a">OFFLINE</span></span>
           </div>
           <button className="kc-view-btn" onClick={onOpenKernel}>VIEW GRAPH</button>
@@ -756,9 +786,14 @@ function DataTab({ mode, data, liveEvents }) {
   );
 }
 
-function KernelOverlay({ open, onClose }) {
+function KernelOverlay({ open, data, onClose }) {
   const canvasRef = useRef(null);
   const [counts, setCounts] = useState({ nodes: KERNEL_COUNTS.nodes, edges: KERNEL_COUNTS.edges });
+  // Portal v1.9 F1 (2026-05-29): kernel-overlay-foot CYCLES reads the real
+  // learning-loop cycle count from `rules_footer.max(r.cycle_number)`. See
+  // SystemTab and PC KernelPanel for the matching rationale.
+  const koFoot = adaptRulesFoot(data);
+  const koCyclesCount = koFoot?.cycle ?? 0;
   useEffect(() => {
     if (!open) return;
     const id = requestAnimationFrame(() => {
@@ -801,7 +836,7 @@ function KernelOverlay({ open, onClose }) {
       </div>
       <div className="ko-foot">
         <div className="kf-stat">PHASE <span>{KERNEL_COUNTS.phase}</span></div>
-        <div className="kf-stat">CYCLES <span>{KERNEL_COUNTS.cycles}</span></div>
+        <div className="kf-stat">CYCLES <span>{koCyclesCount}</span></div>
         <div className="kf-stat">{counts.nodes} NODES · {counts.edges} EDGES</div>
         <div className="kf-stat">LANE 2 <span className="amber">OFFLINE</span></div>
       </div>

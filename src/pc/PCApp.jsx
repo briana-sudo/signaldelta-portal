@@ -316,7 +316,7 @@ function Main({ mode, data }) {
       </div>
       <div className="col-metrics">
         <MetricsPanel mode={mode} data={data} />
-        <KernelPanel />
+        <KernelPanel data={data} />
       </div>
       <div className="col-extra">
         <ReturnsMatrixPanel mode={mode} data={data} />
@@ -461,10 +461,36 @@ function TradeListRow({ t, offset }) {
     const pv = t.pnl + offset;
     const pp = t.pnlPct + (t.entry ? (offset / t.entry) * 100 : 0);
     const cur = t.cur + offset * 0.01;
-    const range = t.target - t.entry;
-    const progPct = range ? Math.max(0, Math.min(100, ((cur - t.entry) / range) * 100)) : 0;
     const pos = pv >= 0;
     const clr = pos ? 'var(--green)' : 'var(--red)';
+    // Portal v1.9 F2 (2026-05-29): directional progress + broker-miss.
+    // Previous formula clamp(0, 100, (cur-entry)/(target-entry)) hid every
+    // loss-direction hold as 0%, indistinguishable from "no movement," and
+    // silently used cur=entry when the broker had no matching position —
+    // pinning the bar at 0% with no indication on stranded phantoms.
+    // New: signed move (using direction to flip for shorts) splits into
+    //   - winning side: green fill toward target (denominator = target range)
+    //   - losing side:  red fill toward stop      (denominator = stop range)
+    //   - no-broker:    grey "NO LIVE PRICE" badge, no fill.
+    // Stop and target prices are already on the row (trade_list_recent
+    // returns t.stop_loss_price and t.target_price; adaptTradeList sets
+    // `brokerPriced` from priceBySymbol match on /broker_account positions).
+    const livePriced = !!t.brokerPriced;
+    const isShort = t.direction === 'Short' || (t.target != null && t.entry != null && t.target < t.entry);
+    const sign = isShort ? -1 : 1;
+    const targetRange = Math.abs((t.target ?? 0) - (t.entry ?? 0));
+    const stopRange = Math.abs((t.entry ?? 0) - (t.stop ?? 0));
+    const signedMove = (cur - (t.entry ?? 0)) * sign; // >0 toward target, <0 toward stop
+    const winning = signedMove >= 0;
+    const progPct = winning
+      ? (targetRange ? Math.min(100, (signedMove / targetRange) * 100) : 0)
+      : (stopRange   ? Math.min(100, (-signedMove / stopRange) * 100) : 0);
+    const progClr = !livePriced ? 'var(--w3)' : (winning ? 'var(--green)' : 'var(--red)');
+    const progLabel = !livePriced
+      ? 'NO LIVE PRICE'
+      : winning
+        ? `${progPct.toFixed(0)}% TO TARGET`
+        : `${progPct.toFixed(0)}% TO STOP`;
     return (
       <tr className="row-open">
         <td><span className="passet">{t.asset}</span></td>
@@ -475,8 +501,10 @@ function TradeListRow({ t, offset }) {
         <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--red)' }}>{t.stop.toLocaleString()}</td>
         <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--green)' }}>{t.target.toLocaleString()}</td>
         <td className="prog-wrap">
-          <div className="prog-bg"><div className="prog-fill" style={{ width: progPct + '%', background: clr }} /></div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: 'var(--w3)', marginTop: '2px' }}>{progPct.toFixed(0)}% TO TARGET</div>
+          <div className="prog-bg">
+            {livePriced && <div className="prog-fill" style={{ width: progPct + '%', background: progClr }} />}
+          </div>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: progClr, marginTop: '2px' }}>{progLabel}</div>
         </td>
         <td>
           <div className="ppnl" style={{ color: clr }}>{pos ? '+' : ''}${Math.abs(pv).toFixed(2)}</div>
@@ -745,11 +773,18 @@ function ConvictionDonut({ conviction }) {
   );
 }
 
-function KernelPanel() {
+function KernelPanel({ data }) {
   // Phase 1.1: Three.js scene renders the 5-cluster INITIALIZING placeholder
   // regardless of data wiring (IndicatorNodes don't exist until Phase 4).
   const canvasRef = useRef(null);
   const [counts, setCounts] = useState({ nodes: KERNEL_COUNTS.nodes, edges: KERNEL_COUNTS.edges });
+  // Portal v1.9 F1 (2026-05-29): kernel-overlay CYCLES now reads the real
+  // learning-loop cycle count from `rules_footer.max(r.cycle_number)` (same
+  // source the Rules-footer CYCLE pill uses), not the placeholder literal
+  // `KERNEL_COUNTS.cycles = 6` that pre-dated live wiring. With zero loop
+  // runs this shows 0.
+  const foot = adaptRulesFoot(data);
+  const cyclesCount = foot?.cycle ?? 0;
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -779,7 +814,7 @@ function KernelPanel() {
       </div>
       <div className="kernel-bottom">
         <div className="kernel-stat">PHASE <span>{KERNEL_COUNTS.phase}</span></div>
-        <div className="kernel-stat">CYCLES <span>{KERNEL_COUNTS.cycles}</span></div>
+        <div className="kernel-stat">CYCLES <span>{cyclesCount}</span></div>
         <div className="kernel-stat">LANE 2 <span className="amber">OFFLINE</span></div>
       </div>
     </div>
