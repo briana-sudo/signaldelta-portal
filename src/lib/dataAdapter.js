@@ -240,7 +240,14 @@ export function adaptWeeklyWaterfall(data) {
   const asc = [...rows].reverse();
   return asc.map((w, i) => ({
     w: `W${i + 1}`,
-    p: Number(w.pnl_pct) || 0,
+    // Portal v1.12 (2026-05-29): engine writes WeeklyContextNode.system_weekly_pnl_pct
+    // as a decimal FRACTION (e.g. -0.00552 = -0.55%). Portal placeholder + render
+    // expressions were authored in already-scaled percent units (e.g. 3.2 = 3.2%),
+    // so concatenating raw with '%' produced "-0.0055242552789600404%". Multiply
+    // by 100 here so `w.p` matches the placeholder convention; both render sites
+    // (PCApp MiniWaterfall + MobileApp MobileWaterfall) and the bar-fill height
+    // calc (Math.abs(w.p)/maxP * barH) all re-scale correctly from this one point.
+    p: (Number(w.pnl_pct) || 0) * 100,
     pos: Number(w.pnl_pct) >= 0,
     cur: i === asc.length - 1,
   }));

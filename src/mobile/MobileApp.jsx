@@ -496,7 +496,7 @@ function MobileWaterfall({ mode, liveWaterfall }) {
           <div
             className="wf-pct"
             style={{ color: w.cur ? 'var(--cyan)' : w.pos ? 'var(--green)' : 'var(--red)' }}
-          >{(w.pos ? '+' : '') + w.p + '%'}</div>
+          >{(w.p >= 0 ? '+' : '') + w.p.toFixed(2) + '%'}</div>
           <div
             className={'wf-bar ' + (w.cur ? 'cur' : w.pos ? 'pos' : 'neg')}
             style={{ height: heights[i] + 'px' }}
