@@ -255,6 +255,19 @@ body::after {
   background: linear-gradient(180deg, rgba(255, 171, 0, 0.04), transparent);
   border-top: 1px solid rgba(255, 171, 0, 0.18);
 }
+/* Portal v1.10 (2026-05-29): compact macro + micro to match the
+   system-events strip height (28 px). Base `.news-row { flex: 1 }`
+   above split the p-news-status 35 % slot into ~126 px each — we want
+   them slim so the freed ~196 px can go to the trades panel via the
+   1fr trades track in .col-center. Marquee animations are width-based
+   (translateX); height change has no effect on their motion. Mobile
+   `.mobile-shell .news-row { height: 32px }` is untouched (independent
+   selector, already fixed-height). */
+.pc-shell .news-row.macro,
+.pc-shell .news-row.primary {
+  flex: none;
+  height: 28px;
+}
 
 /* News ticker — per-asset, horizontal marquee */
 .pc-shell .news-ticker-wrap { overflow: hidden; width: 100%; height: 100%; display: flex; align-items: center; }
@@ -626,7 +639,15 @@ body::after {
 .pc-shell .col-scanner .panel,
 .pc-shell .scanner-list { min-height: 0; }
 
-.pc-shell .col-center { display:grid; grid-template-rows: 50% 15% 35%; gap:1px; background:rgba(0,194,255,0.05); min-width:0; }
+/* Portal v1.10 (2026-05-29): re-allocated row tracks. Was 50%/15%/35%
+   which inflated macro+micro news-rows (each flex:1 inside the 35% slot)
+   to ~126 px each. New: trades takes 1fr (~590 px at typical viewport,
+   ~15-row capacity), equity stays ~120 px, news-status panel shrinks to
+   90 px (= 3 × 28 px strips + gaps) so macro+micro match the system
+   events strip height. Trades row count is data-bound (LIMIT 12 in
+   trade_list_recent, current corpus = 8 — neither a clip nor a LIMIT
+   hit); this adds capacity, not rows. */
+.pc-shell .col-center { display:grid; grid-template-rows: 1fr 120px 90px; gap:1px; background:rgba(0,194,255,0.05); min-width:0; }
 .pc-shell .col-metrics { display:grid; grid-template-rows: 1fr 1fr; gap:1px; background:rgba(0,194,255,0.05); }
 .pc-shell .col-extra { display:grid; grid-template-rows: 1fr 1fr; gap:1px; background:rgba(0,194,255,0.05); }
 
