@@ -331,6 +331,11 @@ export function adaptTradeList(data) {
       direction: r.direction,
       entryTimestamp: r.entry_timestamp,
       exitTimestamp: r.exit_timestamp,
+      // Portal v1.14 P1.2 (2026-05-30): trade_id exposed for the M4 monitor-
+      // coverage badge (joined against AccountStateNode.monitor_coverage_
+      // unmonitored_trade_ids). Was filtered on in the WHERE clause but
+      // never SELECTed; bumping the proxy + threading through the adapter.
+      tradeId: r.trade_id,
     };
   });
 }
@@ -835,4 +840,77 @@ export function adaptPriceTicker(data) {
   // Stocks first, then crypto. Within each class, server returns alpha-sorted.
   const items = [...stocks.map(mapRow), ...crypto.map(mapRow)];
   return { items, fetchedAtMs, offline };
+}
+
+// ── Account state (Portal v1.14 P1.3, M4 §6 health strip, 2026-05-30) ─
+// Adapts the proxy /account_state rows (one per AccountStateNode, ALL §2
+// props) to the shape the M4 health strip + detail view consume:
+//   { accounts: [ { accountId, healthState, healthReasons[], … } ],
+//     fetchedAtMs }
+// Returns { accounts: [], fetchedAtMs } when no rows (empty/no node) —
+// the strip JSX guards with `accounts.length === 0` → AWAITING ACCOUNT
+// STATE. health_state values follow M4 §6.1 enum: 'GREEN'|'AMBER'|'RED'.
+// health_reasons is a Neo4j list (array of strings); render them as-is,
+// NEVER hardcode reason text — that's a dispatch constraint.
+//
+// Freshness: `updatedAt` ISO surfaced on each account; the strip's
+// stale-check (now − updated_at > 90s) lives in the component layer.
+const toNum  = (v) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
+const toBool = (v) => (v === true || v === 'true' ? true : (v === false || v === 'false' ? false : null));
+const toList = (v) => (Array.isArray(v) ? v : []);
+const toStr  = (v) => (typeof v === 'string' ? v : (v == null ? null : String(v)));
+
+export function adaptAccountState(data) {
+  const rows = Array.isArray(data?.accountState) ? data.accountState : [];
+  const accounts = rows.map((r) => ({
+    accountId: toStr(r.account_id),
+    snapshotTimestamp: toStr(r.snapshot_timestamp),
+    updatedAt: toStr(r.updated_at),
+    portfolioValue: toNum(r.portfolio_value),
+    cash: toNum(r.cash),
+    buyingPower: toNum(r.buying_power),
+    nonMarginableBuyingPower: toNum(r.non_marginable_buying_power),
+    tradingBlocked: toBool(r.trading_blocked),
+    patternDayTrader: toBool(r.pattern_day_trader),
+    daytradeCount: toNum(r.daytrade_count),
+    committedNotional: toNum(r.committed_notional),
+    openPositionCount: toNum(r.open_position_count),
+    headroomPct: toNum(r.headroom_pct),
+    nonMarginableHeadroomPct: toNum(r.non_marginable_headroom_pct),
+    monitorCoverageTotal: toNum(r.monitor_coverage_total),
+    monitorCoverageMonitored: toNum(r.monitor_coverage_monitored),
+    monitorCoverageUnmonitored: toNum(r.monitor_coverage_unmonitored),
+    monitorCoverageUnmonitoredTradeIds: toList(r.monitor_coverage_unmonitored_trade_ids).map(String),
+    monitorMismatchCountLastCycle: toNum(r.monitor_mismatch_count_last_cycle),
+    healthState: toStr(r.health_state),
+    healthReasons: toList(r.health_reasons).map(String),
+  }));
+  return { accounts, pollTimestamp: data?.pollTimestamp ?? null };
+}
+
+// ── Account health history (Portal v1.14 P1.4, M4 §6 detail view) ─────
+// Parses Layer4AnomalyNode rows from /account_health_history. `details`
+// is a JSON string on the node per project convention (per-anomaly blob
+// carrying account_id and any structured deltas); we parse + filter by
+// account_id at render time. Returns an array; component handles empty.
+//
+// Each entry: { anomalyType, severity, createdTimestamp, accountId, details }
+// where `details` is the parsed object (or {} on parse failure).
+function safeParseJson(s) {
+  if (s == null) return {};
+  if (typeof s === 'object') return s;
+  try { return JSON.parse(s); } catch { return {}; }
+}
+export function adaptHealthHistory(data) {
+  const rows = Array.isArray(data?.accountHealthHistory) ? data.accountHealthHistory : [];
+  return rows.map((r) => {
+    const details = safeParseJson(r.details);
+    return {
+      anomalyType: toStr(r.anomaly_type),
+      severity: toStr(r.severity),
+      createdTimestamp: toStr(r.created_timestamp),
+      accountId: toStr(details?.account_id ?? null),
+      details,
+    };
+  });
 }

@@ -13,6 +13,7 @@ import {
   adaptHeartbeat,
   adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation,
+  adaptAccountState,
   fmtCloseET,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
@@ -24,6 +25,7 @@ import MarketStatusPill from '../lib/MarketStatusPill.jsx';
 import NewsTicker from '../lib/NewsTicker.jsx';
 import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
 import StatusStrip from '../lib/StatusStrip.jsx';
+import HealthStrip from '../lib/HealthStrip.jsx';
 
 const MODES = ['live', 'training', 'combined'];
 const DEFAULT_MODE = 'training';
@@ -258,15 +260,22 @@ function TabBar({ tab, setTab }) {
 
 function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
   // Portal v1.1 Change 2 — TradeList (OPEN + CLOSED cards, cutoff-filtered)
+  // Portal v1.14 P3.1 (2026-05-30): weekly waterfall MOVED to DataTab.
   const liveTrades = adaptTradeList(data);
-  const liveWaterfall = adaptWeeklyWaterfall(data);
   const liveAccountBar = adaptAccountBar(data);
   const tradesBoot = shouldRenderBootstrap(mode) || !liveTrades;
-  const wfBoot = shouldRenderBootstrap(mode) || !liveWaterfall;
   const trades = liveTrades ?? [];
   const openTrades = trades.filter((t) => t.status === 'OPEN');
   const openOffsets = usePositionDrift(openTrades, { pollTimestamp, enabled: !tradesBoot });
   const openOffsetByReq = new Map(openTrades.map((t, i) => [t.requestId, openOffsets[i] ?? 0]));
+  // Portal v1.14 P3.3 (2026-05-30): M4 monitor-coverage Set for the badge
+  // in MobileTradeCard (R5 Option I). Same precedence as PC TradeListRow.
+  const stateAccounts = adaptAccountState(data).accounts;
+  const m4State = stateAccounts.length > 0 ? 'present' : 'absent';
+  const unmonitoredSet = new Set();
+  for (const a of stateAccounts) {
+    for (const id of a.monitorCoverageUnmonitoredTradeIds) unmonitoredSet.add(String(id));
+  }
 
   return (
     <>
@@ -283,7 +292,10 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
           </div>
         ) : trades.map((t) => (
           <MobileTradeCard key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
-                           t={t} offset={openOffsetByReq.get(t.requestId) ?? 0} />
+                           t={t}
+                           offset={openOffsetByReq.get(t.requestId) ?? 0}
+                           m4State={m4State}
+                           unmonitoredSet={unmonitoredSet} />
         ))}
       </div>
 
@@ -296,19 +308,12 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
         <div className="sc-item"><div className="sc-val">{tradesBoot ? 0 : (liveAccountBar?.trades ?? 0)}</div><div className="sc-lbl">Trades</div></div>
         <div className="sc-item"><div className="sc-val">{tradesBoot ? 0 : eventsCount}</div><div className="sc-lbl">Events Today</div></div>
       </div>
-
-      <div className="panel wf-panel">
-        <div className="ptitle">
-          <span><span className="ptitle-bar" />WEEKLY P&amp;L</span>
-          <span className="ptitle-r">{wfBoot ? 'AWAITING LIVE WEEKLY CONTEXTS' : '6 WEEKS · CUR W6'}</span>
-        </div>
-        <MobileWaterfall mode={mode} liveWaterfall={liveWaterfall} />
-      </div>
+      {/* Portal v1.14 P3.1 (2026-05-30): Weekly P&L panel relocated to DataTab. */}
     </>
   );
 }
 
-function MobileTradeCard({ t, offset }) {
+function MobileTradeCard({ t, offset, m4State = 'absent', unmonitoredSet = null }) {
   const isOpen = t.status === 'OPEN';
   if (isOpen) {
     const pv = t.pnl + offset;
@@ -316,6 +321,12 @@ function MobileTradeCard({ t, offset }) {
     const cur = t.cur + offset * 0.01;
     const pos = pv >= 0;
     const clr = pos ? 'var(--green)' : 'var(--red)';
+    // Portal v1.14 P3.3 (2026-05-30): mobile mirror of PC monitor badge (Option I).
+    // Same precedence: absent state → render NOTHING (neutral); unmonitored →
+    // amber UNMONITORED takeover; otherwise subtle MONITORED tag.
+    const m4Known = m4State === 'present';
+    const isUnmonitored = m4Known && t.tradeId != null && unmonitoredSet?.has(String(t.tradeId));
+    const isMonitored   = m4Known && !isUnmonitored && t.tradeId != null;
     // Portal v1.9 F2 (2026-05-29): mobile mirror of PC TradeListRow.
     // Directional progress (signed by Long/Short) splits the bar into a
     // green "toward target" or red "toward stop" fill, plus a grey
@@ -360,12 +371,22 @@ function MobileTradeCard({ t, offset }) {
           <div className="pc-cell"><div className="pc-cell-lbl">Target</div><div className="pc-cell-val g">{t.target.toLocaleString()}</div></div>
         </div>
         <div className="pc-row3">
-          <div className="pc-prog-wrap">
-            <div className="pc-prog-bg">
-              {livePriced && <div className="pc-prog-fill" style={{ width: progPct + '%', background: progClr }} />}
+          {isUnmonitored ? (
+            <div className="pc-prog-wrap">
+              <div className="pc-prog-bg pc-prog-bg-unmon"><div className="pc-prog-fill" style={{ width: '100%', background: 'var(--amber)' }} /></div>
+              <div className="pc-prog-lbl" style={{ color: 'var(--amber)', letterSpacing: '1px' }}>UNMONITORED — stop unenforceable</div>
             </div>
-            <div className="pc-prog-lbl" style={{ color: progClr }}>{progLabel}</div>
-          </div>
+          ) : (
+            <div className="pc-prog-wrap">
+              <div className="pc-prog-bg">
+                {livePriced && <div className="pc-prog-fill" style={{ width: progPct + '%', background: progClr }} />}
+              </div>
+              <div className="pc-prog-lbl" style={{ color: progClr }}>{progLabel}</div>
+              {isMonitored && (
+                <div style={{ fontFamily: 'var(--mono)', fontSize: '6px', color: 'var(--w3)', letterSpacing: '1px', marginTop: '1px' }}>MONITORED</div>
+              )}
+            </div>
+          )}
           <div className="pc-hold">{t.hold}</div>
         </div>
       </div>
@@ -726,9 +747,25 @@ function DataTab({ mode, data, liveEvents }) {
   const rulesBoot = bootstrap || (!rules && !foot);
   const eventsBoot = bootstrap || !liveEvents;
   const events = liveEvents ?? [];
+  // Portal v1.14 P3.1 (2026-05-30): weekly waterfall moved here from DeskTab.
+  const liveWaterfall = adaptWeeklyWaterfall(data);
+  const wfBoot = bootstrap || !liveWaterfall;
+  const wfN = liveWaterfall?.length ?? 0;
+  const wfHeader = wfBoot ? 'AWAITING LIVE WEEKLY CONTEXTS' : `${wfN} WEEK${wfN === 1 ? '' : 'S'} · CUR W${wfN}`;
 
   return (
     <>
+      {/* Portal v1.14 P3.2 (2026-05-30): M4 §6 health strip at top of DATA tab.
+          Collapsed GREEN/AMBER same as PC; RED expands INLINE here (mobile
+          decision per dispatch P3.2 — DATA has room). Detail block: reasons
+          from array, monitors line, props, positions, 24h history, freshness. */}
+      <div className="panel">
+        <div className="ptitle">
+          <span><span className="ptitle-bar" />ACCOUNT HEALTH</span>
+        </div>
+        <HealthStrip data={data} layout="mobile-data" />
+      </div>
+
       <div className="panel">
         <div className="ptitle">
           <span><span className="ptitle-bar" />RETURNS BY DOMAIN</span>
@@ -785,6 +822,18 @@ function DataTab({ mode, data, liveEvents }) {
             </>
           );
         })()}
+      </div>
+
+      {/* Portal v1.14 P3.1 (2026-05-30): Weekly P&L moved from DeskTab → DataTab.
+          Same 1B color scheme (cur cyan-pulse / pos green / neg red) and 5-13
+          rolling window applies via the proxy LIMIT 13 + flex:1 slot scaling.
+          Header derived from the data length, not hardcoded. */}
+      <div className="panel wf-panel">
+        <div className="ptitle">
+          <span><span className="ptitle-bar" />WEEKLY P&amp;L</span>
+          <span className="ptitle-r">{wfHeader}</span>
+        </div>
+        <MobileWaterfall mode={mode} liveWaterfall={liveWaterfall} />
       </div>
     </>
   );

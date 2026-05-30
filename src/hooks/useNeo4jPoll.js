@@ -29,6 +29,7 @@ import {
   Q_TRADE_LIST, Q_NEWS_TICKER,
   Q_SCANNER_SCORES,
   Q_EQUITY_SNAPSHOT_LATEST,
+  Q_ACCOUNT_STATE, Q_ACCOUNT_HEALTH_HISTORY,
 } from '../lib/queries.js';
 
 const POLL_INTERVAL_MS = 60_000;
@@ -51,6 +52,12 @@ const QUERY_SPECS = [
   { key: 'heartbeat',        name: Q_ENGINE_HEARTBEAT, singleton: true  },
   { key: 'newsTicker',       name: Q_NEWS_TICKER,      singleton: false },
   { key: 'equitySnapshotLatest', name: Q_EQUITY_SNAPSHOT_LATEST, singleton: true },
+  // Portal v1.14 P1.3/P1.4 (2026-05-30): M4 §6 health strip + detail view.
+  // Both are non-singleton: account_state returns one row per account_id
+  // (multi-account future-proofing); account_health_history returns up to
+  // 200 anomaly events from the last 24h, portal filters by account_id.
+  { key: 'accountState',         name: Q_ACCOUNT_STATE,           singleton: false },
+  { key: 'accountHealthHistory', name: Q_ACCOUNT_HEALTH_HISTORY,  singleton: false },
 ];
 
 function getProxyConfig() {

@@ -78,6 +78,15 @@ export const Q_SCANNER_SCORES = 'scanner_scores';
 // (Today P&L = broker equity − latest snapshot equity_total). No cutoff.
 export const Q_EQUITY_SNAPSHOT_LATEST = 'equity_snapshot_latest';
 
+// ── Portal v1.14 P1.3/P1.4 (2026-05-30): M4 §6 health strip + detail view.
+// account_state: one row per AccountStateNode (M4 §2 schema). Empty until
+// engine M4 Task 6 ships → strip renders AWAITING ACCOUNT STATE.
+// account_health_history: last-24h Layer4AnomalyNode (ACCOUNT_HEALTH_*
+// types) for the detail-view history block; `details` is JSON, portal
+// filters by account_id at render time.
+export const Q_ACCOUNT_STATE = 'account_state';
+export const Q_ACCOUNT_HEALTH_HISTORY = 'account_health_history';
+
 // Mode toggle helper — Phase 4 will append phase filter server-side once
 // §14 amendments land the `phase` field on TradeNode + WeeklyContextNode
 // + EquitySnapshotNode. Phase 1.1 returns null (no filter) since the

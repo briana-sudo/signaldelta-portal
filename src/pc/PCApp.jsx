@@ -13,6 +13,7 @@ import {
   adaptHeartbeat,
   adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation, adaptPriceTicker,
+  adaptAccountState,
   fmtCloseET,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
@@ -24,6 +25,7 @@ import MarketStatusPill from '../lib/MarketStatusPill.jsx';
 import NewsTicker from '../lib/NewsTicker.jsx';
 import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
 import StatusStrip from '../lib/StatusStrip.jsx';
+import HealthStrip from '../lib/HealthStrip.jsx';
 import TradeOverlay from './TradeOverlay.jsx';
 
 const MODES = ['live', 'training', 'combined'];
@@ -71,7 +73,9 @@ export default function PCApp({ data, errors = {}, hasAnyData = false, error, lo
         mode={mode}
         liveAccountBar={liveAccountBar}
         liveWeeklyWaterfall={adaptWeeklyWaterfall(data)}
+        data={data}
       />
+      <WeekRow mode={mode} data={data} />
       <Main mode={mode} data={data} />
       <Ticker data={data} />
       <TradeOverlay trigger={overlayTrigger} />
@@ -198,7 +202,10 @@ function PerformanceBadge({ mode, currentPhase }) {
   return <div className={'sim-tag t-' + tone}>{text}</div>;
 }
 
-function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall }) {
+function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
+  // Portal v1.14 (2026-05-30): MiniWaterfall extracted to <WeekRow/> below.
+  // `liveWeeklyWaterfall` kept on the prop list (was a sibling render); the
+  // freed banner-right now holds <HealthStrip layout="pc"/> per M4 §6.
   // Session 40 rebuild (2026-05-29): live-state surfaces are broker-sourced.
   //   Current Value  ← brokerAccount.account.equity (null when broker down)
   //   Open           ← brokerAccount.positions.length
@@ -243,8 +250,44 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall }) {
         <span className="aval c">{bootstrap || openCount == null ? '—' : openCount}</span>
       </div>
       <div className="acct-divider" />
-      <MiniWaterfall mode={mode} liveWeeklyWaterfall={liveWeeklyWaterfall} />
-      {/* Poll indicator moved to header per Change 3 dispatch — see <PollIndicator/> */}
+      {/* Portal v1.14 (2026-05-30): MiniWaterfall moved to <WeekRow/> below
+          the banner. Banner-right now hosts the collapsed M4 §6 health
+          strip (one row per AccountStateNode). Suppress `liveWeeklyWaterfall`
+          unused-var lint by intentionally referencing it. */}
+      {void liveWeeklyWaterfall}
+      <div className="acct-health">
+        <HealthStrip data={data} layout="pc" />
+      </div>
+    </div>
+  );
+}
+
+// Portal v1.14 P2.1 + P2.3 (2026-05-30): full-width week-tracker row sitting
+// directly beneath the banner. 5-slot default that expand-and-shrinks up to
+// the proxy's MAX 13 (rolling-quarter window per dispatch decision 2). The
+// inner waterfall reuses the existing MiniWaterfall, which already applies
+// the 1B color scheme via .acct-wf-bar.{cur|pos|neg} (cyan-pulse current,
+// green completed positive, red completed negative). Header reads "{N}
+// WEEKS · CUR W{idx}" derived from the data array — fixes the prior
+// hardcoded "6 WEEKS · CUR W6" stamp.
+function WeekRow({ mode, data }) {
+  const liveWeeklyWaterfall = adaptWeeklyWaterfall(data);
+  const bootstrap = shouldRenderBootstrap(mode) || !liveWeeklyWaterfall;
+  const n = liveWeeklyWaterfall?.length ?? 0;
+  // `cur` flag from adapter is the LAST asc-sorted entry — equivalent to
+  // index n (1-based). For an empty/bootstrap state surface a friendly tag.
+  const header = bootstrap
+    ? 'AWAITING LIVE WEEKLY CONTEXTS'
+    : `${n} WEEK${n === 1 ? '' : 'S'} · CUR W${n}`;
+  return (
+    <div className="week-row">
+      <div className="week-row-head">
+        <span className="week-row-title"><span className="week-row-bar" />WEEKLY P&amp;L</span>
+        <span className="week-row-r">{header}</span>
+      </div>
+      <div className="week-row-body">
+        <MiniWaterfall mode={mode} liveWeeklyWaterfall={liveWeeklyWaterfall} />
+      </div>
     </div>
   );
 }
@@ -425,6 +468,17 @@ function TradeListPanel({ mode, data }) {
     enabled: !bootstrap,
   });
   const openOffsetByReq = new Map(openTrades.map((t, i) => [t.requestId, openOffsets[i] ?? 0]));
+  // Portal v1.14 P2.4 (2026-05-30): build the M4 monitor-coverage Set from
+  // AccountStateNode.monitor_coverage_unmonitored_trade_ids — union across
+  // all accounts (current portal has one account, future-proof for many).
+  // `state` = null means no AccountStateNode written yet (engine M4 hasn't
+  // shipped) — badge renders nothing (neutral) in that case.
+  const stateAccounts = adaptAccountState(data).accounts;
+  const m4State = stateAccounts.length > 0 ? 'present' : 'absent';
+  const unmonitoredSet = new Set();
+  for (const a of stateAccounts) {
+    for (const id of a.monitorCoverageUnmonitoredTradeIds) unmonitoredSet.add(String(id));
+  }
 
   return (
     <div className="panel p-positions">
@@ -448,7 +502,10 @@ function TradeListPanel({ mode, data }) {
             <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING TRADES SINCE MARKET OPEN —</td></tr>
           ) : trades.map((t) => (
             <TradeListRow key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
-                          t={t} offset={openOffsetByReq.get(t.requestId) ?? 0} />
+                          t={t}
+                          offset={openOffsetByReq.get(t.requestId) ?? 0}
+                          m4State={m4State}
+                          unmonitoredSet={unmonitoredSet} />
           ))}
         </tbody>
       </table>
@@ -456,7 +513,7 @@ function TradeListPanel({ mode, data }) {
   );
 }
 
-function TradeListRow({ t, offset }) {
+function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) {
   const isOpen = t.status === 'OPEN';
   if (isOpen) {
     const pv = t.pnl + offset;
@@ -464,6 +521,19 @@ function TradeListRow({ t, offset }) {
     const cur = t.cur + offset * 0.01;
     const pos = pv >= 0;
     const clr = pos ? 'var(--green)' : 'var(--red)';
+    // Portal v1.14 P2.4 (2026-05-30): M4 monitor-coverage badge (R5 Option I).
+    // Reuses the % TO TARGET / NO LIVE PRICE cell. State precedence:
+    //   1) m4State === 'absent' → render NOTHING (engine M4 not shipped yet;
+    //      neutral — don't claim coverage we can't prove either way).
+    //   2) tradeId ∈ unmonitoredSet → "UNMONITORED — stop unenforceable"
+    //      (amber/red badge — same tripwire family as NO LIVE PRICE).
+    //   3) otherwise → subtle "MONITORED" tag (confirms enforcement).
+    // The existing winning/losing/no-broker progress info is dropped on
+    // UNMONITORED — there's no point showing distance-to-target when the
+    // stop won't trigger.
+    const m4Known = m4State === 'present';
+    const isUnmonitored = m4Known && t.tradeId != null && unmonitoredSet?.has(String(t.tradeId));
+    const isMonitored   = m4Known && !isUnmonitored && t.tradeId != null;
     // Portal v1.9 F2 (2026-05-29): directional progress + broker-miss.
     // Previous formula clamp(0, 100, (cur-entry)/(target-entry)) hid every
     // loss-direction hold as 0%, indistinguishable from "no movement," and
@@ -502,10 +572,22 @@ function TradeListRow({ t, offset }) {
         <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--red)' }}>{t.stop.toLocaleString()}</td>
         <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--green)' }}>{t.target.toLocaleString()}</td>
         <td className="prog-wrap">
-          <div className="prog-bg">
-            {livePriced && <div className="prog-fill" style={{ width: progPct + '%', background: progClr }} />}
-          </div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: progClr, marginTop: '2px' }}>{progLabel}</div>
+          {isUnmonitored ? (
+            <>
+              <div className="prog-bg prog-bg-unmon"><div className="prog-fill" style={{ width: '100%', background: 'var(--amber)' }} /></div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: 'var(--amber)', marginTop: '2px', letterSpacing: '1px' }}>UNMONITORED — stop unenforceable</div>
+            </>
+          ) : (
+            <>
+              <div className="prog-bg">
+                {livePriced && <div className="prog-fill" style={{ width: progPct + '%', background: progClr }} />}
+              </div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: progClr, marginTop: '2px' }}>{progLabel}</div>
+              {isMonitored && (
+                <div style={{ fontFamily: 'var(--mono)', fontSize: '6px', color: 'var(--w3)', letterSpacing: '1px', marginTop: '1px' }}>MONITORED</div>
+              )}
+            </>
+          )}
         </td>
         <td>
           <div className="ppnl" style={{ color: clr }}>{pos ? '+' : ''}${Math.abs(pv).toFixed(2)}</div>
