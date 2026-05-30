@@ -1371,28 +1371,51 @@ body::after {
 
 .mobile-shell .health-strip.hs-mobile-data .hs-detail-block { margin-top: 4px; }
 
-/* Monitor-badge UNMONITORED variant — both surfaces. Solid amber fill so
-   the row stands out against the otherwise-busy progress visual. */
-.pc-shell .prog-bg-unmon { background: rgba(255,171,0,0.15); }
-.mobile-shell .pc-prog-bg-unmon { background: rgba(255,171,0,0.15); }
+/* Portal v1.16 (2026-05-30): the v1.14 .prog-bg-unmon / .pc-prog-bg-unmon
+   amber variants are unused — the per-row monitor takeover of the
+   progress cell was replaced with the always-visible .row-monitor light
+   under the asset name. Selectors retired (no JSX references remain).
+   The v1.15 .row-tid sub-label was also retired — visible trade-IDs
+   moved off the row (operator clutter); kept available in the M4 detail
+   overlay. Mobile .pc-asset-wrap stays — it now hosts the monitor light
+   instead of the trade-ID. */
+.mobile-shell .pc-asset-wrap { display: flex; flex-direction: column; min-width: 0; }
 
 /* ─────────────────────────────────────────────────────────────────────
-   Portal v1.15 (2026-05-30) — Items A + B.
+   Portal v1.16 (2026-05-30) — per-row monitor LIGHT under the asset
+   cell. Dot + inline word. Always rendered on open rows; closed rows
+   skip it (monitoring is moot once closed). Three states:
+     grey  · AWAITING       (no AccountStateNode yet — default today)
+     red   · UNMONITORED    (open row's tradeId in unmonitored set)
+     green · MONITORED      (node present, row covered)
+   Accessibility: dot is paired with the word; aria-label on the
+   wrapper. Tight line-height + 2px margin-top so it doesn't push the
+   asset row height.
    ───────────────────────────────────────────────────────────────────── */
-
-/* B — visible trade-ID sub-label under the asset cell. Same dim treatment
-   family as .hold-closed (var(--w3), ~7px, tight). Null-guarded in JSX. */
-.pc-shell .row-tid {
-  font-family: var(--mono); font-size: 7px; color: var(--w3);
-  letter-spacing: .5px; margin-top: 2px; line-height: 1.1;
-  white-space: nowrap;
+.pc-shell .row-monitor,
+.mobile-shell .row-monitor {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--mono); letter-spacing: .5px;
+  margin-top: 2px; line-height: 1.1; white-space: nowrap;
 }
-.mobile-shell .row-tid {
-  font-family: var(--mono); font-size: 8px; color: var(--w3);
-  letter-spacing: .5px; margin-top: 2px; line-height: 1.1;
-  white-space: nowrap;
+.pc-shell .row-monitor { font-size: 7px; }
+.mobile-shell .row-monitor { font-size: 8px; }
+.pc-shell .row-monitor-dot,
+.mobile-shell .row-monitor-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; display: inline-block;
 }
-.mobile-shell .pc-asset-wrap { display: flex; flex-direction: column; min-width: 0; }
+.pc-shell .row-monitor.grey  .row-monitor-dot,
+.mobile-shell .row-monitor.grey  .row-monitor-dot { background: var(--w3); }
+.pc-shell .row-monitor.green .row-monitor-dot,
+.mobile-shell .row-monitor.green .row-monitor-dot { background: var(--green); box-shadow: 0 0 4px rgba(0,230,118,0.5); }
+.pc-shell .row-monitor.red   .row-monitor-dot,
+.mobile-shell .row-monitor.red   .row-monitor-dot { background: var(--red);   box-shadow: 0 0 5px rgba(255,61,87,0.6); animation: pdot 1.5s ease-in-out infinite; }
+.pc-shell .row-monitor.grey  .row-monitor-lbl,
+.mobile-shell .row-monitor.grey  .row-monitor-lbl { color: var(--w3); }
+.pc-shell .row-monitor.green .row-monitor-lbl,
+.mobile-shell .row-monitor.green .row-monitor-lbl { color: var(--green); }
+.pc-shell .row-monitor.red   .row-monitor-lbl,
+.mobile-shell .row-monitor.red   .row-monitor-lbl { color: var(--red); font-weight: 600; }
 
 /* A — look-ahead week-tracker placeholder (PC + mobile). Faint grey fill,
    no glow, no animation; reuses the existing column flex sizing so the

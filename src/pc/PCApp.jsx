@@ -537,18 +537,17 @@ function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) 
     const cur = t.cur + offset * 0.01;
     const pos = pv >= 0;
     const clr = pos ? 'var(--green)' : 'var(--red)';
-    // Portal v1.14 P2.4 (2026-05-30): M4 monitor-coverage badge (R5 Option I).
-    // Reuses the % TO TARGET / NO LIVE PRICE cell. State precedence:
-    //   1) m4State === 'absent' → render NOTHING (engine M4 not shipped yet;
-    //      neutral — don't claim coverage we can't prove either way).
-    //   2) tradeId ∈ unmonitoredSet → "UNMONITORED — stop unenforceable"
-    //      (amber/red badge — same tripwire family as NO LIVE PRICE).
-    //   3) otherwise → subtle "MONITORED" tag (confirms enforcement).
-    // The existing winning/losing/no-broker progress info is dropped on
-    // UNMONITORED — there's no point showing distance-to-target when the
-    // stop won't trigger.
+    // Portal v1.16 (2026-05-30): M4 monitor-coverage join key derivation.
+    // Used by the per-row monitor LIGHT under the asset name (see below).
+    // Replaced the v1.14 P2.4 progress-cell takeover that became invisible
+    // when m4State='absent'. Light is always-on for open rows: grey when
+    // the engine hasn't written AccountStateNode yet, green when covered,
+    // red when this row's tradeId appears in the unmonitored list.
     const m4Known = m4State === 'present';
     const isUnmonitored = m4Known && t.tradeId != null && unmonitoredSet?.has(String(t.tradeId));
+    // (isMonitored is implicit: m4Known && !isUnmonitored && tradeId; see
+    //  monitorState ternary below — kept as a derived bool for readability.)
+    // eslint-disable-next-line no-unused-vars
     const isMonitored   = m4Known && !isUnmonitored && t.tradeId != null;
     // Portal v1.9 F2 (2026-05-29): directional progress + broker-miss.
     // Previous formula clamp(0, 100, (cur-entry)/(target-entry)) hid every
@@ -578,11 +577,24 @@ function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) 
       : winning
         ? `${progPct.toFixed(0)}% TO TARGET`
         : `${progPct.toFixed(0)}% TO STOP`;
+    // Portal v1.16 (2026-05-30): per-row monitor LIGHT under the asset cell.
+    // Replaces the v1.15 visible trade-ID sub-label (clutter) and the dormant
+    // Option-I badge that hid in the % TO TARGET cell (invisible when
+    // m4State='absent'). One indicator per open row: dot + inline word.
+    //   absent  → grey  · AWAITING       (every open row today, no node yet)
+    //   covered → green · MONITORED
+    //   in unmonitored set → red · UNMONITORED
+    // Always render the dot on open rows — grey IS the no-data state.
+    const monitorState = !m4Known ? 'grey' : (isUnmonitored ? 'red' : 'green');
+    const monitorLabel = !m4Known ? 'AWAITING' : (isUnmonitored ? 'UNMONITORED' : 'MONITORED');
     return (
       <tr className="row-open">
         <td>
           <span className="passet">{t.asset}</span>
-          {t.tradeId && <div className="row-tid">{t.tradeId}</div>}
+          <div className={'row-monitor ' + monitorState} aria-label={'monitor: ' + monitorLabel.toLowerCase()}>
+            <span className="row-monitor-dot" aria-hidden="true" />
+            <span className="row-monitor-lbl">{monitorLabel}</span>
+          </div>
         </td>
         <td><span className={'ptrack ' + t.track}>{t.tl}</span></td>
         <td><span className={'pconv ' + t.conv}>{t.cl}</span></td>
@@ -591,22 +603,14 @@ function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) 
         <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--red)' }}>{t.stop.toLocaleString()}</td>
         <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--green)' }}>{t.target.toLocaleString()}</td>
         <td className="prog-wrap">
-          {isUnmonitored ? (
-            <>
-              <div className="prog-bg prog-bg-unmon"><div className="prog-fill" style={{ width: '100%', background: 'var(--amber)' }} /></div>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: 'var(--amber)', marginTop: '2px', letterSpacing: '1px' }}>UNMONITORED — stop unenforceable</div>
-            </>
-          ) : (
-            <>
-              <div className="prog-bg">
-                {livePriced && <div className="prog-fill" style={{ width: progPct + '%', background: progClr }} />}
-              </div>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: progClr, marginTop: '2px' }}>{progLabel}</div>
-              {isMonitored && (
-                <div style={{ fontFamily: 'var(--mono)', fontSize: '6px', color: 'var(--w3)', letterSpacing: '1px', marginTop: '1px' }}>MONITORED</div>
-              )}
-            </>
-          )}
+          {/* Portal v1.16 (2026-05-30): monitor badge moved out of this cell
+              and into the per-row light under the asset name above. The
+              progress cell is back to its v1.9 F2 shape: signed-direction
+              fill + "X% TO TARGET" / "X% TO STOP" / "NO LIVE PRICE". */}
+          <div className="prog-bg">
+            {livePriced && <div className="prog-fill" style={{ width: progPct + '%', background: progClr }} />}
+          </div>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: progClr, marginTop: '2px' }}>{progLabel}</div>
         </td>
         <td>
           <div className="ppnl" style={{ color: clr }}>{pos ? '+' : ''}${Math.abs(pv).toFixed(2)}</div>
@@ -622,10 +626,7 @@ function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) 
   const outcomeLabel = isWin ? 'WIN' : 'LOSS';
   return (
     <tr className="row-closed">
-      <td>
-        <span className="passet">{t.asset}</span>
-        {t.tradeId && <div className="row-tid">{t.tradeId}</div>}
-      </td>
+      <td><span className="passet">{t.asset}</span></td>
       <td><span className={'ptrack ' + t.track}>{t.tl}</span></td>
       <td><span className={'pconv ' + t.conv}>{t.cl}</span></td>
       <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w2)' }}>{t.entry.toLocaleString()}</td>

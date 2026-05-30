@@ -322,11 +322,13 @@ function MobileTradeCard({ t, offset, m4State = 'absent', unmonitoredSet = null 
     const cur = t.cur + offset * 0.01;
     const pos = pv >= 0;
     const clr = pos ? 'var(--green)' : 'var(--red)';
-    // Portal v1.14 P3.3 (2026-05-30): mobile mirror of PC monitor badge (Option I).
-    // Same precedence: absent state → render NOTHING (neutral); unmonitored →
-    // amber UNMONITORED takeover; otherwise subtle MONITORED tag.
+    // Portal v1.16 (2026-05-30): M4 monitor-coverage join key derivation.
+    // Used by the per-row monitor LIGHT inside .pc-asset-wrap (below).
+    // Replaced the v1.14 P3.3 progress-cell takeover that became invisible
+    // when m4State='absent'. See PC TradeListRow for the same comment.
     const m4Known = m4State === 'present';
     const isUnmonitored = m4Known && t.tradeId != null && unmonitoredSet?.has(String(t.tradeId));
+    // eslint-disable-next-line no-unused-vars
     const isMonitored   = m4Known && !isUnmonitored && t.tradeId != null;
     // Portal v1.9 F2 (2026-05-29): mobile mirror of PC TradeListRow.
     // Directional progress (signed by Long/Short) splits the bar into a
@@ -356,7 +358,17 @@ function MobileTradeCard({ t, offset, m4State = 'absent', unmonitoredSet = null 
         <div className="pc-row1">
           <div className="pc-asset-wrap">
             <div className="pc-asset">{t.asset}</div>
-            {t.tradeId && <div className="row-tid">{t.tradeId}</div>}
+            {/* Portal v1.16 (2026-05-30): per-row monitor light replaces the
+                v1.15 visible trade-ID. Same precedence as PC TradeListRow:
+                absent → grey AWAITING; in unmonitored set → red UNMONITORED;
+                else → green MONITORED. Always renders on open rows. */}
+            <div
+              className={'row-monitor ' + (!m4Known ? 'grey' : (isUnmonitored ? 'red' : 'green'))}
+              aria-label={'monitor: ' + (!m4Known ? 'awaiting' : (isUnmonitored ? 'unmonitored' : 'monitored'))}
+            >
+              <span className="row-monitor-dot" aria-hidden="true" />
+              <span className="row-monitor-lbl">{!m4Known ? 'AWAITING' : (isUnmonitored ? 'UNMONITORED' : 'MONITORED')}</span>
+            </div>
           </div>
           <div className="pc-pills">
             <span className={'ptrack ' + t.track}>{t.tl}</span>
@@ -375,22 +387,15 @@ function MobileTradeCard({ t, offset, m4State = 'absent', unmonitoredSet = null 
           <div className="pc-cell"><div className="pc-cell-lbl">Target</div><div className="pc-cell-val g">{t.target.toLocaleString()}</div></div>
         </div>
         <div className="pc-row3">
-          {isUnmonitored ? (
-            <div className="pc-prog-wrap">
-              <div className="pc-prog-bg pc-prog-bg-unmon"><div className="pc-prog-fill" style={{ width: '100%', background: 'var(--amber)' }} /></div>
-              <div className="pc-prog-lbl" style={{ color: 'var(--amber)', letterSpacing: '1px' }}>UNMONITORED — stop unenforceable</div>
+          {/* Portal v1.16 (2026-05-30): monitor takeover removed from this
+              cell; replaced by the per-row light above. Progress cell is
+              back to its v1.9 F2 shape. */}
+          <div className="pc-prog-wrap">
+            <div className="pc-prog-bg">
+              {livePriced && <div className="pc-prog-fill" style={{ width: progPct + '%', background: progClr }} />}
             </div>
-          ) : (
-            <div className="pc-prog-wrap">
-              <div className="pc-prog-bg">
-                {livePriced && <div className="pc-prog-fill" style={{ width: progPct + '%', background: progClr }} />}
-              </div>
-              <div className="pc-prog-lbl" style={{ color: progClr }}>{progLabel}</div>
-              {isMonitored && (
-                <div style={{ fontFamily: 'var(--mono)', fontSize: '6px', color: 'var(--w3)', letterSpacing: '1px', marginTop: '1px' }}>MONITORED</div>
-              )}
-            </div>
-          )}
+            <div className="pc-prog-lbl" style={{ color: progClr }}>{progLabel}</div>
+          </div>
           <div className="pc-hold">{t.hold}</div>
         </div>
       </div>
@@ -403,10 +408,7 @@ function MobileTradeCard({ t, offset, m4State = 'absent', unmonitoredSet = null 
   return (
     <div className="pos-card card-closed">
       <div className="pc-row1">
-        <div className="pc-asset-wrap">
-          <div className="pc-asset">{t.asset}</div>
-          {t.tradeId && <div className="row-tid">{t.tradeId}</div>}
-        </div>
+        <div className="pc-asset">{t.asset}</div>
         <div className="pc-pills">
           <span className={'ptrack ' + t.track}>{t.tl}</span>
           <span className={'pconv ' + t.conv}>{t.cl}</span>
