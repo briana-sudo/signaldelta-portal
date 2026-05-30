@@ -14,6 +14,7 @@ import {
   adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation,
   adaptAccountState,
+  buildWeekFrame,
   fmtCloseET,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
@@ -353,7 +354,10 @@ function MobileTradeCard({ t, offset, m4State = 'absent', unmonitoredSet = null 
     return (
       <div className="pos-card card-open">
         <div className="pc-row1">
-          <div className="pc-asset">{t.asset}</div>
+          <div className="pc-asset-wrap">
+            <div className="pc-asset">{t.asset}</div>
+            {t.tradeId && <div className="row-tid">{t.tradeId}</div>}
+          </div>
           <div className="pc-pills">
             <span className={'ptrack ' + t.track}>{t.tl}</span>
             <span className={'pconv ' + t.conv}>{t.cl}</span>
@@ -399,7 +403,10 @@ function MobileTradeCard({ t, offset, m4State = 'absent', unmonitoredSet = null 
   return (
     <div className="pos-card card-closed">
       <div className="pc-row1">
-        <div className="pc-asset">{t.asset}</div>
+        <div className="pc-asset-wrap">
+          <div className="pc-asset">{t.asset}</div>
+          {t.tradeId && <div className="row-tid">{t.tradeId}</div>}
+        </div>
         <div className="pc-pills">
           <span className={'ptrack ' + t.track}>{t.tl}</span>
           <span className={'pconv ' + t.conv}>{t.cl}</span>
@@ -482,18 +489,23 @@ function MobileEquity({ mode, data }) {
 }
 
 function MobileWaterfall({ mode, liveWaterfall }) {
+  // Portal v1.15 Item A (2026-05-30): min 5-slot framing via shared
+  // buildWeekFrame — mirrors PC MiniWaterfall. Placeholders render with
+  // the new .wf-bar.ahead muted class.
   const wrapRef = useRef(null);
   const series = liveWaterfall;
   const bootstrap = shouldRenderBootstrap(mode) || !series;
-  const data = series ?? WEEKLY_WATERFALL;
-  const [heights, setHeights] = useState(() => data.map(() => 2));
+  const frame = buildWeekFrame(series ?? []);
+  const slots = bootstrap ? buildWeekFrame([]).slots : frame.slots;
+  const [heights, setHeights] = useState(() => slots.map(() => 2));
   useEffect(() => {
     if (bootstrap) return;
     const wrap = wrapRef.current;
     if (!wrap) return;
     const barH = wrap.clientHeight - 22;
     const maxP = 7;
-    data.forEach((w, i) => {
+    slots.forEach((w, i) => {
+      if (w.ahead) return; // muted placeholders skip the height animation
       setTimeout(() => {
         setHeights((prev) => {
           const next = [...prev];
@@ -502,7 +514,7 @@ function MobileWaterfall({ mode, liveWaterfall }) {
         });
       }, 80 + i * 100);
     });
-  }, [bootstrap, data]);
+  }, [bootstrap, slots]);
   if (bootstrap) {
     return (
       <div className="wf-wrap" ref={wrapRef}>
@@ -516,14 +528,18 @@ function MobileWaterfall({ mode, liveWaterfall }) {
   return (
     <div className="wf-wrap" ref={wrapRef}>
       <div className="wf-baseline" />
-      {data.map((w, i) => (
+      {slots.map((w, i) => (
         <div className="wf-col" key={w.w}>
+          {w.ahead ? (
+            <div className="wf-pct wf-pct-ahead">—</div>
+          ) : (
+            <div
+              className="wf-pct"
+              style={{ color: w.cur ? 'var(--cyan)' : w.pos ? 'var(--green)' : 'var(--red)' }}
+            >{(w.p >= 0 ? '+' : '') + w.p.toFixed(2) + '%'}</div>
+          )}
           <div
-            className="wf-pct"
-            style={{ color: w.cur ? 'var(--cyan)' : w.pos ? 'var(--green)' : 'var(--red)' }}
-          >{(w.p >= 0 ? '+' : '') + w.p.toFixed(2) + '%'}</div>
-          <div
-            className={'wf-bar ' + (w.cur ? 'cur' : w.pos ? 'pos' : 'neg')}
+            className={'wf-bar ' + (w.ahead ? 'ahead' : (w.cur ? 'cur' : w.pos ? 'pos' : 'neg'))}
             style={{ height: heights[i] + 'px' }}
           />
           <div className="wf-lbl">{w.w}</div>
@@ -748,10 +764,16 @@ function DataTab({ mode, data, liveEvents }) {
   const eventsBoot = bootstrap || !liveEvents;
   const events = liveEvents ?? [];
   // Portal v1.14 P3.1 (2026-05-30): weekly waterfall moved here from DeskTab.
+  // Portal v1.15 Item A (2026-05-30): header derived from buildWeekFrame
+  // (min 5-slot framing). Pre-5: "WEEK c OF 5"; else "{n} WEEKS · CUR W{c}".
   const liveWaterfall = adaptWeeklyWaterfall(data);
   const wfBoot = bootstrap || !liveWaterfall;
-  const wfN = liveWaterfall?.length ?? 0;
-  const wfHeader = wfBoot ? 'AWAITING LIVE WEEKLY CONTEXTS' : `${wfN} WEEK${wfN === 1 ? '' : 'S'} · CUR W${wfN}`;
+  const wfFrame = buildWeekFrame(liveWaterfall ?? []);
+  const wfHeader = wfBoot
+    ? 'AWAITING LIVE WEEKLY CONTEXTS'
+    : (wfFrame.realCount < 5
+        ? `WEEK ${Math.max(1, wfFrame.currentIdx)} OF 5`
+        : `${wfFrame.realCount} WEEKS · CUR W${wfFrame.currentIdx}`);
 
   return (
     <>

@@ -259,6 +259,34 @@ export function adaptReconciliation(data) {
   };
 }
 
+// ── Weekly waterfall frame (Portal v1.15 Item A, 2026-05-30) ──────────
+// Builds the slot array the MiniWaterfall / MobileWaterfall renders:
+//   - frameLen = clamp(realWeekCount, 5, 13)
+//   - slots 0..realCount-1 carry the real adapted row (pos/neg/cur)
+//   - slots realCount..frameLen-1 carry { ahead: true } placeholders
+//     labeled W{realCount+1}.. — rendered with the new .acct-wf-bar.ahead
+//     muted class so the operator sees the room for future weeks.
+// Past 5 real weeks: frameLen = realCount, no placeholders.
+// At MAX 13 (proxy LIMIT 13) the rolling window handles older roll-off
+// on the server — adapter just renders the ≤13 returned.
+// Header decision is left to the JSX consumer: realCount < 5 →
+// "WEEK {currentIdx} OF 5"; else "{realCount} WEEKS · CUR W{currentIdx}".
+export function buildWeekFrame(rows) {
+  const real = Array.isArray(rows) ? rows : [];
+  const realCount = real.length;
+  const frameLen = Math.max(5, Math.min(13, realCount));
+  const currentIdx = realCount; // 1-based index of the current week
+  const slots = [];
+  for (let i = 0; i < frameLen; i += 1) {
+    if (i < realCount) {
+      slots.push(real[i]);
+    } else {
+      slots.push({ w: `W${i + 1}`, p: 0, pos: false, cur: false, ahead: true });
+    }
+  }
+  return { slots, realCount, currentIdx, frameLen };
+}
+
 // ── Weekly waterfall ─────────────────────────────────────────────────
 export function adaptWeeklyWaterfall(data) {
   const rows = data?.weeklyWaterfall;

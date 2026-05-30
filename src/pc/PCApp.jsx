@@ -14,6 +14,7 @@ import {
   adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation, adaptPriceTicker,
   adaptAccountState,
+  buildWeekFrame,
   fmtCloseET,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
@@ -273,12 +274,17 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
 function WeekRow({ mode, data }) {
   const liveWeeklyWaterfall = adaptWeeklyWaterfall(data);
   const bootstrap = shouldRenderBootstrap(mode) || !liveWeeklyWaterfall;
-  const n = liveWeeklyWaterfall?.length ?? 0;
-  // `cur` flag from adapter is the LAST asc-sorted entry — equivalent to
-  // index n (1-based). For an empty/bootstrap state surface a friendly tag.
+  // Portal v1.15 Item A (2026-05-30): min 5-slot frame, max 13. Frame
+  // build moved into buildWeekFrame() in dataAdapter so PC + mobile
+  // share one source of truth. Header rule: realCount < 5 → "WEEK c OF 5"
+  // (the operator sees today's W1 with W2..W5 ahead); else
+  // "{realCount} WEEKS · CUR W{c}".
+  const frame = buildWeekFrame(liveWeeklyWaterfall ?? []);
   const header = bootstrap
     ? 'AWAITING LIVE WEEKLY CONTEXTS'
-    : `${n} WEEK${n === 1 ? '' : 'S'} · CUR W${n}`;
+    : (frame.realCount < 5
+        ? `WEEK ${Math.max(1, frame.currentIdx)} OF 5`
+        : `${frame.realCount} WEEKS · CUR W${frame.currentIdx}`);
   return (
     <div className="week-row">
       <div className="week-row-head">
@@ -296,18 +302,24 @@ function MiniWaterfall({ mode, liveWeeklyWaterfall }) {
   // Section E (updated): waterfall reads WeeklyContextNode.system_weekly_pnl_pct
   // filtered by phase. Empty under LIVE in Phase 1.1 (no live weekly contexts
   // exist) OR when the query returns no rows yet.
+  // Portal v1.15 Item A (2026-05-30): always render a min 5-slot frame
+  // (max 13). Real slots use existing pos/neg/cur classes; placeholders for
+  // [realCount..frameLen-1] get the new .ahead class (muted grey, no
+  // numeric label, no height — just the slot reservation).
   const wrapRef = useRef(null);
   const series = liveWeeklyWaterfall;
   const bootstrap = shouldRenderBootstrap(mode) || !series;
-  const data = series ?? WEEKLY_WATERFALL; // fallback shape for layout sizing
-  const [heights, setHeights] = useState(() => data.map(() => 2));
+  const frame = buildWeekFrame(series ?? []);
+  const slots = bootstrap ? buildWeekFrame([]).slots : frame.slots;
+  const [heights, setHeights] = useState(() => slots.map(() => 2));
   useEffect(() => {
     if (bootstrap) return;
     const wrap = wrapRef.current;
     if (!wrap) return;
     const barH = wrap.clientHeight - 20;
     const maxP = 7;
-    data.forEach((w, i) => {
+    slots.forEach((w, i) => {
+      if (w.ahead) return; // placeholders stay at min height
       setTimeout(() => {
         setHeights((prev) => {
           const next = [...prev];
@@ -316,7 +328,7 @@ function MiniWaterfall({ mode, liveWeeklyWaterfall }) {
         });
       }, 80 + i * 100);
     });
-  }, [bootstrap, data]);
+  }, [bootstrap, slots]);
   if (bootstrap) {
     return (
       <div className="acct-wf" ref={wrapRef}>
@@ -330,14 +342,18 @@ function MiniWaterfall({ mode, liveWeeklyWaterfall }) {
   return (
     <div className="acct-wf" ref={wrapRef}>
       <div className="acct-wf-baseline" />
-      {data.map((w, i) => (
+      {slots.map((w, i) => (
         <div className="acct-wf-col" key={w.w}>
+          {w.ahead ? (
+            <div className="acct-wf-pct acct-wf-pct-ahead">—</div>
+          ) : (
+            <div
+              className="acct-wf-pct"
+              style={{ color: w.cur ? 'var(--cyan)' : w.pos ? 'var(--green)' : 'var(--red)' }}
+            >{(w.p >= 0 ? '+' : '') + w.p.toFixed(2) + '%'}</div>
+          )}
           <div
-            className="acct-wf-pct"
-            style={{ color: w.cur ? 'var(--cyan)' : w.pos ? 'var(--green)' : 'var(--red)' }}
-          >{(w.p >= 0 ? '+' : '') + w.p.toFixed(2) + '%'}</div>
-          <div
-            className={'acct-wf-bar ' + (w.cur ? 'cur' : w.pos ? 'pos' : 'neg')}
+            className={'acct-wf-bar ' + (w.ahead ? 'ahead' : (w.cur ? 'cur' : w.pos ? 'pos' : 'neg'))}
             style={{ height: heights[i] + 'px' }}
           />
           <div className="acct-wf-lbl">{w.w}</div>
@@ -564,7 +580,10 @@ function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) 
         : `${progPct.toFixed(0)}% TO STOP`;
     return (
       <tr className="row-open">
-        <td><span className="passet">{t.asset}</span></td>
+        <td>
+          <span className="passet">{t.asset}</span>
+          {t.tradeId && <div className="row-tid">{t.tradeId}</div>}
+        </td>
         <td><span className={'ptrack ' + t.track}>{t.tl}</span></td>
         <td><span className={'pconv ' + t.conv}>{t.cl}</span></td>
         <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w2)' }}>{t.entry.toLocaleString()}</td>
@@ -603,7 +622,10 @@ function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) 
   const outcomeLabel = isWin ? 'WIN' : 'LOSS';
   return (
     <tr className="row-closed">
-      <td><span className="passet">{t.asset}</span></td>
+      <td>
+        <span className="passet">{t.asset}</span>
+        {t.tradeId && <div className="row-tid">{t.tradeId}</div>}
+      </td>
       <td><span className={'ptrack ' + t.track}>{t.tl}</span></td>
       <td><span className={'pconv ' + t.conv}>{t.cl}</span></td>
       <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w2)' }}>{t.entry.toLocaleString()}</td>

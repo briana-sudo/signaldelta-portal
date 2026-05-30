@@ -1375,3 +1375,38 @@ body::after {
    the row stands out against the otherwise-busy progress visual. */
 .pc-shell .prog-bg-unmon { background: rgba(255,171,0,0.15); }
 .mobile-shell .pc-prog-bg-unmon { background: rgba(255,171,0,0.15); }
+
+/* ─────────────────────────────────────────────────────────────────────
+   Portal v1.15 (2026-05-30) — Items A + B.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* B — visible trade-ID sub-label under the asset cell. Same dim treatment
+   family as .hold-closed (var(--w3), ~7px, tight). Null-guarded in JSX. */
+.pc-shell .row-tid {
+  font-family: var(--mono); font-size: 7px; color: var(--w3);
+  letter-spacing: .5px; margin-top: 2px; line-height: 1.1;
+  white-space: nowrap;
+}
+.mobile-shell .row-tid {
+  font-family: var(--mono); font-size: 8px; color: var(--w3);
+  letter-spacing: .5px; margin-top: 2px; line-height: 1.1;
+  white-space: nowrap;
+}
+.mobile-shell .pc-asset-wrap { display: flex; flex-direction: column; min-width: 0; }
+
+/* A — look-ahead week-tracker placeholder (PC + mobile). Faint grey fill,
+   no glow, no animation; reuses the existing column flex sizing so the
+   frame keeps even slot widths whether placeholders are present or not.
+   .acct-wf-pct-ahead / .wf-pct-ahead dim the "—" stand-in number. */
+.pc-shell .acct-wf-bar.ahead {
+  background: rgba(255,255,255,0.05);
+  box-shadow: none; animation: none;
+  border: 1px dashed rgba(255,255,255,0.08);
+}
+.pc-shell .acct-wf-pct-ahead { color: var(--w3); }
+.mobile-shell .wf-bar.ahead {
+  background: rgba(255,255,255,0.05);
+  box-shadow: none; animation: none;
+  border: 1px dashed rgba(255,255,255,0.08);
+}
+.mobile-shell .wf-pct-ahead { color: var(--w3); }
