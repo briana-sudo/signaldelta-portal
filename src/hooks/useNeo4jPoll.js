@@ -131,6 +131,76 @@ async function callBrokerAccount() {
   return payload; // { account, positions, fetched_at_ms }
 }
 
+// Portal v1.17 (2026-05-30): RETURNS BY DOMAIN — 16 parallel calls per poll.
+// Fans out the 4 returns_matrix_* whitelisted queries (proxy already has
+// them at queries.py:353-399; both CUTOFF_QUERIES + FORENSIC_QUERIES
+// auto-inject). Returns a structured { cells, sigmaPerTrack,
+// sigmaPerAssetClass, corner } object keyed by the canonical enums
+// (asset_class = "Crypto"/"Large-cap stock"/"Growth stock" per engine
+// threshold_evaluation.py:92; track = "Conservative"/"Moderate"/"Aggressive").
+//
+// PROXY AGGREGATION → VISUAL RIM MAPPING:
+//   returns_matrix_sigma_row (param: track)         → bottom rim per-track
+//   returns_matrix_sigma_col (param: asset_class)   → right  rim per-asset-class
+//   returns_matrix_sigma_corner (no params)         → bottom-right grand total
+// (Proxy naming uses "row/col" from the trade-aggregation viewpoint, not the
+//  visual grid orientation — kept as-is here since the queries are already
+//  shipped and whitelisted; portal adapter abstracts the rim labels.)
+const RM_ASSET_CLASSES = ['Crypto', 'Large-cap stock', 'Growth stock'];
+const RM_TRACKS = ['Conservative', 'Moderate', 'Aggressive'];
+async function callReturnsMatrix() {
+  const cellPromises = [];
+  for (const ac of RM_ASSET_CLASSES) {
+    for (const tr of RM_TRACKS) {
+      cellPromises.push(
+        callProxy('returns_matrix_cell', { asset_class: ac, track: tr })
+          .then((rows) => ({ ac, tr, row: rows?.[0] ?? null }))
+          .catch((e) => ({ ac, tr, row: null, error: e?.message ?? String(e) }))
+      );
+    }
+  }
+  const sigmaRowPromises = RM_TRACKS.map((tr) =>
+    callProxy('returns_matrix_sigma_row', { track: tr })
+      .then((rows) => ({ tr, row: rows?.[0] ?? null }))
+      .catch((e) => ({ tr, row: null, error: e?.message ?? String(e) }))
+  );
+  const sigmaColPromises = RM_ASSET_CLASSES.map((ac) =>
+    callProxy('returns_matrix_sigma_col', { asset_class: ac })
+      .then((rows) => ({ ac, row: rows?.[0] ?? null }))
+      .catch((e) => ({ ac, row: null, error: e?.message ?? String(e) }))
+  );
+  const cornerPromise = callProxy('returns_matrix_sigma_corner')
+    .then((rows) => rows?.[0] ?? null)
+    .catch((e) => ({ error: e?.message ?? String(e), total: 0, wins: 0, returns: [] }));
+
+  const [cellResults, sigmaRowResults, sigmaColResults, cornerResult] = await Promise.all([
+    Promise.all(cellPromises),
+    Promise.all(sigmaRowPromises),
+    Promise.all(sigmaColPromises),
+    cornerPromise,
+  ]);
+  const cells = {};
+  for (const { ac, tr, row, error } of cellResults) {
+    cells[`${ac}:${tr}`] = row || { total: 0, wins: 0, returns: [], error: error ?? null };
+  }
+  const sigmaPerTrack = {};
+  for (const { tr, row, error } of sigmaRowResults) {
+    sigmaPerTrack[tr] = row || { total: 0, wins: 0, returns: [], error: error ?? null };
+  }
+  const sigmaPerAssetClass = {};
+  for (const { ac, row, error } of sigmaColResults) {
+    sigmaPerAssetClass[ac] = row || { total: 0, wins: 0, returns: [], error: error ?? null };
+  }
+  return {
+    cells,
+    sigmaPerTrack,
+    sigmaPerAssetClass,
+    corner: cornerResult || { total: 0, wins: 0, returns: [] },
+    assetClasses: RM_ASSET_CLASSES,
+    tracks: RM_TRACKS,
+  };
+}
+
 // Portal v1.11 (2026-05-29): live bottom price ticker via GET /price_ticker.
 // Replaces the hardcoded TICKER literal + cosmetic wobble. Proxy fans out to
 // two batched Alpaca snapshot calls (stocks SIP + crypto) keyed off the
@@ -164,9 +234,10 @@ async function pollOnce(monitoredAssets) {
     callMacroNews(),       // index = QUERY_SPECS.length
     callBrokerAccount(),   // index = QUERY_SPECS.length + 1
     callPriceTicker(),     // index = QUERY_SPECS.length + 2 (v1.11)
+    callReturnsMatrix(),   // index = QUERY_SPECS.length + 3 (v1.17)
   ];
   if (includeScanner) {
-    // index = QUERY_SPECS.length + 3 (after macro + broker + price ticker)
+    // index = QUERY_SPECS.length + 4 (after macro + broker + price ticker + returns matrix)
     calls.push(callProxy('scanner_scores', { asset_list: monitoredAssets }));
   }
   const settled = await Promise.allSettled(calls);
@@ -251,9 +322,23 @@ async function pollOnce(monitoredAssets) {
     data.priceTicker = { error: 'fetch_failed', stocks: [], crypto: [] };
   }
 
-  // Scanner scores (last entry — conditionally appended)
+  // Returns matrix (v1.17) — index = QUERY_SPECS.length + 3
+  const rmResult = settled[QUERY_SPECS.length + 3];
+  if (rmResult.status === 'fulfilled') {
+    data.returnsMatrix = rmResult.value; // {cells, sigmaPerTrack, sigmaPerAssetClass, corner, assetClasses, tracks}
+    if (data.returnsMatrix?.corner?.total > 0) anyData = true;
+  } else {
+    // eslint-disable-next-line no-console
+    console.error(`[signaldelta] poll returns_matrix_* failed:`, rmResult.reason);
+    errors.returns_matrix = rmResult.reason instanceof Error
+      ? rmResult.reason.message
+      : String(rmResult.reason);
+    data.returnsMatrix = null;
+  }
+
+  // Scanner scores (last entry — conditionally appended); v1.17: index shifted +3 → +4
   if (includeScanner) {
-    const scannerResult = settled[QUERY_SPECS.length + 3];
+    const scannerResult = settled[QUERY_SPECS.length + 4];
     if (scannerResult.status === 'fulfilled') {
       data.scannerScores = scannerResult.value;
       if (Array.isArray(scannerResult.value) && scannerResult.value.length > 0) anyData = true;

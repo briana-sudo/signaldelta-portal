@@ -942,3 +942,61 @@ export function adaptHealthHistory(data) {
     };
   });
 }
+
+// ── Returns matrix (Portal v1.17, RETURNS BY DOMAIN, 2026-05-30) ──────
+// Adapts the 16 returns_matrix_* proxy responses (already aggregated by
+// the engine over CLOSED TradeNodes, cutoff+forensic-filtered) into the
+// shape ReturnsMatrixPanel consumes:
+//   { trackOrder, assetClassOrder, cell[`${ac}:${tr}`], rowSigma[tr],
+//     colSigma[ac], cornerSigma, hasData }
+// Each metric carries { count, wins, winRatePct, meanReturnPct, hasData }.
+// `returns[]` from the proxy carries pnl_percent values already in
+// PERCENT units (cross-checked at adaptTradeList:307 → rendered as
+// {t.pnlPct.toFixed(2)}%). NO scaling applied here.
+function _rmDerive(row) {
+  const total = Number(row?.total) || 0;
+  const wins = Number(row?.wins) || 0;
+  const returnsArr = Array.isArray(row?.returns) ? row.returns.map(Number).filter(Number.isFinite) : [];
+  const hasData = total > 0 && returnsArr.length > 0;
+  const meanReturnPct = hasData ? (returnsArr.reduce((s, v) => s + v, 0) / returnsArr.length) : null;
+  const winRatePct = total > 0 ? (wins / total) * 100 : null;
+  return { count: total, wins, winRatePct, meanReturnPct, hasData };
+}
+
+export function adaptReturnsMatrix(data) {
+  const rm = data?.returnsMatrix;
+  if (!rm || typeof rm !== 'object') return null;
+  const assetClassOrder = Array.isArray(rm.assetClasses) && rm.assetClasses.length > 0
+    ? rm.assetClasses
+    : ['Crypto', 'Large-cap stock', 'Growth stock'];
+  const trackOrder = Array.isArray(rm.tracks) && rm.tracks.length > 0
+    ? rm.tracks
+    : ['Conservative', 'Moderate', 'Aggressive'];
+
+  const cell = {};
+  for (const ac of assetClassOrder) {
+    for (const tr of trackOrder) {
+      cell[`${ac}:${tr}`] = _rmDerive(rm.cells?.[`${ac}:${tr}`]);
+    }
+  }
+  // Per-asset-class (right rim) — proxy sigma_col, param: asset_class
+  const colSigma = {};
+  for (const ac of assetClassOrder) {
+    colSigma[ac] = _rmDerive(rm.sigmaPerAssetClass?.[ac]);
+  }
+  // Per-track (bottom rim) — proxy sigma_row, param: track
+  const rowSigma = {};
+  for (const tr of trackOrder) {
+    rowSigma[tr] = _rmDerive(rm.sigmaPerTrack?.[tr]);
+  }
+  const cornerSigma = _rmDerive(rm.corner);
+  return {
+    assetClassOrder,
+    trackOrder,
+    cell,
+    colSigma,
+    rowSigma,
+    cornerSigma,
+    hasData: cornerSigma.count > 0,
+  };
+}

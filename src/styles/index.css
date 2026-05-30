@@ -1423,6 +1423,96 @@ body::after {
 .pc-shell .row-monitor.red   .row-monitor-lbl,
 .mobile-shell .row-monitor.red   .row-monitor-lbl { color: var(--red); font-weight: 600; }
 
+/* ─────────────────────────────────────────────────────────────────────
+   Portal v1.17 (2026-05-30) — RETURNS BY DOMAIN: 3×3 cell grid + sigma
+   rim. Rows = asset_class (Crypto / Large-cap stock / Growth stock);
+   cols = track (CONS / MOD / AGG). Right rim = per-asset-class Σ;
+   bottom rim = per-track Σ; bottom-right = corner. Empty cells render
+   dim "—" (mirrors the v1.15 week-frame "show the full frame, mute
+   the not-yet-reached" precedent). Color paired with text per
+   accessibility constraint — never color-alone.
+   ─────────────────────────────────────────────────────────────────────*/
+.pc-shell .p-returns,
+.mobile-shell .p-returns { display: flex; flex-direction: column; }
+
+.pc-shell .rm-grid,
+.mobile-shell .rm-grid {
+  flex: 1; display: grid;
+  /* 4 cols (label + 3 tracks + Σ) — actually 5 cols total: row-header label, 3 cells, Σ rim */
+  grid-template-columns: minmax(80px, 1.2fr) repeat(3, 1fr) minmax(48px, 0.8fr);
+  /* 5 rows (header + 3 asset-class rows + bottom Σ rim) */
+  grid-template-rows: auto repeat(3, 1fr) auto;
+  gap: 2px;
+  padding: 8px 10px 10px;
+  min-height: 0;
+}
+
+/* Headers (row + col + Σ) */
+.pc-shell .rm-h,
+.mobile-shell .rm-h {
+  font-family: var(--disp); font-weight: 600; font-size: 8px;
+  letter-spacing: 2px; color: var(--w3); text-transform: uppercase;
+  display: flex; align-items: center; justify-content: center;
+  white-space: nowrap;
+}
+.pc-shell .rm-row-h,
+.mobile-shell .rm-row-h { justify-content: flex-end; padding-right: 6px; text-transform: none; letter-spacing: 1px; color: var(--w2); font-size: 9px; font-family: var(--mono); }
+.pc-shell .rm-corner-h,
+.mobile-shell .rm-corner-h { /* blank top-left */ }
+.pc-shell .rm-sigma-h,
+.mobile-shell .rm-sigma-h { color: var(--cyan); letter-spacing: 1px; }
+
+/* Cells */
+.pc-shell .rm-cell,
+.mobile-shell .rm-cell {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: var(--mono);
+  background: var(--navy3); border: 1px solid var(--border);
+  padding: 4px 4px;
+  min-width: 0;
+}
+.pc-shell .rm-cell-pct,
+.mobile-shell .rm-cell-pct { font-size: 11px; line-height: 1.1; }
+.pc-shell .rm-cell-n,
+.mobile-shell .rm-cell-n { font-size: 7px; color: var(--w3); letter-spacing: .5px; margin-top: 2px; }
+
+.pc-shell .rm-cell.rm-pos .rm-cell-pct,
+.mobile-shell .rm-cell.rm-pos .rm-cell-pct { color: var(--green); }
+.pc-shell .rm-cell.rm-pos,
+.mobile-shell .rm-cell.rm-pos { border-color: rgba(0,230,118,0.25); background: rgba(0,230,118,0.06); }
+
+.pc-shell .rm-cell.rm-neg .rm-cell-pct,
+.mobile-shell .rm-cell.rm-neg .rm-cell-pct { color: var(--red); }
+.pc-shell .rm-cell.rm-neg,
+.mobile-shell .rm-cell.rm-neg { border-color: rgba(255,61,87,0.25); background: rgba(255,61,87,0.06); }
+
+.pc-shell .rm-cell.rm-flat .rm-cell-pct,
+.mobile-shell .rm-cell.rm-flat .rm-cell-pct { color: var(--w2); }
+
+.pc-shell .rm-cell.rm-empty,
+.mobile-shell .rm-cell.rm-empty {
+  background: rgba(255,255,255,0.02);
+  border: 1px dashed rgba(255,255,255,0.08);
+}
+.pc-shell .rm-cell.rm-empty .rm-cell-pct,
+.mobile-shell .rm-cell.rm-empty .rm-cell-pct { color: var(--w3); }
+.pc-shell .rm-cell.rm-empty .rm-cell-n,
+.mobile-shell .rm-cell.rm-empty .rm-cell-n { color: var(--w3); opacity: 0.7; }
+
+/* Bootstrap message (no node yet) */
+.pc-shell .p-returns .rm-bootstrap,
+.mobile-shell .p-returns .rm-bootstrap {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: var(--w3); font-family: var(--mono); font-size: 9px;
+  letter-spacing: 1px; text-align: center; padding: 12px;
+}
+
+/* Mobile sizing nudges — slightly larger numbers, more breathing room */
+.mobile-shell .rm-cell-pct { font-size: 13px; }
+.mobile-shell .rm-cell-n { font-size: 8px; }
+.mobile-shell .rm-row-h { font-size: 10px; }
+.mobile-shell .rm-grid { padding: 10px 12px 12px; }
+
 /* A — look-ahead week-tracker placeholder (PC + mobile). Faint grey fill,
    no glow, no animation; reuses the existing column flex sizing so the
    frame keeps even slot widths whether placeholders are present or not.

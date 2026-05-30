@@ -27,6 +27,7 @@ import NewsTicker from '../lib/NewsTicker.jsx';
 import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
 import StatusStrip from '../lib/StatusStrip.jsx';
 import HealthStrip from '../lib/HealthStrip.jsx';
+import ReturnsMatrixPanel from '../lib/ReturnsMatrixPanel.jsx';
 
 const MODES = ['live', 'training', 'combined'];
 const DEFAULT_MODE = 'training';
@@ -790,15 +791,9 @@ function DataTab({ mode, data, liveEvents }) {
         <HealthStrip data={data} layout="mobile-data" />
       </div>
 
-      <div className="panel">
-        <div className="ptitle">
-          <span><span className="ptitle-bar" />RETURNS BY DOMAIN</span>
-          <span className="ptitle-r">3×3</span>
-        </div>
-        <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>
-          — AWAITING LIVE RETURNS MATRIX —
-        </div>
-      </div>
+      {/* Portal v1.17 (2026-05-30): inline RETURNS BY DOMAIN stub replaced
+          by shared ReturnsMatrixPanel — same data path as PC. */}
+      <ReturnsMatrixPanel data={data} layout="mobile" />
 
       <div className="panel">
         <div className="ptitle">

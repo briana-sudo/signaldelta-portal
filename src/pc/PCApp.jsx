@@ -27,6 +27,7 @@ import NewsTicker from '../lib/NewsTicker.jsx';
 import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
 import StatusStrip from '../lib/StatusStrip.jsx';
 import HealthStrip from '../lib/HealthStrip.jsx';
+import ReturnsMatrixPanel from '../lib/ReturnsMatrixPanel.jsx';
 import TradeOverlay from './TradeOverlay.jsx';
 
 const MODES = ['live', 'training', 'combined'];
@@ -379,7 +380,7 @@ function Main({ mode, data }) {
         <KernelPanel data={data} />
       </div>
       <div className="col-extra">
-        <ReturnsMatrixPanel mode={mode} data={data} />
+        <ReturnsMatrixPanel data={data} layout="pc" />
         <RulesAddedPanel mode={mode} data={data} />
       </div>
     </div>
@@ -930,23 +931,11 @@ function KernelPanel({ data }) {
   );
 }
 
-function ReturnsMatrixPanel({ mode }) {
-  // Returns matrix needs 16 per-poll queries (3×3 cells + 3 Σ-rows + 3 Σ-cols
-  // + 1 Σ-corner) per Section D2. Not added to the 14-query per-poll set in
-  // this iteration — bootstrap state until the Σ-batch is wired in a follow-up.
-  void mode;
-  return (
-    <div className="panel p-returns">
-      <div className="ptitle">
-        <span><span className="ptitle-bar" />RETURNS BY DOMAIN</span>
-        <span className="ptitle-r">3×3</span>
-      </div>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--w3)', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px', textAlign: 'center', padding: '12px' }}>
-        — AWAITING LIVE RETURNS MATRIX —
-      </div>
-    </div>
-  );
-}
+// Portal v1.17 (2026-05-30): local stub removed; rendering moved to the
+// shared component at src/lib/ReturnsMatrixPanel.jsx so PC + mobile DATA
+// tab consume one source. v1.17 wired the 16-call returns_matrix_* batch
+// into useNeo4jPoll and the adaptReturnsMatrix() derivations into
+// dataAdapter. The PC caller at <Main> passes mode+data unchanged.
 
 function RulesAddedPanel({ mode, data }) {
   const rules = adaptRulesThisWeek(data);
