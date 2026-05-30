@@ -1398,8 +1398,14 @@ body::after {
   font-family: var(--mono); letter-spacing: .5px;
   margin-top: 2px; line-height: 1.1; white-space: nowrap;
 }
-.pc-shell .row-monitor { font-size: 7px; }
-.mobile-shell .row-monitor { font-size: 8px; }
+/* Portal v1.16.1 (2026-05-30): small left margin so the light doesn't hug
+   the asset label ("SPY● AWAITING"). PC has no flex wrapper — span +
+   inline-flex sit side-by-side in the td, so margin-left adds the gap.
+   Mobile .pc-asset-wrap is a flex COLUMN (asset stacks above monitor),
+   so margin-left applies to the column child and gives a subtle indent
+   without changing stack direction. */
+.pc-shell .row-monitor { font-size: 7px; margin-left: 8px; }
+.mobile-shell .row-monitor { font-size: 8px; margin-left: 8px; }
 .pc-shell .row-monitor-dot,
 .mobile-shell .row-monitor-dot {
   width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; display: inline-block;
