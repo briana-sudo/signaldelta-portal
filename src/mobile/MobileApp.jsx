@@ -512,7 +512,10 @@ function MobileWaterfall({ mode, liveWaterfall }) {
       setTimeout(() => {
         setHeights((prev) => {
           const next = [...prev];
-          next[i] = Math.max(4, (Math.abs(w.p) / maxP) * barH);
+          // Portal v1.18 (2026-06-01): upper clamp — mirror of PC MiniWaterfall.
+          // Outlier weekly value saturates at full wf-wrap height instead of
+          // bleeding over the panel border.
+          next[i] = Math.min(barH, Math.max(4, (Math.abs(w.p) / maxP) * barH));
           return next;
         });
       }, 80 + i * 100);

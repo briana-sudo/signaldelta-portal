@@ -324,7 +324,10 @@ function MiniWaterfall({ mode, liveWeeklyWaterfall }) {
       setTimeout(() => {
         setHeights((prev) => {
           const next = [...prev];
-          next[i] = Math.max(4, (Math.abs(w.p) / maxP) * barH);
+          // Portal v1.18 (2026-06-01): upper clamp so an outlier weekly value
+          // (e.g. -60.77% from a buggy WeeklyContextNode) saturates at full
+          // strip height instead of bleeding upward over the banner.
+          next[i] = Math.min(barH, Math.max(4, (Math.abs(w.p) / maxP) * barH));
           return next;
         });
       }, 80 + i * 100);
