@@ -512,10 +512,13 @@ function MobileWaterfall({ mode, liveWaterfall }) {
       setTimeout(() => {
         setHeights((prev) => {
           const next = [...prev];
-          // Portal v1.18 (2026-06-01): upper clamp — mirror of PC MiniWaterfall.
-          // Outlier weekly value saturates at full wf-wrap height instead of
-          // bleeding over the panel border.
-          next[i] = Math.min(barH, Math.max(4, (Math.abs(w.p) / maxP) * barH));
+          // Portal v1.19 (2026-06-01): log-scale magnitude — mirror of PC.
+          // Mobile geometry stays (wf-wrap=56px, barH=clientHeight-22), so mobile
+          // already had ~24px of bar budget. Log scale just changes how the
+          // magnitude maps to that budget, identical to PC formula.
+          const LOG_MAX = 100;
+          const frac = Math.log10(1 + Math.abs(w.p)) / Math.log10(1 + LOG_MAX);
+          next[i] = Math.min(barH, Math.max(4, frac * barH));
           return next;
         });
       }, 80 + i * 100);

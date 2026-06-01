@@ -317,7 +317,10 @@ function MiniWaterfall({ mode, liveWeeklyWaterfall }) {
     if (bootstrap) return;
     const wrap = wrapRef.current;
     if (!wrap) return;
-    const barH = wrap.clientHeight - 20;
+    // Portal v1.19 (2026-06-01): pct label is now an absolute pill (~10px
+    // tall) anchored to top of the column, no longer in-flow. Reserve only
+    // the pill + label headroom (~10px) instead of the prior 20px phantom.
+    const barH = wrap.clientHeight - 10;
     const maxP = 7;
     slots.forEach((w, i) => {
       if (w.ahead) return; // placeholders stay at min height
@@ -327,7 +330,13 @@ function MiniWaterfall({ mode, liveWeeklyWaterfall }) {
           // Portal v1.18 (2026-06-01): upper clamp so an outlier weekly value
           // (e.g. -60.77% from a buggy WeeklyContextNode) saturates at full
           // strip height instead of bleeding upward over the banner.
-          next[i] = Math.min(barH, Math.max(4, (Math.abs(w.p) / maxP) * barH));
+          // Portal v1.19 (2026-06-01): log-scale magnitude so a tiny W (-0.55%)
+          // and a big W (-60.77%) are visually distinct. LOG_MAX=100 expands
+          // the dynamic range without truncating outliers. Clamp + floor kept
+          // from v1.18: never exceeds barH (no overflow), never < 4 px floor.
+          const LOG_MAX = 100;
+          const frac = Math.log10(1 + Math.abs(w.p)) / Math.log10(1 + LOG_MAX);
+          next[i] = Math.min(barH, Math.max(4, frac * barH));
           return next;
         });
       }, 80 + i * 100);

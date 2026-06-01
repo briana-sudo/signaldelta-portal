@@ -132,7 +132,19 @@ body::after {
 .pc-shell .acct-wf-bar.pos { background:linear-gradient(180deg,var(--green),rgba(0,230,118,.5)); box-shadow:0 0 4px rgba(0,230,118,.3); }
 .pc-shell .acct-wf-bar.neg { background:linear-gradient(180deg,var(--red),rgba(255,61,87,.5)); }
 .pc-shell .acct-wf-bar.cur { background:linear-gradient(180deg,var(--cyan),rgba(0,194,255,.5)); box-shadow:0 0 6px rgba(0,194,255,.4); animation:wf-pulse 2s ease-in-out infinite; }
-.pc-shell .acct-wf-pct { font-family:var(--mono); font-size:7px; white-space:nowrap; line-height:1; }
+/* Portal v1.19 (2026-06-01): pct label is now an absolute pill anchored to
+   the top-center of its .acct-wf-col. Black background + per-instance
+   inline color (cyan/green/red via JSX style attribute) — the inline
+   color always wins over the CSS color below. Removing it from flow
+   gives the bar the full vertical budget. Container .acct-wf already
+   has overflow:hidden (v1.18); pill sits inside the column box which
+   sits inside .acct-wf so the pill is NOT clipped. */
+.pc-shell .acct-wf-pct {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  background: #000; color: var(--fg);
+  font-family: var(--mono); font-size: 8px; line-height: 1;
+  padding: 1px 4px; border-radius: 6px; z-index: 5; white-space: nowrap;
+}
 .pc-shell .acct-wf-lbl { font-family:var(--mono); font-size:6px; color:var(--w3); letter-spacing:.5px; }
 
 .pc-shell .poll-ind { display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:8px; color:var(--w3); letter-spacing:1px; }
@@ -1057,7 +1069,15 @@ body::after {
 .mobile-shell .wf-bar.pos { background:linear-gradient(180deg,var(--green),rgba(0,230,118,.5)); box-shadow:0 0 4px rgba(0,230,118,.3); }
 .mobile-shell .wf-bar.neg { background:linear-gradient(180deg,var(--red),rgba(255,61,87,.5)); }
 .mobile-shell .wf-bar.cur { background:linear-gradient(180deg,var(--cyan),rgba(0,194,255,.5)); box-shadow:0 0 6px rgba(0,194,255,.4); animation:wf-pulse 2s ease-in-out infinite; }
-.mobile-shell .wf-pct { font-family:var(--mono); font-size:7px; white-space:nowrap; line-height:1; }
+/* Portal v1.19 (2026-06-01): mobile mirror of the PC pct pill. Mobile
+   bar budget (~24px) was already fine, so geometry stays — the pill
+   treatment is consistent across surfaces. */
+.mobile-shell .wf-pct {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  background: #000; color: var(--fg);
+  font-family: var(--mono); font-size: 8px; line-height: 1;
+  padding: 1px 4px; border-radius: 6px; z-index: 5; white-space: nowrap;
+}
 .mobile-shell .wf-lbl { font-family:var(--mono); font-size:6px; color:var(--w3); letter-spacing:.5px; }
 
 /* mobile scanner */
@@ -1222,7 +1242,7 @@ body::after {
    as .acct so the visual rhythm continues. Inside it the existing
    .acct-wf-* MiniWaterfall fills the body. */
 .pc-shell .week-row {
-  height: 50px;
+  height: 64px;
   background: var(--navy3);
   border-bottom: 1px solid var(--border);
   display: flex; flex-direction: column;
