@@ -664,16 +664,63 @@ function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) 
 
 function EquityCurvePanel({ mode, data }) {
   const series = adaptEquityCurve(data);
-  const header = adaptEquityHeader(data);
   const bootstrap = shouldRenderBootstrap(mode) || !series;
   const svg = useMemo(
     () => (bootstrap ? null : buildEquityCurveSvgFromSeries(series, { width: 600, height: 80 })),
     [bootstrap, series],
   );
   const subscript = mode !== 'combined' ? <span style={{ fontSize: '6px', color: 'var(--w3)', marginLeft: '2px' }}>(combined)</span> : null;
-  const peakFmt = header?.peak ? `$${Math.round(header.peak).toLocaleString()}` : '—';
-  const ddFmt = header?.drawdownPct != null ? `${header.drawdownPct.toFixed(2)}%` : '—';
-  const twrFmt = header?.twrPct != null ? `${header.twrPct >= 0 ? '+' : ''}${header.twrPct.toFixed(2)}%` : '—';
+
+  // Portal v1.21 (2026-06-01): client-side reducer over the live equity_total
+  // series, replacing the v1.6-era pass-through from adaptEquityHeader.
+  // EquitySnapshotNode persists none of peak/drawdown/twr per §9.1/§11.2
+  // intent (engine writes only equity_total per nightly snapshot); the
+  // proxy equity_curve_stats query reads those fields but they come back
+  // null on every row. Compute here, reactively as the series grows (one
+  // point/night). No new fetch — reuses the whitelisted equity_curve_series
+  // already on the poll batch via Q_EQUITY_CURVE.
+  //   PEAK     = max(equity_total) over the visible series.
+  //   DRAWDOWN = max over series of (runningPeak - equity)/runningPeak,
+  //              expressed as %. Zero capital flows in window today →
+  //              raw == flow-adjusted. Generalized via runningPeak so
+  //              off-monotonic series (peak-then-recovery) render correctly.
+  //   TWR      = (lastEquity / firstEquity − 1) × 100, expressed as %.
+  //              Single sub-period because no CapitalFlowNode wiring is
+  //              hooked into the curve yet; will generalize to a product
+  //              of (1+r_i) across sub-periods once flows arrive.
+  // On today's monotonic-descending zero-flow series, DRAWDOWN and TWR
+  // both land ≈ TOTAL RETURN — three near-identical values is the
+  // expected output, not a bug; they diverge on peak-then-recovery curves.
+  const computed = useMemo(() => {
+    if (!series || series.length < 1) return null;
+    let peak = -Infinity;
+    let runningPeak = -Infinity;
+    let maxDD = 0;
+    for (const p of series) {
+      const e = p.equity;
+      if (!Number.isFinite(e)) continue;
+      if (e > peak) peak = e;
+      if (e > runningPeak) runningPeak = e;
+      if (runningPeak > 0) {
+        const dd = (runningPeak - e) / runningPeak;
+        if (dd > maxDD) maxDD = dd;
+      }
+    }
+    const firstEquity = series[0]?.equity;
+    const lastEquity = series[series.length - 1]?.equity;
+    const twr = (Number.isFinite(firstEquity) && firstEquity > 0 && Number.isFinite(lastEquity))
+      ? (lastEquity / firstEquity - 1) * 100
+      : null;
+    return {
+      peak: Number.isFinite(peak) ? peak : null,
+      drawdownPct: maxDD * 100,
+      twrPct: twr,
+    };
+  }, [series]);
+
+  const peakFmt = computed?.peak != null ? `$${Math.round(computed.peak).toLocaleString()}` : '—';
+  const ddFmt = computed?.drawdownPct != null ? `${computed.drawdownPct.toFixed(2)}%` : '—';
+  const twrFmt = computed?.twrPct != null ? `${computed.twrPct >= 0 ? '+' : ''}${computed.twrPct.toFixed(2)}%` : '—';
 
   return (
     <div className="panel eq-panel">
