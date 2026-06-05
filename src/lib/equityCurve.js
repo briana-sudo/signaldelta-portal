@@ -106,9 +106,10 @@ export function buildEquityCurveSvgFromSeries(points, { width = 600, height = 80
 // Rev 37/39 (2026-06-04): fixed full-scale for the daily-return strip. A day at
 // or beyond ±RETURN_SCALE_PCT clamps to the rail (full half-band). Constant
 // day-to-day so bar heights are comparable across the series and don't silently
-// rescale under the operator. Rev 39: 3.0 → 1.5 (bars ~2× taller; no layout cost
-// — every frac doubles within the unchanged 48px strip / centered geometry).
-export const RETURN_SCALE_PCT = 1.5;
+// rescale under the operator. Rev 39: 3.0 → 1.5. Rev 41: 1.5 → 1.0 — a 1%/day
+// move now fills the full half-band; anything ≥1% clamps to the rail (reads as
+// a tall bar), paired with the Rev 41 80px strip box.
+export const RETURN_SCALE_PCT = 1.0;
 
 export function buildDailyReturnBars(
   points,
