@@ -86,11 +86,13 @@ export function buildEquityCurveSvgFromSeries(points, { width = 600, height = 80
 // backfilled history included). NO engine write, no `percent_pnl_today` (which
 // is unreliable and isn't even in the series). Pure geometry, no DOM.
 //
-// x-mapping is identical to buildEquityCurveSvgFromSeries (i/(N-1))*width, so
-// each bar sits under its equity point. The first in-window point has no prior
-// → no bar. Rev 37: bars use a FIXED ±RETURN_SCALE_PCT full-scale (not the old
-// data-driven max|r|), zero baseline CENTERED at the strip's own middle
-// (positive grows UP from center, negative grows DOWN — rects straddle zeroY).
+// The first in-window point has no prior → no bar. Rev 37: bars use a FIXED
+// ±RETURN_SCALE_PCT full-scale (not the old data-driven max|r|), zero baseline
+// CENTERED at the strip's own middle (positive grows UP from center, negative
+// grows DOWN — rects straddle zeroY). Rev 40: bars are EVENLY DISTRIBUTED
+// across the strip width (one equal slot per bar, ~70% slot width) so they read
+// as a bar chart — this drops the old 1:1 x-alignment under each equity point
+// (uneven from weekend gaps; made bars read as thin pins). Chronological order.
 //
 // Rev 36 (2026-06-04): each bar carries a `tier` keyed off the SINGLE-SOURCE
 // Rev-33 PACE_TIERS thresholds (passed in, never hardcoded):
@@ -115,7 +117,6 @@ export function buildDailyReturnBars(
   if (!Array.isArray(points) || points.length < 2) return null;
   const equities = points.map((p) => Number(p.equity) || 0);
   const N = equities.length;
-  const x = (i) => (i / Math.max(N - 1, 1)) * width;
 
   const tierOf = (r) => {
     if (r < 0) return 'down';
@@ -137,15 +138,17 @@ export function buildDailyReturnBars(
   const zeroY = height / 2;
   const pad = 2;
   const half = Math.max(1, zeroY - pad); // usable half-height per direction
-  const spacing = width / Math.max(N - 1, 1);
-  const barW = Math.max(3, Math.min(spacing * 0.6, 26));
+  // Rev 40 (2026-06-04): EVEN DISTRIBUTION across the strip width — one equal
+  // slot per bar, each centered in its slot at ~70% slot width (≈30% inter-bar
+  // gap). Slots shrink automatically as the series grows; bars always fill the
+  // strip and read as a bar chart instead of thin pins.
+  const M = Math.max(returns.length, 1);
+  const slot = width / M;
+  const barW = slot * 0.7;
 
   const bars = returns.map((d, k) => {
-    const cx = x(k + 1);
-    // Clamp the rect into [0, width-barW] so edge bars (first/last point) render
-    // fully instead of half-clipping at the viewBox / panel edge.
-    const rectX = Math.max(0, Math.min(cx - barW / 2, width - barW));
-    const frac = Math.min(Math.abs(d.r) / RETURN_SCALE_PCT, 1); // clamp >±3% to the rail
+    const rectX = (k + 0.5) * slot - barW / 2; // slot center, oldest→newest
+    const frac = Math.min(Math.abs(d.r) / RETURN_SCALE_PCT, 1); // clamp >±1.5% to the rail
     const mag = frac * half;
     const up = d.r >= 0;
     // up → rect from (zeroY - mag) up to zeroY; down → from zeroY down by mag.
