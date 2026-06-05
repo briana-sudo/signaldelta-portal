@@ -375,6 +375,19 @@ export function adaptTradeList(data) {
   });
 }
 
+// Portal Rev 34 (2026-06-04): single source of truth for the crypto-vs-stock
+// discriminator used by BOTH the TRADES panel/modal CLASS column and the
+// EXPAND modal's CLASS filter. Mirrors the `assetClass` derivation above
+// (slash form = crypto). `assetClass` is preferred when present; falls back
+// to the raw slash test so it also works on un-adapted rows.
+//   → { lbl: 'CRYPTO' | 'STOCK', cls: 'crypto' | 'stock' }
+export function assetClassTag(t) {
+  const isCrypto = t?.assetClass != null
+    ? t.assetClass === 'Crypto'
+    : (typeof t?.asset === 'string' && t.asset.includes('/'));
+  return isCrypto ? { lbl: 'CRYPTO', cls: 'crypto' } : { lbl: 'STOCK', cls: 'stock' };
+}
+
 function formatHoldMinutes(mins) {
   if (!Number.isFinite(mins)) return '—';
   const h = Math.floor(mins / 60);

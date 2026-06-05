@@ -17,6 +17,7 @@ import {
   adaptAccountState,
   buildWeekFrame,
   fmtCloseET,
+  assetClassTag,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
@@ -444,6 +445,9 @@ function MobileTradeCard({ t, offset, m4State = 'absent', unmonitoredSet = null 
             </div>
           </div>
           <div className="pc-pills">
+            {/* Rev 34: CLASS tag alongside track/conv pills — separate from the
+                monitor light in .pc-asset-wrap, so no overlap. */}
+            <span className={'pclass ' + assetClassTag(t).cls}>{assetClassTag(t).lbl}</span>
             <span className={'ptrack ' + t.track}>{t.tl}</span>
             <span className={'pconv ' + t.conv}>{t.cl}</span>
           </div>

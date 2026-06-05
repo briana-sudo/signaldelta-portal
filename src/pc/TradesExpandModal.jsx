@@ -259,7 +259,7 @@ export default function TradesExpandModal({
       <table className="pos-table trade-list">
         <thead>
           <tr>
-            {headerCell('Asset')}{headerCell('Track')}{headerCell('Conv')}
+            {headerCell('Asset')}{headerCell('Class')}{headerCell('Track')}{headerCell('Conv')}
             {headerCell('Entry')}{headerCell('Current')}
             {headerCell('Stop')}{headerCell('Target')}
             {headerCell('Progress')}{headerCell('P&L')}{headerCell('Hold')}

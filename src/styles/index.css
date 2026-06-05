@@ -789,6 +789,12 @@ body::after {
 .pc-shell .pconv.std { color:var(--w3); }
 .pc-shell .pconv.hi { color:var(--cyan); }
 .pc-shell .pconv.max { color:var(--green); font-weight:700; }
+/* Portal Rev 34 (2026-06-04): compact CLASS column tag (CRYPTO/STOCK).
+   Narrow, borderless mono text so it adds no width pressure and never
+   crowds the MONITORED badge in the adjacent ASSET cell. */
+.pc-shell .pclass { font-size:7px; letter-spacing:1px; font-weight:600; white-space:nowrap; }
+.pc-shell .pclass.crypto { color:var(--cyan); }
+.pc-shell .pclass.stock  { color:var(--w2); }
 .pc-shell .prog-wrap { width:90px; }
 .pc-shell .prog-bg { height:3px; background:var(--navy4); border-radius:2px; overflow:hidden; }
 .pc-shell .prog-fill { height:100%; border-radius:2px; transition:width 1s; }
@@ -1114,6 +1120,10 @@ body::after {
 .mobile-shell .pconv.std { color:var(--w3); border:1px solid var(--w3); }
 .mobile-shell .pconv.hi { color:var(--cyan); border:1px solid var(--cyan); }
 .mobile-shell .pconv.max { color:var(--green); border:1px solid var(--green); font-weight:700; }
+/* Portal Rev 34 (2026-06-04): CLASS tag (CRYPTO/STOCK) in the card pill row. */
+.mobile-shell .pclass { font-size:7px; letter-spacing:1px; padding:2px 5px; font-weight:600; font-family:var(--mono); white-space:nowrap; }
+.mobile-shell .pclass.crypto { color:var(--cyan); border:1px solid var(--cyan); }
+.mobile-shell .pclass.stock  { color:var(--w2);  border:1px solid var(--w3); }
 .mobile-shell .pc-spacer { flex:1; }
 .mobile-shell .pc-pnl-wrap { text-align:right; flex-shrink:0; }
 .mobile-shell .pc-pnl { font-size:13px; font-weight:700; line-height:1; }

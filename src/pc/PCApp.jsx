@@ -16,6 +16,7 @@ import {
   adaptAccountState,
   buildWeekFrame,
   fmtCloseET,
+  assetClassTag,
 } from '../lib/dataAdapter.js';
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
@@ -587,7 +588,7 @@ function TradeListPanel({ mode, data }) {
       <table className="pos-table trade-list">
         <thead>
           <tr>
-            <th>Asset</th><th>Track</th><th>Conv</th>
+            <th>Asset</th><th>Class</th><th>Track</th><th>Conv</th>
             <th>Entry</th><th>Current</th>
             <th>Stop</th><th>Target</th>
             <th>Progress</th><th>P&amp;L</th><th>Hold</th>
@@ -595,7 +596,7 @@ function TradeListPanel({ mode, data }) {
         </thead>
         <tbody>
           {bootstrap ? (
-            <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING TRADES SINCE MARKET OPEN —</td></tr>
+            <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING TRADES SINCE MARKET OPEN —</td></tr>
           ) : trades.slice(0, capPc).map((t) => (
             <TradeListRow key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
                           t={t}
@@ -684,6 +685,9 @@ function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) 
             <span className="row-monitor-lbl">{monitorLabel}</span>
           </div>
         </td>
+        {/* Rev 34: CLASS in its own column — never inlined into the ASSET cell
+            (which already carries the MONITORED badge side-by-side). */}
+        <td><span className={'pclass ' + assetClassTag(t).cls}>{assetClassTag(t).lbl}</span></td>
         <td><span className={'ptrack ' + t.track}>{t.tl}</span></td>
         <td><span className={'pconv ' + t.conv}>{t.cl}</span></td>
         <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w2)' }}>{t.entry.toLocaleString()}</td>
@@ -715,6 +719,7 @@ function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) 
   return (
     <tr className="row-closed">
       <td><span className="passet">{t.asset}</span></td>
+      <td><span className={'pclass ' + assetClassTag(t).cls}>{assetClassTag(t).lbl}</span></td>
       <td><span className={'ptrack ' + t.track}>{t.tl}</span></td>
       <td><span className={'pconv ' + t.conv}>{t.cl}</span></td>
       <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w2)' }}>{t.entry.toLocaleString()}</td>
