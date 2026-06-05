@@ -31,6 +31,7 @@ import {
   Q_EQUITY_SNAPSHOT_LATEST,
   Q_ACCOUNT_STATE, Q_ACCOUNT_HEALTH_HISTORY,
 } from '../lib/queries.js';
+import { etDayRange } from '../lib/etDay.js';
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -235,9 +236,10 @@ async function pollOnce(monitoredAssets) {
     callBrokerAccount(),   // index = QUERY_SPECS.length + 1
     callPriceTicker(),     // index = QUERY_SPECS.length + 2 (v1.11)
     callReturnsMatrix(),   // index = QUERY_SPECS.length + 3 (v1.17)
+    callTradesClosedDay(etDayRange(0)), // index = QUERY_SPECS.length + 4 (Rev 42 — today's ET-day closed feed for DAY W/L)
   ];
   if (includeScanner) {
-    // index = QUERY_SPECS.length + 4 (after macro + broker + price ticker + returns matrix)
+    // index = QUERY_SPECS.length + 5 (after macro + broker + price ticker + returns matrix + closed-day)
     calls.push(callProxy('scanner_scores', { asset_list: monitoredAssets }));
   }
   const settled = await Promise.allSettled(calls);
@@ -336,9 +338,26 @@ async function pollOnce(monitoredAssets) {
     data.returnsMatrix = null;
   }
 
-  // Scanner scores (last entry — conditionally appended); v1.17: index shifted +3 → +4
+  // Trades closed today (ET) — Rev 42 — index = QUERY_SPECS.length + 4.
+  // Powers the DAY W/L (ET) banner stat. Raw rows (win_loss per row). On the
+  // proxy 400 (trades_closed_day not yet whitelisted / NSSM not restarted) we
+  // store null so the banner shows a dash rather than a misleading 0/0.
+  const closedDayResult = settled[QUERY_SPECS.length + 4];
+  if (closedDayResult.status === 'fulfilled') {
+    data.tradesClosedToday = Array.isArray(closedDayResult.value) ? closedDayResult.value : [];
+    if (data.tradesClosedToday.length > 0) anyData = true;
+  } else {
+    // eslint-disable-next-line no-console
+    console.error(`[signaldelta] poll 'trades_closed_day' failed:`, closedDayResult.reason);
+    errors.trades_closed_day = closedDayResult.reason instanceof Error
+      ? closedDayResult.reason.message
+      : String(closedDayResult.reason);
+    data.tradesClosedToday = null;
+  }
+
+  // Scanner scores (last entry — conditionally appended); Rev 42: index shifted +4 → +5
   if (includeScanner) {
-    const scannerResult = settled[QUERY_SPECS.length + 4];
+    const scannerResult = settled[QUERY_SPECS.length + 5];
     if (scannerResult.status === 'fulfilled') {
       data.scannerScores = scannerResult.value;
       if (Array.isArray(scannerResult.value) && scannerResult.value.length > 0) anyData = true;
@@ -446,6 +465,14 @@ export async function fetchTradeOverlayEnrichment(requestId) {
 // trade_list_recent) for adaptTradeList() to map unchanged.
 export async function callTradesWindow(windowStartIso) {
   return callProxy('trade_list_window', { window_start: windowStartIso });
+}
+
+// Portal Rev 42 (2026-06-04): single-ET-day CLOSED feed (exit_timestamp in
+// [day_start, day_end)). Powers the DAY W/L (ET) banner stat (today bucket,
+// fetched in the poll cycle) and the ALL TRADES modal day buckets. Returns the
+// raw row array (same shape as trade_list_recent) for adaptTradeList / counts.
+export async function callTradesClosedDay({ day_start, day_end }) {
+  return callProxy('trades_closed_day', { day_start, day_end });
 }
 
 export async function fetchMonitoredAssets() {

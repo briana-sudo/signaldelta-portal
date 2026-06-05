@@ -24,7 +24,8 @@
 // ─────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useState } from 'react';
 import { adaptTradeList } from '../lib/dataAdapter.js';
-import { callTradesWindow } from '../hooks/useNeo4jPoll.js';
+import { callTradesWindow, callTradesClosedDay } from '../hooks/useNeo4jPoll.js';
+import { etDayRange } from '../lib/etDay.js';
 
 const WINDOW_PRESETS = [
   { key: '6h',  label: '6H',  ms: 6 * 3600 * 1000 },
@@ -45,6 +46,23 @@ const SORT_FIELDS = [
   { key: 'asset',   label: 'Asset' },
   { key: 'track',   label: 'Track' },
   { key: 'winloss', label: 'Win/Loss' },
+  // Rev 42 — fixed-semantics sorts (direction encoded in the name; dir toggle
+  // is ignored for these). OPEN rows always sort last (existing convention).
+  { key: 'wins',    label: 'Wins first' },
+  { key: 'losses',  label: 'Losses first' },
+  { key: 'gain',    label: '$ Gain (high→low)' },
+  { key: 'loss',    label: '$ Loss (high→low)' },
+];
+
+// Rev 42 — discrete single ET-day buckets (exit-based), alongside the rolling
+// entry-based WINDOW_PRESETS. off = days ago (0 = today).
+const DAY_BUCKETS = [
+  { key: 0, label: 'TODAY' },
+  { key: 1, label: '1D' },
+  { key: 2, label: '2D' },
+  { key: 3, label: '3D' },
+  { key: 4, label: '4D' },
+  { key: 5, label: '5D' },
 ];
 
 const TRACK_ORD = { con: 0, mod: 1, agg: 2 };
@@ -66,7 +84,25 @@ function sortValue(t, key) {
 }
 
 function makeComparator(key, dir) {
+  const isOpen = (x) => x.status !== 'CLOSED';
   return (a, b) => {
+    // Rev 42 fixed-semantics sorts: OPEN rows always last, dir ignored.
+    if (key === 'wins' || key === 'losses' || key === 'gain' || key === 'loss') {
+      const ao = isOpen(a);
+      const bo = isOpen(b);
+      if (ao && bo) return 0;
+      if (ao) return 1;
+      if (bo) return -1;
+      if (key === 'gain' || key === 'loss') {
+        const av = Number.isFinite(a.pnl) ? a.pnl : 0;
+        const bv = Number.isFinite(b.pnl) ? b.pnl : 0;
+        return key === 'gain' ? (bv - av) : (av - bv); // gain: most positive first; loss: most negative first
+      }
+      const want = key === 'wins' ? 'Win' : 'Loss';
+      const ra = a.winLoss === want ? 1 : 0;
+      const rb = b.winLoss === want ? 1 : 0;
+      return rb - ra; // wanted outcome first
+    }
     if (key === 'winloss') {
       // OPEN rows (no win_loss) always sort to the bottom, regardless of dir.
       const ao = a.status !== 'CLOSED';
@@ -99,7 +135,9 @@ export default function TradesExpandModal({
 }) {
   const isMobile = variant === 'mobile';
 
-  const [windowPreset, setWindowPreset] = useState('24h');
+  // Rev 42 — selection is either a rolling window (entry-based, trade_list_window)
+  // or a single ET-day bucket (exit-based, trades_closed_day).
+  const [sel, setSel] = useState({ kind: 'rolling', key: '24h' });
   const [assetFilter, setAssetFilter] = useState('All');
   const [symbolFilter, setSymbolFilter] = useState('All');
   const [sortKey, setSortKey] = useState('entry');
@@ -117,20 +155,25 @@ export default function TradesExpandModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  // Fetch on open and on every window-preset change. Modal-only; on-demand.
+  // Fetch on open and on every selection change. Modal-only; on-demand.
+  // Rolling preset → entry-based trade_list_window; day bucket → exit-based
+  // trades_closed_day for that single ET day.
   useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    callTradesWindow(windowStartIso(windowPreset))
+    const req = sel.kind === 'day'
+      ? callTradesClosedDay(etDayRange(sel.key))
+      : callTradesWindow(windowStartIso(sel.key));
+    req
       .then((r) => { if (!cancelled) { setRows(Array.isArray(r) ? r : []); setLoading(false); } })
       .catch((e) => { if (!cancelled) { setError(e?.message || String(e)); setRows([]); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [open, windowPreset]);
+  }, [open, sel.kind, sel.key]);
 
-  // New window → reset the symbol filter so a stale symbol can't blank the list.
-  useEffect(() => { setSymbolFilter('All'); }, [windowPreset]);
+  // New selection → reset the symbol filter so a stale symbol can't blank the list.
+  useEffect(() => { setSymbolFilter('All'); }, [sel.kind, sel.key]);
   // Asset-class change → the symbol set shifts; reset to All.
   useEffect(() => { setSymbolFilter('All'); }, [assetFilter]);
 
@@ -198,9 +241,22 @@ export default function TradesExpandModal({
             <button
               key={p.key}
               type="button"
-              className={'tx-seg-btn' + (windowPreset === p.key ? ' tx-on' : '')}
-              onClick={() => setWindowPreset(p.key)}
+              className={'tx-seg-btn' + (sel.kind === 'rolling' && sel.key === p.key ? ' tx-on' : '')}
+              onClick={() => setSel({ kind: 'rolling', key: p.key })}
             >{p.label}</button>
+          ))}
+        </div>
+      </div>
+      <div className="tx-ctl">
+        <span className="tx-ctl-lbl">DAY (ET)</span>
+        <div className="tx-seg">
+          {DAY_BUCKETS.map((b) => (
+            <button
+              key={b.key}
+              type="button"
+              className={'tx-seg-btn' + (sel.kind === 'day' && sel.key === b.key ? ' tx-on' : '')}
+              onClick={() => setSel({ kind: 'day', key: b.key })}
+            >{b.label}</button>
           ))}
         </div>
       </div>
@@ -224,27 +280,31 @@ export default function TradesExpandModal({
           {symbolOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
-      {isMobile && (
-        <div className="tx-ctl">
-          <span className="tx-ctl-lbl">SORT</span>
-          <select className="tx-select" value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
-            {SORT_FIELDS.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
-          </select>
-          <button
-            type="button"
-            className="tx-dir-btn"
-            onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
-            title="Toggle sort direction"
-          >{sortDir === 'desc' ? '▼' : '▲'}</button>
-        </div>
-      )}
+      {/* Rev 42 — SORT control shown on PC too (was mobile-only): exposes the
+          new Wins/Losses/$gain/$loss sorts that have no clickable-header column.
+          The dir toggle still applies to entry/pnl/asset/track/winloss; the four
+          fixed-semantics sorts ignore it. */}
+      <div className="tx-ctl">
+        <span className="tx-ctl-lbl">SORT</span>
+        <select className="tx-select" value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
+          {SORT_FIELDS.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+        </select>
+        <button
+          type="button"
+          className="tx-dir-btn"
+          onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
+          title="Toggle sort direction"
+        >{sortDir === 'desc' ? '▼' : '▲'}</button>
+      </div>
     </div>
   );
 
   const body = (() => {
     if (error) return <div className="tx-msg tx-err">FETCH FAILED · {error}</div>;
     if (loading) return <div className="tx-msg">LOADING…</div>;
-    if (visible.length === 0) return <div className="tx-msg">NO TRADES IN THIS WINDOW</div>;
+    if (visible.length === 0) {
+      return <div className="tx-msg">{sel.kind === 'day' ? 'NO TRADES CLOSED THIS ET DAY' : 'NO TRADES IN THIS WINDOW'}</div>;
+    }
     if (isMobile) {
       return (
         <div className="m-sheet-cards">

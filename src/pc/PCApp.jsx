@@ -267,6 +267,16 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
   const todayPct = deriveTodayPct(av, ap);
   const pace = useMemo(() => computePaceTier(todayPct), [todayPct]);
 
+  // Portal Rev 42 (2026-06-04): DAY W/L (ET) — wins/total of trades CLOSED today
+  // on the ET calendar boundary (America/New_York). Deliberately NOT the Alpaca-
+  // session TODAY P&L window — hence the "(ET)" label. `tradesClosedToday` is the
+  // raw row feed (win_loss per row); null = feed unavailable (proxy pre-restart)
+  // → render a dash, not a misleading 0/0.
+  const closedToday = data?.tradesClosedToday;
+  const dayWins = Array.isArray(closedToday) ? closedToday.filter((r) => r.win_loss === 'Win').length : 0;
+  const dayTotal = Array.isArray(closedToday) ? closedToday.length : 0;
+  const dayPct = dayTotal ? Math.round((dayWins / dayTotal) * 100) : null;
+
   return (
     <div className="acct">
       <div className="aitem"><span className="alabel">Capital Base</span><span className="aval">${capitalBase.toLocaleString()}</span></div>
@@ -299,6 +309,15 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
                 <span className={'aval-sub ' + cls(todayPct)}>{sign(todayPct)}{todayPct.toFixed(2)}%</span>
               )}
             </>
+          )}
+      </div>
+      <div className="aitem"><span className="alabel">Day W/L (ET)</span>
+        {bootstrap || !Array.isArray(closedToday)
+          ? dash
+          : (
+            <span className={'aval ' + (dayTotal && dayPct >= 50 ? 'g' : '')}>
+              {dayWins}/{dayTotal}{dayTotal ? ` · ${dayPct}%` : ''}
+            </span>
           )}
       </div>
       <div className="aitem"><span className="alabel">Trades</span>
