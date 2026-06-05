@@ -101,10 +101,12 @@ export function buildEquityCurveSvgFromSeries(points, { width = 600, height = 80
 // The Rev-35 gold elite PIP markers are removed — tier is now the BAR COLOR.
 //   → { bars:[{x,y,w,h,up,tier,r,frac}], zeroY, returns, width, height }
 
-// Rev 37 (2026-06-04): fixed full-scale for the daily-return strip (±3%). A day
-// beyond ±3% clamps to the rail. Constant day-to-day so bar heights are
-// comparable across the series and don't silently rescale under the operator.
-export const RETURN_SCALE_PCT = 3.0;
+// Rev 37/39 (2026-06-04): fixed full-scale for the daily-return strip. A day at
+// or beyond ±RETURN_SCALE_PCT clamps to the rail (full half-band). Constant
+// day-to-day so bar heights are comparable across the series and don't silently
+// rescale under the operator. Rev 39: 3.0 → 1.5 (bars ~2× taller; no layout cost
+// — every frac doubles within the unchanged 48px strip / centered geometry).
+export const RETURN_SCALE_PCT = 1.5;
 
 export function buildDailyReturnBars(
   points,
