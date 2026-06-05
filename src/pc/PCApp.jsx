@@ -18,10 +18,17 @@ import {
   fmtCloseET,
   assetClassTag,
 } from '../lib/dataAdapter.js';
-import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
+import { buildEquityCurveSvgFromSeries, buildDailyReturnBars } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
-import { computeAnnualized, computePaceTier, deriveTodayPct } from '../lib/annualizedReturn.js';
+import { computeAnnualized, computePaceTier, deriveTodayPct, PACE_TIERS } from '../lib/annualizedReturn.js';
+
+// Portal Rev 35 (2026-06-04): single-source ELITE %/day for the daily-return
+// strip's gold marker — same Rev-33 ladder the pace badge uses, no 2nd threshold.
+const ELITE_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'elite')?.dailyMinPct ?? Infinity;
+// Internal viewBox height for the return strip (preserveAspectRatio=none stretches
+// it to the ~24px CSS box beneath the equity curve).
+const RETURN_STRIP_H = 40;
 import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
@@ -749,6 +756,12 @@ function EquityCurvePanel({ mode, data }) {
     () => (bootstrap ? null : buildEquityCurveSvgFromSeries(series, { width: 600, height: 80 })),
     [bootstrap, series],
   );
+  // Rev 35: daily-return strip derived from the SAME equity points (no fetch,
+  // no percent_pnl_today). Elite flag uses the single-source Rev-33 threshold.
+  const retStrip = useMemo(
+    () => (bootstrap ? null : buildDailyReturnBars(series, { width: 600, height: RETURN_STRIP_H, eliteThreshold: ELITE_DAILY_PCT })),
+    [bootstrap, series],
+  );
   const subscript = mode !== 'combined' ? <span style={{ fontSize: '6px', color: 'var(--w3)', marginLeft: '2px' }}>(combined)</span> : null;
 
   // Portal v1.21 (2026-06-01): client-side reducer over the live equity_total
@@ -813,30 +826,53 @@ function EquityCurvePanel({ mode, data }) {
         </span>
       </div>
       <div className="eq-svg-wrap">
-        <svg id="equity-svg" viewBox="0 0 600 80" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="eqGradPos" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="rgba(0,230,118,0.35)" />
-              <stop offset="100%" stopColor="rgba(0,230,118,0)" />
-            </linearGradient>
-          </defs>
-          {svg && (
-            <>
-              <line x1="0" y1={svg.baseY} x2={svg.width} y2={svg.baseY}
-                stroke="rgba(255,171,0,0.4)" strokeWidth="0.6" strokeDasharray="3,3" />
-              <text x="4" y={svg.baseY - 3} fontFamily="Share Tech Mono" fontSize="6" fill="var(--amber)" opacity="0.6">$10K BASE</text>
-              <path d={svg.fillD} fill="url(#eqGradPos)" stroke="none" />
-              <path d={svg.d} fill="none" stroke="var(--green)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-              <circle cx={svg.endX} cy={svg.endY} r="2.5" fill="var(--green)">
-                <animate attributeName="r" values="2.5;4;2.5" dur="2s" repeatCount="indefinite" />
-              </circle>
-              <circle cx={svg.peakX} cy={svg.peakY} r="2" fill="var(--cyan)" opacity="0.8" />
-            </>
-          )}
-          {bootstrap && (
-            <text x="300" y="44" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--w3)" letterSpacing="2">— AWAITING LIVE EQUITY SERIES —</text>
-          )}
-        </svg>
+        {/* Rev 35: equity curve shrinks to the top band (~56px); a daily-return
+            bar strip shares the wrap below it. Banner row height unchanged. */}
+        <div className="eq-svg-equity">
+          <svg id="equity-svg" viewBox="0 0 600 80" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="eqGradPos" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="rgba(0,230,118,0.35)" />
+                <stop offset="100%" stopColor="rgba(0,230,118,0)" />
+              </linearGradient>
+            </defs>
+            {svg && (
+              <>
+                <line x1="0" y1={svg.baseY} x2={svg.width} y2={svg.baseY}
+                  stroke="rgba(255,171,0,0.4)" strokeWidth="0.6" strokeDasharray="3,3" />
+                <text x="4" y={svg.baseY - 3} fontFamily="Share Tech Mono" fontSize="6" fill="var(--amber)" opacity="0.6">$10K BASE</text>
+                <path d={svg.fillD} fill="url(#eqGradPos)" stroke="none" />
+                <path d={svg.d} fill="none" stroke="var(--green)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx={svg.endX} cy={svg.endY} r="2.5" fill="var(--green)">
+                  <animate attributeName="r" values="2.5;4;2.5" dur="2s" repeatCount="indefinite" />
+                </circle>
+                <circle cx={svg.peakX} cy={svg.peakY} r="2" fill="var(--cyan)" opacity="0.8" />
+              </>
+            )}
+            {bootstrap && (
+              <text x="300" y="44" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--w3)" letterSpacing="2">— AWAITING LIVE EQUITY SERIES —</text>
+            )}
+          </svg>
+        </div>
+        <div className="eq-svg-return">
+          <span className="eq-ret-lbl">DAILY RETURN</span>
+          <svg id="equity-svg-ret" viewBox={`0 0 600 ${RETURN_STRIP_H}`} preserveAspectRatio="none">
+            {retStrip && (
+              <>
+                <line x1="0" y1={retStrip.zeroY} x2="600" y2={retStrip.zeroY}
+                  stroke="var(--w3)" strokeWidth="0.4" opacity="0.5" />
+                {retStrip.bars.map((b, i) => (
+                  <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h}
+                    fill={b.up ? 'var(--green)' : 'var(--red)'} opacity="0.85" />
+                ))}
+                {retStrip.eliteMarkers.map((m, i) => (
+                  <circle key={'e' + i} cx={m.x} cy={m.y} r="2"
+                    fill="var(--amber)" stroke="var(--navy)" strokeWidth="0.5" />
+                ))}
+              </>
+            )}
+          </svg>
+        </div>
       </div>
     </div>
   );

@@ -78,3 +78,55 @@ export function buildEquityCurveSvgFromSeries(points, { width = 600, height = 80
     height,
   };
 }
+
+// Portal Rev 35 (2026-06-04): daily-return strip geometry, sibling to the
+// equity-curve builder. Derives per-period return from the SAME equity points
+// the curve plots — r[i] = (equity[i]/equity[i-1] - 1) * 100 for i>=1 — so the
+// strip matches the curve point-for-point by construction (weekend gaps and
+// backfilled history included). NO engine write, no `percent_pnl_today` (which
+// is unreliable and isn't even in the series). Pure geometry, no DOM.
+//
+// x-mapping is identical to buildEquityCurveSvgFromSeries (i/(N-1))*width, so
+// each bar sits under its equity point. The first in-window point has no prior
+// → no bar. Bars scale to the strip's OWN symmetric min/max (independent of the
+// equity y-scale), zero baseline centered. `eliteThreshold` is the single-source
+// Rev-33 ELITE %/day (PACE_TIERS) passed in by the caller — never hardcoded here.
+//   → { bars:[{x,y,w,h,up,elite,r}], eliteMarkers:[{x,y}], zeroY, returns, width, height }
+export function buildDailyReturnBars(points, { width = 600, height = 40, eliteThreshold = Infinity } = {}) {
+  if (!Array.isArray(points) || points.length < 2) return null;
+  const equities = points.map((p) => Number(p.equity) || 0);
+  const N = equities.length;
+  const x = (i) => (i / Math.max(N - 1, 1)) * width;
+
+  const returns = [];
+  for (let i = 1; i < N; i++) {
+    const prev = equities[i - 1];
+    const r = (Number.isFinite(prev) && prev > 0 && Number.isFinite(equities[i]))
+      ? (equities[i] / prev - 1) * 100
+      : 0;
+    returns.push({ date: points[i]?.date ?? null, r, elite: r >= eliteThreshold });
+  }
+
+  const zeroY = height / 2;
+  const pad = 3;
+  const half = Math.max(1, zeroY - pad);
+  const maxAbs = Math.max(0.001, ...returns.map((d) => Math.abs(d.r)));
+  const spacing = width / Math.max(N - 1, 1);
+  const barW = Math.max(3, Math.min(spacing * 0.6, 26));
+
+  const bars = [];
+  const eliteMarkers = [];
+  returns.forEach((d, k) => {
+    const cx = x(k + 1);
+    // Clamp the rect into [0, width-barW] so edge bars (first/last point) render
+    // fully instead of half-clipping at the viewBox / panel edge.
+    const rectX = Math.max(0, Math.min(cx - barW / 2, width - barW));
+    const mag = (Math.abs(d.r) / maxAbs) * half;
+    const up = d.r >= 0;
+    const y = up ? zeroY - mag : zeroY;
+    bars.push({ x: rectX, y, w: barW, h: Math.max(0.5, mag), up, elite: d.elite, r: d.r });
+    if (d.elite) eliteMarkers.push({ x: cx, y: (zeroY - mag) - 3 });
+  });
+
+  return { bars, eliteMarkers, zeroY, returns, width, height };
+}

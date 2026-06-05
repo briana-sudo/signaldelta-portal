@@ -19,10 +19,14 @@ import {
   fmtCloseET,
   assetClassTag,
 } from '../lib/dataAdapter.js';
-import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
+import { buildEquityCurveSvgFromSeries, buildDailyReturnBars } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
-import { computeAnnualized, computePaceTier, deriveTodayPct } from '../lib/annualizedReturn.js';
+import { computeAnnualized, computePaceTier, deriveTodayPct, PACE_TIERS } from '../lib/annualizedReturn.js';
+
+// Portal Rev 35 (2026-06-04): single-source ELITE %/day, mirror of PC.
+const ELITE_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'elite')?.dailyMinPct ?? Infinity;
+const RETURN_STRIP_H = 40;
 import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
@@ -524,6 +528,11 @@ function MobileEquity({ mode, data }) {
     () => (bootstrap ? null : buildEquityCurveSvgFromSeries(series, { width: 600, height: 80 })),
     [bootstrap, series],
   );
+  // Rev 35: daily-return strip from the same equity points (mirror of PC).
+  const retStrip = useMemo(
+    () => (bootstrap ? null : buildDailyReturnBars(series, { width: 600, height: RETURN_STRIP_H, eliteThreshold: ELITE_DAILY_PCT })),
+    [bootstrap, series],
+  );
   const peakFmt = header?.peak ? `$${Math.round(header.peak).toLocaleString()}` : '—';
   const ddFmt = header?.drawdownPct != null ? `${header.drawdownPct.toFixed(2)}%` : '—';
   const twrFmt = header?.twrPct != null ? `${header.twrPct >= 0 ? '+' : ''}${header.twrPct.toFixed(2)}%` : '—';
@@ -560,6 +569,27 @@ function MobileEquity({ mode, data }) {
           )}
           {bootstrap && (
             <text x="300" y="44" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--w3)" letterSpacing="2">— AWAITING LIVE EQUITY SERIES —</text>
+          )}
+        </svg>
+      </div>
+      {/* Rev 35: daily-return strip below the curve. Free-scroll column absorbs
+          the added height — no clip. */}
+      <div className="eq-svg-return">
+        <span className="eq-ret-lbl">DAILY RETURN</span>
+        <svg id="equity-svg-m-ret" viewBox={`0 0 600 ${RETURN_STRIP_H}`} preserveAspectRatio="none">
+          {retStrip && (
+            <>
+              <line x1="0" y1={retStrip.zeroY} x2="600" y2={retStrip.zeroY}
+                stroke="var(--w3)" strokeWidth="0.4" opacity="0.5" />
+              {retStrip.bars.map((b, i) => (
+                <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h}
+                  fill={b.up ? 'var(--green)' : 'var(--red)'} opacity="0.85" />
+              ))}
+              {retStrip.eliteMarkers.map((m, i) => (
+                <circle key={'e' + i} cx={m.x} cy={m.y} r="2"
+                  fill="var(--amber)" stroke="var(--navy)" strokeWidth="0.5" />
+              ))}
+            </>
           )}
         </svg>
       </div>

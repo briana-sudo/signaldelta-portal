@@ -808,8 +808,16 @@ body::after {
 .pc-shell .eq-stats span { color:var(--cyan); margin-left:4px; }
 .pc-shell .eq-stats span.g { color:var(--green); }
 .pc-shell .eq-stats span.r { color:var(--red); }
-.pc-shell .eq-svg-wrap { flex:1; position:relative; min-height:0; }
+.pc-shell .eq-svg-wrap { flex:1; position:relative; min-height:0; display:flex; flex-direction:column; gap:2px; }
 .pc-shell #equity-svg { width:100%; height:100%; display:block; overflow:visible; }
+/* Portal Rev 35 (2026-06-04): equity curve takes the flexible top band (~56px);
+   the daily-return strip is a fixed ~24px band below. Total wrap unchanged →
+   no banner row-height change. */
+.pc-shell .eq-svg-equity { flex:1; min-height:0; position:relative; }
+.pc-shell .eq-svg-return { height:24px; flex-shrink:0; position:relative; }
+.pc-shell #equity-svg-ret { width:100%; height:100%; display:block; overflow:visible; }
+.pc-shell .eq-ret-lbl { position:absolute; top:0; left:2px; z-index:1; pointer-events:none;
+  font-family:var(--mono); font-size:5px; letter-spacing:1px; color:var(--w3); opacity:0.6; }
 
 /* event feed */
 .pc-shell .event-feed { flex:1; display:flex; flex-direction:column; gap:2px; overflow:hidden; }
@@ -1151,6 +1159,12 @@ body::after {
 .mobile-shell .eq-stats span.r { color:var(--red); }
 .mobile-shell .eq-svg-wrap { height:80px; position:relative; }
 .mobile-shell #equity-svg-m { width:100%; height:100%; display:block; overflow:visible; }
+/* Portal Rev 35 (2026-06-04): daily-return strip below the mobile curve.
+   Free-scroll column, so a fixed-height band just adds vertical scroll. */
+.mobile-shell .eq-svg-return { height:32px; position:relative; margin-top:4px; }
+.mobile-shell #equity-svg-m-ret { width:100%; height:100%; display:block; overflow:visible; }
+.mobile-shell .eq-ret-lbl { position:absolute; top:0; left:2px; z-index:1; pointer-events:none;
+  font-family:var(--mono); font-size:6px; letter-spacing:1px; color:var(--w3); opacity:0.6; }
 
 /* stats chip */
 .mobile-shell .stats-chip { display:flex; align-items:stretch; background:var(--navy3); border:1px solid var(--border); margin:0 8px 8px; }
