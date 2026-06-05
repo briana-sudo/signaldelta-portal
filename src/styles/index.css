@@ -810,11 +810,14 @@ body::after {
 .pc-shell .eq-stats span.r { color:var(--red); }
 .pc-shell .eq-svg-wrap { flex:1; position:relative; min-height:0; display:flex; flex-direction:column; gap:2px; }
 .pc-shell #equity-svg { width:100%; height:100%; display:block; overflow:visible; }
-/* Portal Rev 35 (2026-06-04): equity curve takes the flexible top band (~56px);
-   the daily-return strip is a fixed ~24px band below. Total wrap unchanged →
-   no banner row-height change. */
+/* Portal Rev 35/38 (2026-06-04): equity curve takes the flexible top band; the
+   daily-return strip is a fixed band below. Rev 38: strip 24px → 48px — the
+   24px box crushed the correct ±3% centered geometry into 0.06–5.2px slivers.
+   At 48px (vs 40u viewBox, proportional) each direction ≈ 24px, so a ±3% rail
+   day ≈ 22px and +1.45% ≈ 11.6px — clearly readable. Equity band (flex:1)
+   absorbs the delta (~58px → ~34px); 120px row + flex-shrink:0 unchanged. */
 .pc-shell .eq-svg-equity { flex:1; min-height:0; position:relative; }
-.pc-shell .eq-svg-return { height:24px; flex-shrink:0; position:relative; }
+.pc-shell .eq-svg-return { height:48px; flex-shrink:0; position:relative; }
 .pc-shell #equity-svg-ret { width:100%; height:100%; display:block; overflow:visible; }
 /* Rev 36: BASE reference chip — readable OFF the green fill (panel-bg backdrop). */
 .pc-shell .eq-base-lbl { position:absolute; top:1px; left:2px; z-index:2; pointer-events:none;
@@ -1177,9 +1180,10 @@ body::after {
 .mobile-shell .eq-stats span.r { color:var(--red); }
 .mobile-shell .eq-svg-wrap { height:80px; position:relative; }
 .mobile-shell #equity-svg-m { width:100%; height:100%; display:block; overflow:visible; }
-/* Portal Rev 35 (2026-06-04): daily-return strip below the mobile curve.
-   Free-scroll column, so a fixed-height band just adds vertical scroll. */
-.mobile-shell .eq-svg-return { height:32px; position:relative; margin-top:4px; }
+/* Portal Rev 35/38 (2026-06-04): daily-return strip below the mobile curve.
+   Free-scroll column, so a taller band just adds vertical scroll (no cost).
+   Rev 38: 32px → 48px to match PC readability. */
+.mobile-shell .eq-svg-return { height:48px; position:relative; margin-top:4px; }
 .mobile-shell #equity-svg-m-ret { width:100%; height:100%; display:block; overflow:visible; }
 /* Rev 36: BASE reference chip off the fill (mirror of PC). */
 .mobile-shell .eq-base-lbl { position:absolute; top:1px; left:2px; z-index:2; pointer-events:none;
