@@ -438,6 +438,16 @@ export async function fetchTradeOverlayEnrichment(requestId) {
   return rows[0] ?? null;
 }
 
+// Portal Rev 32 (2026-06-05): on-demand windowed trade fetch for the EXPAND
+// modal. NOT part of the 60s pollOnce batch — the modal calls this on open and
+// on window-preset change. `windowStartIso` is ISO-8601 UTC; the proxy reuses
+// the same $cutoff + $forensic_ids auto-injection trade_list_recent uses, so
+// modal scope == panel scope. Returns the raw row array (same shape as
+// trade_list_recent) for adaptTradeList() to map unchanged.
+export async function callTradesWindow(windowStartIso) {
+  return callProxy('trade_list_window', { window_start: windowStartIso });
+}
+
 export async function fetchMonitoredAssets() {
   const rows = await callProxy('monitored_assets');
   return rows[0]?.asset_list ?? [];

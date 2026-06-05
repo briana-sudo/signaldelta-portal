@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
 import { usePositionDrift } from '../lib/useDrift.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
+import { useRowFitCap } from '../lib/useRowFitCap.js';
 import {
   SCANNER_ASSETS, WEEKLY_WATERFALL, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
 } from '../lib/placeholders.js';
@@ -510,12 +511,19 @@ function TradeListPanel({ mode, data }) {
     for (const id of a.monitorCoverageUnmonitoredTradeIds) unmonitoredSet.add(String(id));
   }
 
-  // Portal v1.17 (2026-06-04): panel caps at PANEL_CAP rows; EXPAND opens a
-  // scrollable modal with the full `trades` array (bounded by proxy LIMIT 50).
-  // Was rendering the entire result set into the fixed-height panel.
-  const PANEL_CAP = 8;
+  // Portal Rev 32 (2026-06-05): panel caps at a RUNTIME-measured row count
+  // (fallback 13) so it fills the fixed-height panel with no overflow and no
+  // dead space; EXPAND opens the windowed sort/filter modal (its own fetch).
+  const [tableRef, capPc] = useRowFitCap({
+    fallback: 13,
+    basis: 'element',
+    rowSelector: 'tbody tr',
+    headSelector: 'thead',
+    signal: trades.length,
+  });
   const [expanded, setExpanded] = useState(false);
-  const overflow = trades.length > PANEL_CAP;
+  const overflow = trades.length > capPc;
+  const moreCount = trades.length - capPc;
 
   return (
     <div className="panel p-positions">
@@ -527,18 +535,16 @@ function TradeListPanel({ mode, data }) {
             : (
               <>
                 {overflow
-                  ? `${PANEL_CAP} OF ${trades.length}`
+                  ? `${capPc} OF ${trades.length}`
                   : `${openTrades.length} OPEN · ${trades.length} TOTAL`}
-                {overflow && (
-                  <button type="button" className="trades-expand-btn" onClick={() => setExpanded(true)}>
-                    EXPAND
-                  </button>
-                )}
+                <button type="button" className="trades-expand-btn" onClick={() => setExpanded(true)}>
+                  {overflow ? `+${moreCount} MORE` : 'EXPAND'}
+                </button>
               </>
             )}
         </span>
       </div>
-      <table className="pos-table trade-list">
+      <table className="pos-table trade-list" ref={tableRef}>
         <thead>
           <tr>
             <th>Asset</th><th>Track</th><th>Conv</th>
@@ -550,7 +556,7 @@ function TradeListPanel({ mode, data }) {
         <tbody>
           {bootstrap ? (
             <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING TRADES SINCE MARKET OPEN —</td></tr>
-          ) : trades.slice(0, PANEL_CAP).map((t) => (
+          ) : trades.slice(0, capPc).map((t) => (
             <TradeListRow key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
                           t={t}
                           offset={openOffsetByReq.get(t.requestId) ?? 0}
@@ -562,8 +568,8 @@ function TradeListPanel({ mode, data }) {
       <TradesExpandModal
         open={expanded}
         onClose={() => setExpanded(false)}
-        trades={trades}
-        openOffsetByReq={openOffsetByReq}
+        variant="pc"
+        data={data}
         m4State={m4State}
         unmonitoredSet={unmonitoredSet}
         RowComponent={TradeListRow} />

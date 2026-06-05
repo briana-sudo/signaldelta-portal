@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
 import { usePositionDrift } from '../lib/useDrift.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
+import { useRowFitCap } from '../lib/useRowFitCap.js';
+import TradesExpandModal from '../pc/TradesExpandModal.jsx';
 import {
   SCANNER_ASSETS, WEEKLY_WATERFALL, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
 } from '../lib/placeholders.js';
@@ -282,22 +284,32 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
   // Portal v1.17 (2026-06-04): mirror of PC TradeListPanel cap+expand. Panel
   // shows PANEL_CAP cards; EXPAND opens a full-screen sheet with the full
   // `trades` array (bounded by proxy LIMIT 50). Was rendering the full set.
-  const PANEL_CAP = 8;
+  // Portal Rev 32 (2026-06-05): runtime card-fit cap (fallback 6) measured as
+  // cards-per-screen against the viewport (mobile is a free-scroll column, no
+  // fixed clip); EXPAND opens the shared windowed sort/filter sheet.
+  const [panelRef, capMobile] = useRowFitCap({
+    fallback: 6,
+    basis: 'viewport',
+    rowSelector: '.pos-card',
+    reserve: 180, // mobile header + tab bar + panel title chrome
+    signal: trades.length,
+  });
   const [tradesExpanded, setTradesExpanded] = useState(false);
-  const tradesOverflow = trades.length > PANEL_CAP;
+  const tradesOverflow = trades.length > capMobile;
+  const moreCount = trades.length - capMobile;
 
   return (
     <>
-      <div className="panel">
+      <div className="panel" ref={panelRef}>
         <div className="ptitle">
           <span><span className="ptitle-bar" />TRADES</span>
           <span className="ptitle-r">
             {tradesBoot ? 'AWAITING TRADES SINCE MARKET OPEN' : (
               <>
-                {tradesOverflow ? `${PANEL_CAP} OF ${trades.length}` : `${openTrades.length} OPEN · ${trades.length} TOTAL`}
-                {tradesOverflow && (
-                  <button type="button" className="trades-expand-btn" onClick={() => setTradesExpanded(true)}>EXPAND</button>
-                )}
+                {tradesOverflow ? `${capMobile} OF ${trades.length}` : `${openTrades.length} OPEN · ${trades.length} TOTAL`}
+                <button type="button" className="trades-expand-btn" onClick={() => setTradesExpanded(true)}>
+                  {tradesOverflow ? `+${moreCount} MORE` : 'EXPAND'}
+                </button>
               </>
             )}
           </span>
@@ -306,7 +318,7 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
           <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>
             — AWAITING TRADES SINCE MARKET OPEN —
           </div>
-        ) : trades.slice(0, PANEL_CAP).map((t) => (
+        ) : trades.slice(0, capMobile).map((t) => (
           <MobileTradeCard key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
                            t={t}
                            offset={openOffsetByReq.get(t.requestId) ?? 0}
@@ -315,25 +327,14 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
         ))}
       </div>
 
-      {tradesExpanded && (
-        <div className="m-trades-sheet" onClick={() => setTradesExpanded(false)}>
-          <div className="m-trades-sheet-card" onClick={(e) => e.stopPropagation()}>
-            <div className="m-trades-sheet-head">
-              <span><span className="ptitle-bar" />ALL TRADES · {trades.length}</span>
-              <button type="button" className="trades-expand-close" onClick={() => setTradesExpanded(false)}>CLOSE ✕</button>
-            </div>
-            <div className="m-trades-sheet-body">
-              {trades.map((t) => (
-                <MobileTradeCard key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
-                                 t={t}
-                                 offset={openOffsetByReq.get(t.requestId) ?? 0}
-                                 m4State={m4State}
-                                 unmonitoredSet={unmonitoredSet} />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      <TradesExpandModal
+        open={tradesExpanded}
+        onClose={() => setTradesExpanded(false)}
+        variant="mobile"
+        data={data}
+        m4State={m4State}
+        unmonitoredSet={unmonitoredSet}
+        RowComponent={MobileTradeCard} />
 
       <div className="panel eq-panel">
         <MobileEquity mode={mode} data={data} />

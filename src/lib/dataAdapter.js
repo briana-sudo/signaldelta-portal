@@ -337,6 +337,13 @@ export function adaptTradeList(data) {
     const openCur = (brokerCur != null && Number.isFinite(brokerCur)) ? brokerCur : entry;
     return {
       asset: r.asset,
+      // Portal Rev 32 (2026-06-05): coarse asset class for the EXPAND-modal
+      // filter (All / Crypto / Stocks). The graph stores crypto as "BTC/USD"
+      // (slash form, see normSymbol) and stocks as bare tickers ("SPY"), so the
+      // slash is a reliable crypto discriminator. The engine's 3-way enum
+      // (Large-cap / Growth stock) isn't on the trade_list_* RETURN columns;
+      // the modal filter only needs crypto-vs-stock, which this covers.
+      assetClass: typeof r.asset === 'string' && r.asset.includes('/') ? 'Crypto' : 'Stock',
       track: t.cls,
       tl: t.label,
       conv: c.cls,
