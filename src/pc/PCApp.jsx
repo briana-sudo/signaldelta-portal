@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
 import { usePositionDrift } from '../lib/useDrift.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
-import { useRowFitCap } from '../lib/useRowFitCap.js';
 import {
   SCANNER_ASSETS, WEEKLY_WATERFALL, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
 } from '../lib/placeholders.js';
@@ -511,16 +510,12 @@ function TradeListPanel({ mode, data }) {
     for (const id of a.monitorCoverageUnmonitoredTradeIds) unmonitoredSet.add(String(id));
   }
 
-  // Portal Rev 32 (2026-06-05): panel caps at a RUNTIME-measured row count
-  // (fallback 13) so it fills the fixed-height panel with no overflow and no
-  // dead space; EXPAND opens the windowed sort/filter modal (its own fetch).
-  const [tableRef, capPc] = useRowFitCap({
-    fallback: 13,
-    basis: 'element',
-    rowSelector: 'tbody tr',
-    headSelector: 'thead',
-    signal: trades.length,
-  });
+  // Portal Rev 32.1 (2026-06-05): panel cap is a fixed constant = the measured
+  // fit from diag portal_trades_panel_rowfit_and_sort_diag (usable tbody ~525px
+  // / row ~39px = 13). The runtime useRowFitCap hook latched at 1 on the
+  // operator's machine, so it is removed in favor of the locked constant.
+  // EXPAND opens the windowed sort/filter modal (its own fetch).
+  const capPc = 13;
   const [expanded, setExpanded] = useState(false);
   const overflow = trades.length > capPc;
   const moreCount = trades.length - capPc;
@@ -544,7 +539,7 @@ function TradeListPanel({ mode, data }) {
             )}
         </span>
       </div>
-      <table className="pos-table trade-list" ref={tableRef}>
+      <table className="pos-table trade-list">
         <thead>
           <tr>
             <th>Asset</th><th>Track</th><th>Conv</th>

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
 import { usePositionDrift } from '../lib/useDrift.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
-import { useRowFitCap } from '../lib/useRowFitCap.js';
 import TradesExpandModal from '../pc/TradesExpandModal.jsx';
 import {
   SCANNER_ASSETS, WEEKLY_WATERFALL, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
@@ -284,23 +283,18 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
   // Portal v1.17 (2026-06-04): mirror of PC TradeListPanel cap+expand. Panel
   // shows PANEL_CAP cards; EXPAND opens a full-screen sheet with the full
   // `trades` array (bounded by proxy LIMIT 50). Was rendering the full set.
-  // Portal Rev 32 (2026-06-05): runtime card-fit cap (fallback 6) measured as
-  // cards-per-screen against the viewport (mobile is a free-scroll column, no
-  // fixed clip); EXPAND opens the shared windowed sort/filter sheet.
-  const [panelRef, capMobile] = useRowFitCap({
-    fallback: 6,
-    basis: 'viewport',
-    rowSelector: '.pos-card',
-    reserve: 180, // mobile header + tab bar + panel title chrome
-    signal: trades.length,
-  });
+  // Portal Rev 32.1 (2026-06-05): card cap is a fixed constant = the measured
+  // fit (6 cards/screen) from diag portal_trades_panel_rowfit_and_sort_diag.
+  // The runtime useRowFitCap hook latched at 1, so it is removed in favor of
+  // the locked constant; EXPAND opens the shared windowed sort/filter sheet.
+  const capMobile = 6;
   const [tradesExpanded, setTradesExpanded] = useState(false);
   const tradesOverflow = trades.length > capMobile;
   const moreCount = trades.length - capMobile;
 
   return (
     <>
-      <div className="panel" ref={panelRef}>
+      <div className="panel">
         <div className="ptitle">
           <span><span className="ptitle-bar" />TRADES</span>
           <span className="ptitle-r">
