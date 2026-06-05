@@ -89,14 +89,31 @@ export function buildEquityCurveSvgFromSeries(points, { width = 600, height = 80
 // x-mapping is identical to buildEquityCurveSvgFromSeries (i/(N-1))*width, so
 // each bar sits under its equity point. The first in-window point has no prior
 // → no bar. Bars scale to the strip's OWN symmetric min/max (independent of the
-// equity y-scale), zero baseline centered. `eliteThreshold` is the single-source
-// Rev-33 ELITE %/day (PACE_TIERS) passed in by the caller — never hardcoded here.
-//   → { bars:[{x,y,w,h,up,elite,r}], eliteMarkers:[{x,y}], zeroY, returns, width, height }
-export function buildDailyReturnBars(points, { width = 600, height = 40, eliteThreshold = Infinity } = {}) {
+// equity y-scale), zero baseline CENTERED (positive grows up, negative down).
+//
+// Rev 36 (2026-06-04): each bar carries a `tier` keyed off the SINGLE-SOURCE
+// Rev-33 PACE_TIERS thresholds (passed in, never hardcoded):
+//   down   r < 0
+//   pos    0 <= r < strongThreshold        (standard positive — green)
+//   strong strongThreshold <= r < eliteThreshold
+//   elite  r >= eliteThreshold
+// The Rev-35 gold elite PIP markers are removed — tier is now the BAR COLOR.
+//   → { bars:[{x,y,w,h,up,tier,r}], zeroY, returns, width, height }
+export function buildDailyReturnBars(
+  points,
+  { width = 600, height = 40, strongThreshold = Infinity, eliteThreshold = Infinity } = {},
+) {
   if (!Array.isArray(points) || points.length < 2) return null;
   const equities = points.map((p) => Number(p.equity) || 0);
   const N = equities.length;
   const x = (i) => (i / Math.max(N - 1, 1)) * width;
+
+  const tierOf = (r) => {
+    if (r < 0) return 'down';
+    if (r >= eliteThreshold) return 'elite';
+    if (r >= strongThreshold) return 'strong';
+    return 'pos';
+  };
 
   const returns = [];
   for (let i = 1; i < N; i++) {
@@ -104,29 +121,26 @@ export function buildDailyReturnBars(points, { width = 600, height = 40, eliteTh
     const r = (Number.isFinite(prev) && prev > 0 && Number.isFinite(equities[i]))
       ? (equities[i] / prev - 1) * 100
       : 0;
-    returns.push({ date: points[i]?.date ?? null, r, elite: r >= eliteThreshold });
+    returns.push({ date: points[i]?.date ?? null, r, tier: tierOf(r) });
   }
 
+  // Symmetric, zero-centered scale: halfRange = max(|min r|, |max r|).
   const zeroY = height / 2;
   const pad = 3;
   const half = Math.max(1, zeroY - pad);
-  const maxAbs = Math.max(0.001, ...returns.map((d) => Math.abs(d.r)));
+  const halfRange = Math.max(0.001, ...returns.map((d) => Math.abs(d.r)));
   const spacing = width / Math.max(N - 1, 1);
   const barW = Math.max(3, Math.min(spacing * 0.6, 26));
 
-  const bars = [];
-  const eliteMarkers = [];
-  returns.forEach((d, k) => {
+  const bars = returns.map((d, k) => {
     const cx = x(k + 1);
     // Clamp the rect into [0, width-barW] so edge bars (first/last point) render
     // fully instead of half-clipping at the viewBox / panel edge.
     const rectX = Math.max(0, Math.min(cx - barW / 2, width - barW));
-    const mag = (Math.abs(d.r) / maxAbs) * half;
+    const mag = (Math.abs(d.r) / halfRange) * half;
     const up = d.r >= 0;
-    const y = up ? zeroY - mag : zeroY;
-    bars.push({ x: rectX, y, w: barW, h: Math.max(0.5, mag), up, elite: d.elite, r: d.r });
-    if (d.elite) eliteMarkers.push({ x: cx, y: (zeroY - mag) - 3 });
+    return { x: rectX, y: up ? zeroY - mag : zeroY, w: barW, h: Math.max(0.5, mag), up, tier: d.tier, r: d.r };
   });
 
-  return { bars, eliteMarkers, zeroY, returns, width, height };
+  return { bars, zeroY, returns, width, height };
 }

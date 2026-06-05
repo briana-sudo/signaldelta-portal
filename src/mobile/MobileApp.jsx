@@ -24,7 +24,8 @@ import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
 import { computeAnnualized, computePaceTier, deriveTodayPct, PACE_TIERS } from '../lib/annualizedReturn.js';
 
-// Portal Rev 35 (2026-06-04): single-source ELITE %/day, mirror of PC.
+// Portal Rev 35/36 (2026-06-04): single-source tier thresholds, mirror of PC.
+const STRONG_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'strong')?.dailyMinPct ?? Infinity;
 const ELITE_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'elite')?.dailyMinPct ?? Infinity;
 const RETURN_STRIP_H = 40;
 import EnginePill from '../lib/EnginePill.jsx';
@@ -530,7 +531,7 @@ function MobileEquity({ mode, data }) {
   );
   // Rev 35: daily-return strip from the same equity points (mirror of PC).
   const retStrip = useMemo(
-    () => (bootstrap ? null : buildDailyReturnBars(series, { width: 600, height: RETURN_STRIP_H, eliteThreshold: ELITE_DAILY_PCT })),
+    () => (bootstrap ? null : buildDailyReturnBars(series, { width: 600, height: RETURN_STRIP_H, strongThreshold: STRONG_DAILY_PCT, eliteThreshold: ELITE_DAILY_PCT })),
     [bootstrap, series],
   );
   const peakFmt = header?.peak ? `$${Math.round(header.peak).toLocaleString()}` : '—';
@@ -544,9 +545,14 @@ function MobileEquity({ mode, data }) {
           <span className="lbl">PEAK</span><span className="g">{peakFmt}</span>
           <span className="lbl">DD</span><span className="r">{ddFmt}</span>
           <span className="lbl">TWR</span><span>{twrFmt}</span>
+          {/* Rev 36: daily-return tier legend — STRONG/ELITE only. */}
+          <span className="eq-leg"><span className="eq-leg-sw sw-strong" />STRONG</span>
+          <span className="eq-leg"><span className="eq-leg-sw sw-elite" />ELITE</span>
         </span>
       </div>
       <div className="eq-svg-wrap">
+        {/* Rev 36: fixed literal BASE label off the fill (see PC rationale). */}
+        <span className="eq-base-lbl">$10K</span>
         <svg id="equity-svg-m" viewBox="0 0 600 80" preserveAspectRatio="none">
           <defs>
             <linearGradient id="eqGradPosM" x1="0" y1="0" x2="0" y2="1">
@@ -558,7 +564,6 @@ function MobileEquity({ mode, data }) {
             <>
               <line x1="0" y1={svg.baseY} x2={svg.width} y2={svg.baseY}
                 stroke="rgba(255,171,0,0.4)" strokeWidth="0.6" strokeDasharray="3,3" />
-              <text x="4" y={svg.baseY - 3} fontFamily="Share Tech Mono" fontSize="6" fill="var(--amber)" opacity="0.6">$10K BASE</text>
               <path d={svg.fillD} fill="url(#eqGradPosM)" stroke="none" />
               <path d={svg.d} fill="none" stroke="var(--green)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
               <circle cx={svg.endX} cy={svg.endY} r="2.5" fill="var(--green)">
@@ -580,14 +585,10 @@ function MobileEquity({ mode, data }) {
           {retStrip && (
             <>
               <line x1="0" y1={retStrip.zeroY} x2="600" y2={retStrip.zeroY}
-                stroke="var(--w3)" strokeWidth="0.4" opacity="0.5" />
+                className="eq-ret-zero" strokeDasharray="2,2" />
               {retStrip.bars.map((b, i) => (
-                <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h}
-                  fill={b.up ? 'var(--green)' : 'var(--red)'} opacity="0.85" />
-              ))}
-              {retStrip.eliteMarkers.map((m, i) => (
-                <circle key={'e' + i} cx={m.x} cy={m.y} r="2"
-                  fill="var(--amber)" stroke="var(--navy)" strokeWidth="0.5" />
+                <rect key={i} className={'eq-ret-bar t-' + b.tier}
+                  x={b.x} y={b.y} width={b.w} height={b.h} />
               ))}
             </>
           )}

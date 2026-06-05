@@ -23,8 +23,10 @@ import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
 import { computeAnnualized, computePaceTier, deriveTodayPct, PACE_TIERS } from '../lib/annualizedReturn.js';
 
-// Portal Rev 35 (2026-06-04): single-source ELITE %/day for the daily-return
-// strip's gold marker — same Rev-33 ladder the pace badge uses, no 2nd threshold.
+// Portal Rev 35/36 (2026-06-04): single-source tier thresholds for the daily-
+// return strip — same Rev-33 ladder the pace badge uses, no 2nd threshold.
+// Rev 36: bars are colored by tier (STRONG/ELITE), gold pip markers removed.
+const STRONG_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'strong')?.dailyMinPct ?? Infinity;
 const ELITE_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'elite')?.dailyMinPct ?? Infinity;
 // Internal viewBox height for the return strip (preserveAspectRatio=none stretches
 // it to the ~24px CSS box beneath the equity curve).
@@ -759,7 +761,7 @@ function EquityCurvePanel({ mode, data }) {
   // Rev 35: daily-return strip derived from the SAME equity points (no fetch,
   // no percent_pnl_today). Elite flag uses the single-source Rev-33 threshold.
   const retStrip = useMemo(
-    () => (bootstrap ? null : buildDailyReturnBars(series, { width: 600, height: RETURN_STRIP_H, eliteThreshold: ELITE_DAILY_PCT })),
+    () => (bootstrap ? null : buildDailyReturnBars(series, { width: 600, height: RETURN_STRIP_H, strongThreshold: STRONG_DAILY_PCT, eliteThreshold: ELITE_DAILY_PCT })),
     [bootstrap, series],
   );
   const subscript = mode !== 'combined' ? <span style={{ fontSize: '6px', color: 'var(--w3)', marginLeft: '2px' }}>(combined)</span> : null;
@@ -823,12 +825,22 @@ function EquityCurvePanel({ mode, data }) {
           <span className="lbl">PEAK</span><span className="g">{peakFmt}</span>
           <span className="lbl">DRAWDOWN</span><span className="r">{ddFmt}</span>
           <span className="lbl">TWR</span><span>{twrFmt}</span>{subscript}
+          {/* Rev 36: daily-return tier legend — STRONG/ELITE only (no entry for
+              red-down or standard-green-positive). Swatch colors match the bars. */}
+          <span className="eq-leg"><span className="eq-leg-sw sw-strong" />STRONG</span>
+          <span className="eq-leg"><span className="eq-leg-sw sw-elite" />ELITE</span>
         </span>
       </div>
       <div className="eq-svg-wrap">
         {/* Rev 35: equity curve shrinks to the top band (~56px); a daily-return
             bar strip shares the wrap below it. Banner row height unchanged. */}
         <div className="eq-svg-equity">
+          {/* Rev 36: BASE reference label — fixed literal "$10K", in a panel-bg
+              corner chip OFF the green fill (was an in-SVG gold text on the
+              baseline, unreadable over the fill). Literal, NOT computed from the
+              series: the curve is flow-adjusted (§11 TWR), so the base must not
+              drift when capital is added/withdrawn. Phase-1 paper base = 10000. */}
+          <span className="eq-base-lbl">$10K</span>
           <svg id="equity-svg" viewBox="0 0 600 80" preserveAspectRatio="none">
             <defs>
               <linearGradient id="eqGradPos" x1="0" y1="0" x2="0" y2="1">
@@ -840,7 +852,6 @@ function EquityCurvePanel({ mode, data }) {
               <>
                 <line x1="0" y1={svg.baseY} x2={svg.width} y2={svg.baseY}
                   stroke="rgba(255,171,0,0.4)" strokeWidth="0.6" strokeDasharray="3,3" />
-                <text x="4" y={svg.baseY - 3} fontFamily="Share Tech Mono" fontSize="6" fill="var(--amber)" opacity="0.6">$10K BASE</text>
                 <path d={svg.fillD} fill="url(#eqGradPos)" stroke="none" />
                 <path d={svg.d} fill="none" stroke="var(--green)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                 <circle cx={svg.endX} cy={svg.endY} r="2.5" fill="var(--green)">
@@ -860,14 +871,10 @@ function EquityCurvePanel({ mode, data }) {
             {retStrip && (
               <>
                 <line x1="0" y1={retStrip.zeroY} x2="600" y2={retStrip.zeroY}
-                  stroke="var(--w3)" strokeWidth="0.4" opacity="0.5" />
+                  className="eq-ret-zero" strokeDasharray="2,2" />
                 {retStrip.bars.map((b, i) => (
-                  <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h}
-                    fill={b.up ? 'var(--green)' : 'var(--red)'} opacity="0.85" />
-                ))}
-                {retStrip.eliteMarkers.map((m, i) => (
-                  <circle key={'e' + i} cx={m.x} cy={m.y} r="2"
-                    fill="var(--amber)" stroke="var(--navy)" strokeWidth="0.5" />
+                  <rect key={i} className={'eq-ret-bar t-' + b.tier}
+                    x={b.x} y={b.y} width={b.w} height={b.h} />
                 ))}
               </>
             )}
