@@ -21,6 +21,7 @@ import {
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
+import { computeAnnualized, computePaceTier, deriveTodayPct } from '../lib/annualizedReturn.js';
 import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
@@ -78,6 +79,7 @@ export default function MobileApp({ data, errors = {}, hasAnyData = false, error
       <MobileAccountBar
         mode={mode}
         liveAccountBar={liveAccountBar}
+        data={data}
       />
       <div className="tab-wrap">
         <div className={'tab-content' + (tab === 'desk' ? ' active' : '')}>
@@ -207,7 +209,23 @@ function ModeToggle({ mode, setMode }) {
   );
 }
 
-function MobileAccountBar({ mode, liveAccountBar }) {
+// Portal Rev 33 (2026-06-04): mobile mirror of the PC PaceBadge (Feature 3).
+// Same computePaceTier() source; .mobile-shell CSS variants. Only
+// SOLID/STRONG/ELITE render; positive/down bands are color-only on the daily-%.
+function PaceBadge({ pace }) {
+  if (!pace || !pace.label) return null;
+  const sub = "today's pace · if every day were like this";
+  const aria = `${pace.label} — ${sub}${pace.paceDisplay ? ` (${pace.paceDisplay})` : ''}`;
+  return (
+    <div className={'pace-badge pace-' + pace.cls} title={sub} aria-label={aria}>
+      <span className="pace-dot" aria-hidden="true" />
+      <span className="pace-lbl">{pace.label}</span>
+      {pace.paceDisplay && <span className="pace-sub">{pace.paceDisplay}</span>}
+    </div>
+  );
+}
+
+function MobileAccountBar({ mode, liveAccountBar, data }) {
   // Session 40 rebuild (2026-05-29): broker-sourced live state, same as PC.
   // Current Value / Today P&L are broker-derived (null when broker down →
   // dash); Total Return stays graph-sourced.
@@ -221,9 +239,26 @@ function MobileAccountBar({ mode, liveAccountBar }) {
   const cls = (v) => (v >= 0 ? 'g' : 'r');
   const dash = <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>;
 
+  // Portal Rev 33 (2026-06-04): mirror of PC AccountBar — annualized stat +
+  // pace badge on the capital-base row, daily-% color on Today P&L. Same
+  // client-side reducer, no 2nd fetch.
+  const series = adaptEquityCurve(data);
+  const annual = useMemo(() => computeAnnualized(series), [series]);
+  const annualBoot = bootstrap || !series;
+  const todayPct = deriveTodayPct(av, ap);
+  const pace = useMemo(() => computePaceTier(todayPct), [todayPct]);
+
   return (
     <div className="acct">
       <div className="aitem"><span className="alabel">Capital Base</span><span className="aval">${capitalBase.toLocaleString()}</span></div>
+      <div className="aitem aitem-annualized"><span className="alabel">Annualized</span>
+        {annualBoot
+          ? dash
+          : (annual.gated
+              ? <span className="aval aval-building">{annual.display}</span>
+              : <span className={'aval aval-annualized ' + cls(annual.annualizedPct)}>{annual.display}</span>)}
+        {!annualBoot && <PaceBadge pace={pace} />}
+      </div>
       <div className="aitem"><span className="alabel">Current Value</span>
         {bootstrap || av == null
           ? dash
@@ -237,7 +272,15 @@ function MobileAccountBar({ mode, liveAccountBar }) {
       <div className="aitem"><span className="alabel">Today P&amp;L</span>
         {bootstrap || ap == null
           ? dash
-          : <span className={'aval ' + cls(ap)}>{sign(ap)}${Math.abs(ap).toFixed(2)}</span>}
+          : (
+            <>
+              <span className={'aval ' + cls(ap)}>{sign(ap)}${Math.abs(ap).toFixed(2)}</span>
+              {/* Rev 33 Feature 2: daily-% colored by sign. */}
+              {todayPct != null && (
+                <span className={'aval-sub ' + cls(todayPct)}>{sign(todayPct)}{todayPct.toFixed(2)}%</span>
+              )}
+            </>
+          )}
       </div>
       {/* Poll indicator moved to mobile header per Change 3 dispatch */}
     </div>

@@ -124,6 +124,28 @@ body::after {
 .pc-shell .aval.c { color:var(--cyan); }
 .pc-shell .aval.r { color:var(--red); }
 
+/* Portal Rev 33 (2026-06-04): annualized stat + per-day pace badge + daily-%
+   sub-line. No row-height push — values shrink + the badge is compact so the
+   capital-base cell stays inside the 50px banner strip. */
+.pc-shell .aitem-annualized { gap:2px; }
+.pc-shell .aval-annualized { font-size:14px; }
+.pc-shell .aval-building { font-size:11px; color:var(--w3); letter-spacing:.5px; }
+.pc-shell .aval-sub { font-family:var(--mono); font-size:9px; letter-spacing:1px; }
+.pc-shell .aval-sub.g { color:var(--green); }
+.pc-shell .aval-sub.r { color:var(--red); }
+.pc-shell .pace-badge {
+  display:inline-flex; align-items:center; gap:4px; width:fit-content;
+  margin-top:1px; padding:1px 6px;
+  font-family:var(--mono); font-size:8px; letter-spacing:1.5px;
+  border:1px solid var(--w3); color:var(--w2);
+}
+.pc-shell .pace-badge .pace-dot { width:5px; height:5px; border-radius:50%; background:currentColor; flex-shrink:0; }
+.pc-shell .pace-badge .pace-sub { color:var(--w2); letter-spacing:.5px; opacity:.8; }
+.pc-shell .pace-badge.pace-solid  { color:var(--green); border-color:var(--green); background:var(--green2); }
+.pc-shell .pace-badge.pace-strong { color:var(--cyan);  border-color:var(--cyan);  background:var(--cyan2); }
+.pc-shell .pace-badge.pace-elite  { color:var(--amber); border-color:var(--amber); background:var(--amber2); box-shadow:0 0 8px rgba(255,171,0,0.35); }
+.pc-shell .pace-badge.pace-elite .pace-dot { box-shadow:0 0 5px var(--amber); animation:pdot 2s ease-in-out infinite; }
+
 .pc-shell .acct-divider { width:1px; height:36px; background:var(--border); flex-shrink:0; margin:0 12px; }
 .pc-shell .acct-wf { flex:1; display:flex; align-items:flex-end; gap:4px; padding:6px 0 4px; position:relative; min-width:0; overflow:hidden; }
 .pc-shell .acct-wf-baseline { position:absolute; bottom:4px; left:0; right:0; height:1px; background:var(--border); }
@@ -1000,6 +1022,27 @@ body::after {
 .mobile-shell .aval.g { color:var(--green); }
 .mobile-shell .aval.c { color:var(--cyan); }
 .mobile-shell .aval.r { color:var(--red); }
+
+/* Portal Rev 33 (2026-06-04): mobile mirror — annualized stat + pace badge +
+   daily-% sub-line. Compact sizes keep the 5 cells inside the 52px strip. */
+.mobile-shell .aitem-annualized { gap:1px; }
+.mobile-shell .aval-annualized { font-size:11px; }
+.mobile-shell .aval-building { font-size:8px; color:var(--w3); letter-spacing:.5px; white-space:nowrap; }
+.mobile-shell .aval-sub { font-family:var(--mono); font-size:8px; letter-spacing:.5px; }
+.mobile-shell .aval-sub.g { color:var(--green); }
+.mobile-shell .aval-sub.r { color:var(--red); }
+.mobile-shell .pace-badge {
+  display:inline-flex; align-items:center; gap:3px; width:fit-content;
+  margin-top:1px; padding:0 4px;
+  font-family:var(--mono); font-size:7px; letter-spacing:1px;
+  border:1px solid var(--w3); color:var(--w2);
+}
+.mobile-shell .pace-badge .pace-dot { width:4px; height:4px; border-radius:50%; background:currentColor; flex-shrink:0; }
+.mobile-shell .pace-badge .pace-sub { display:none; } /* sublabel hidden on mobile — aria-label carries it */
+.mobile-shell .pace-badge.pace-solid  { color:var(--green); border-color:var(--green); background:var(--green2); }
+.mobile-shell .pace-badge.pace-strong { color:var(--cyan);  border-color:var(--cyan);  background:var(--cyan2); }
+.mobile-shell .pace-badge.pace-elite  { color:var(--amber); border-color:var(--amber); background:var(--amber2); box-shadow:0 0 6px rgba(255,171,0,0.35); }
+.mobile-shell .pace-badge.pace-elite .pace-dot { box-shadow:0 0 4px var(--amber); animation:pdot 2s ease-in-out infinite; }
 
 .mobile-shell .sync-edge { display:flex; align-items:center; justify-content:center; padding:0 10px; border-left:1px solid var(--border); flex-shrink:0; }
 .mobile-shell .poll-ind { display:flex; flex-direction:column; align-items:center; gap:3px; font-family:var(--mono); font-size:7px; color:var(--w3); letter-spacing:1px; }

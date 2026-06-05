@@ -20,6 +20,7 @@ import {
 import { buildEquityCurveSvgFromSeries } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
+import { computeAnnualized, computePaceTier, deriveTodayPct } from '../lib/annualizedReturn.js';
 import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
@@ -205,6 +206,24 @@ function PerformanceBadge({ mode, currentPhase }) {
   return <div className={'sim-tag t-' + tone}>{text}</div>;
 }
 
+// Portal Rev 33 (2026-06-04): tiered pace badge (Feature 3). Shared by PC +
+// mobile via this module's computePaceTier(). Only SOLID/STRONG/ELITE render a
+// badge; plain-positive and down bands carry color on the daily-% stat only
+// (no badge). Compliance: copy reads as PACE, never an annual-return claim;
+// far-past-elite shows ">60% pace", never a raw extrapolated annual %.
+function PaceBadge({ pace }) {
+  if (!pace || !pace.label) return null;
+  const sub = "today's pace · if every day were like this";
+  const aria = `${pace.label} — ${sub}${pace.paceDisplay ? ` (${pace.paceDisplay})` : ''}`;
+  return (
+    <div className={'pace-badge pace-' + pace.cls} title={sub} aria-label={aria}>
+      <span className="pace-dot" aria-hidden="true" />
+      <span className="pace-lbl">{pace.label}</span>
+      {pace.paceDisplay && <span className="pace-sub">{pace.paceDisplay}</span>}
+    </div>
+  );
+}
+
 function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
   // Portal v1.14 (2026-05-30): MiniWaterfall extracted to <WeekRow/> below.
   // `liveWeeklyWaterfall` kept on the prop list (was a sibling render); the
@@ -228,9 +247,27 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
   const cls = (v) => (v >= 0 ? 'g' : 'r');
   const dash = <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>;
 
+  // Portal Rev 33 (2026-06-04): annualized stat + per-day pace badge, computed
+  // client-side from the same daily equity series the curve uses (no 2nd
+  // fetch). Annualized rides the account-bar LIVE/TRAINING filter (dash under
+  // LIVE, like its siblings); pace + daily-% derive from broker Today P&L.
+  const series = adaptEquityCurve(data);
+  const annual = useMemo(() => computeAnnualized(series), [series]);
+  const annualBoot = bootstrap || !series;
+  const todayPct = deriveTodayPct(av, ap);
+  const pace = useMemo(() => computePaceTier(todayPct), [todayPct]);
+
   return (
     <div className="acct">
       <div className="aitem"><span className="alabel">Capital Base</span><span className="aval">${capitalBase.toLocaleString()}</span></div>
+      <div className="aitem aitem-annualized"><span className="alabel">Annualized</span>
+        {annualBoot
+          ? dash
+          : (annual.gated
+              ? <span className="aval aval-building">{annual.display}</span>
+              : <span className={'aval aval-annualized ' + cls(annual.annualizedPct)}>{annual.display}</span>)}
+        {!annualBoot && <PaceBadge pace={pace} />}
+      </div>
       <div className="aitem"><span className="alabel">Current Value</span>
         {bootstrap || av == null
           ? dash
@@ -244,7 +281,15 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
       <div className="aitem"><span className="alabel">Today P&amp;L</span>
         {bootstrap || ap == null
           ? dash
-          : <span className={'aval ' + cls(ap)}>{sign(ap)}${Math.abs(ap).toFixed(2)}</span>}
+          : (
+            <>
+              <span className={'aval ' + cls(ap)}>{sign(ap)}${Math.abs(ap).toFixed(2)}</span>
+              {/* Rev 33 Feature 2: daily-% colored by sign (>=0 green, <0 red). */}
+              {todayPct != null && (
+                <span className={'aval-sub ' + cls(todayPct)}>{sign(todayPct)}{todayPct.toFixed(2)}%</span>
+              )}
+            </>
+          )}
       </div>
       <div className="aitem"><span className="alabel">Trades</span>
         <span className="aval c">{bootstrap ? 0 : (liveAccountBar?.trades ?? 0)}</span>
