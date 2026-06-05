@@ -29,6 +29,7 @@ import StatusStrip from '../lib/StatusStrip.jsx';
 import HealthStrip from '../lib/HealthStrip.jsx';
 import ReturnsMatrixPanel from '../lib/ReturnsMatrixPanel.jsx';
 import TradeOverlay from './TradeOverlay.jsx';
+import TradesExpandModal from './TradesExpandModal.jsx';
 
 const MODES = ['live', 'training', 'combined'];
 const DEFAULT_MODE = 'training';
@@ -509,12 +510,32 @@ function TradeListPanel({ mode, data }) {
     for (const id of a.monitorCoverageUnmonitoredTradeIds) unmonitoredSet.add(String(id));
   }
 
+  // Portal v1.17 (2026-06-04): panel caps at PANEL_CAP rows; EXPAND opens a
+  // scrollable modal with the full `trades` array (bounded by proxy LIMIT 50).
+  // Was rendering the entire result set into the fixed-height panel.
+  const PANEL_CAP = 8;
+  const [expanded, setExpanded] = useState(false);
+  const overflow = trades.length > PANEL_CAP;
+
   return (
     <div className="panel p-positions">
       <div className="ptitle">
         <span><span className="ptitle-bar" />TRADES</span>
         <span className="ptitle-r">
-          {bootstrap ? 'AWAITING TRADES SINCE MARKET OPEN' : `${openTrades.length} OPEN · ${trades.length} TOTAL`}
+          {bootstrap
+            ? 'AWAITING TRADES SINCE MARKET OPEN'
+            : (
+              <>
+                {overflow
+                  ? `${PANEL_CAP} OF ${trades.length}`
+                  : `${openTrades.length} OPEN · ${trades.length} TOTAL`}
+                {overflow && (
+                  <button type="button" className="trades-expand-btn" onClick={() => setExpanded(true)}>
+                    EXPAND
+                  </button>
+                )}
+              </>
+            )}
         </span>
       </div>
       <table className="pos-table trade-list">
@@ -529,7 +550,7 @@ function TradeListPanel({ mode, data }) {
         <tbody>
           {bootstrap ? (
             <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING TRADES SINCE MARKET OPEN —</td></tr>
-          ) : trades.map((t) => (
+          ) : trades.slice(0, PANEL_CAP).map((t) => (
             <TradeListRow key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
                           t={t}
                           offset={openOffsetByReq.get(t.requestId) ?? 0}
@@ -538,6 +559,14 @@ function TradeListPanel({ mode, data }) {
           ))}
         </tbody>
       </table>
+      <TradesExpandModal
+        open={expanded}
+        onClose={() => setExpanded(false)}
+        trades={trades}
+        openOffsetByReq={openOffsetByReq}
+        m4State={m4State}
+        unmonitoredSet={unmonitoredSet}
+        RowComponent={TradeListRow} />
     </div>
   );
 }

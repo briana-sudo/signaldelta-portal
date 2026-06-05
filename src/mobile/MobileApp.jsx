@@ -279,20 +279,34 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
     for (const id of a.monitorCoverageUnmonitoredTradeIds) unmonitoredSet.add(String(id));
   }
 
+  // Portal v1.17 (2026-06-04): mirror of PC TradeListPanel cap+expand. Panel
+  // shows PANEL_CAP cards; EXPAND opens a full-screen sheet with the full
+  // `trades` array (bounded by proxy LIMIT 50). Was rendering the full set.
+  const PANEL_CAP = 8;
+  const [tradesExpanded, setTradesExpanded] = useState(false);
+  const tradesOverflow = trades.length > PANEL_CAP;
+
   return (
     <>
       <div className="panel">
         <div className="ptitle">
           <span><span className="ptitle-bar" />TRADES</span>
           <span className="ptitle-r">
-            {tradesBoot ? 'AWAITING TRADES SINCE MARKET OPEN' : `${openTrades.length} OPEN · ${trades.length} TOTAL`}
+            {tradesBoot ? 'AWAITING TRADES SINCE MARKET OPEN' : (
+              <>
+                {tradesOverflow ? `${PANEL_CAP} OF ${trades.length}` : `${openTrades.length} OPEN · ${trades.length} TOTAL`}
+                {tradesOverflow && (
+                  <button type="button" className="trades-expand-btn" onClick={() => setTradesExpanded(true)}>EXPAND</button>
+                )}
+              </>
+            )}
           </span>
         </div>
         {tradesBoot ? (
           <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>
             — AWAITING TRADES SINCE MARKET OPEN —
           </div>
-        ) : trades.map((t) => (
+        ) : trades.slice(0, PANEL_CAP).map((t) => (
           <MobileTradeCard key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
                            t={t}
                            offset={openOffsetByReq.get(t.requestId) ?? 0}
@@ -300,6 +314,26 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
                            unmonitoredSet={unmonitoredSet} />
         ))}
       </div>
+
+      {tradesExpanded && (
+        <div className="m-trades-sheet" onClick={() => setTradesExpanded(false)}>
+          <div className="m-trades-sheet-card" onClick={(e) => e.stopPropagation()}>
+            <div className="m-trades-sheet-head">
+              <span><span className="ptitle-bar" />ALL TRADES · {trades.length}</span>
+              <button type="button" className="trades-expand-close" onClick={() => setTradesExpanded(false)}>CLOSE ✕</button>
+            </div>
+            <div className="m-trades-sheet-body">
+              {trades.map((t) => (
+                <MobileTradeCard key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
+                                 t={t}
+                                 offset={openOffsetByReq.get(t.requestId) ?? 0}
+                                 m4State={m4State}
+                                 unmonitoredSet={unmonitoredSet} />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="panel eq-panel">
         <MobileEquity mode={mode} data={data} />
