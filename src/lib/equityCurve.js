@@ -88,8 +88,9 @@ export function buildEquityCurveSvgFromSeries(points, { width = 600, height = 80
 //
 // x-mapping is identical to buildEquityCurveSvgFromSeries (i/(N-1))*width, so
 // each bar sits under its equity point. The first in-window point has no prior
-// → no bar. Bars scale to the strip's OWN symmetric min/max (independent of the
-// equity y-scale), zero baseline CENTERED (positive grows up, negative down).
+// → no bar. Rev 37: bars use a FIXED ±RETURN_SCALE_PCT full-scale (not the old
+// data-driven max|r|), zero baseline CENTERED at the strip's own middle
+// (positive grows UP from center, negative grows DOWN — rects straddle zeroY).
 //
 // Rev 36 (2026-06-04): each bar carries a `tier` keyed off the SINGLE-SOURCE
 // Rev-33 PACE_TIERS thresholds (passed in, never hardcoded):
@@ -98,7 +99,13 @@ export function buildEquityCurveSvgFromSeries(points, { width = 600, height = 80
 //   strong strongThreshold <= r < eliteThreshold
 //   elite  r >= eliteThreshold
 // The Rev-35 gold elite PIP markers are removed — tier is now the BAR COLOR.
-//   → { bars:[{x,y,w,h,up,tier,r}], zeroY, returns, width, height }
+//   → { bars:[{x,y,w,h,up,tier,r,frac}], zeroY, returns, width, height }
+
+// Rev 37 (2026-06-04): fixed full-scale for the daily-return strip (±3%). A day
+// beyond ±3% clamps to the rail. Constant day-to-day so bar heights are
+// comparable across the series and don't silently rescale under the operator.
+export const RETURN_SCALE_PCT = 3.0;
+
 export function buildDailyReturnBars(
   points,
   { width = 600, height = 40, strongThreshold = Infinity, eliteThreshold = Infinity } = {},
@@ -124,11 +131,10 @@ export function buildDailyReturnBars(
     returns.push({ date: points[i]?.date ?? null, r, tier: tierOf(r) });
   }
 
-  // Symmetric, zero-centered scale: halfRange = max(|min r|, |max r|).
+  // Zero-centered at the strip's OWN middle; fixed ±RETURN_SCALE_PCT full-scale.
   const zeroY = height / 2;
-  const pad = 3;
-  const half = Math.max(1, zeroY - pad);
-  const halfRange = Math.max(0.001, ...returns.map((d) => Math.abs(d.r)));
+  const pad = 2;
+  const half = Math.max(1, zeroY - pad); // usable half-height per direction
   const spacing = width / Math.max(N - 1, 1);
   const barW = Math.max(3, Math.min(spacing * 0.6, 26));
 
@@ -137,9 +143,11 @@ export function buildDailyReturnBars(
     // Clamp the rect into [0, width-barW] so edge bars (first/last point) render
     // fully instead of half-clipping at the viewBox / panel edge.
     const rectX = Math.max(0, Math.min(cx - barW / 2, width - barW));
-    const mag = (Math.abs(d.r) / halfRange) * half;
+    const frac = Math.min(Math.abs(d.r) / RETURN_SCALE_PCT, 1); // clamp >±3% to the rail
+    const mag = frac * half;
     const up = d.r >= 0;
-    return { x: rectX, y: up ? zeroY - mag : zeroY, w: barW, h: Math.max(0.5, mag), up, tier: d.tier, r: d.r };
+    // up → rect from (zeroY - mag) up to zeroY; down → from zeroY down by mag.
+    return { x: rectX, y: up ? zeroY - mag : zeroY, w: barW, h: Math.max(0.5, mag), up, tier: d.tier, r: d.r, frac };
   });
 
   return { bars, zeroY, returns, width, height };
