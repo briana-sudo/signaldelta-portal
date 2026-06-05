@@ -254,6 +254,15 @@ function MobileAccountBar({ mode, liveAccountBar, data }) {
   const todayPct = deriveTodayPct(av, ap);
   const pace = useMemo(() => computePaceTier(todayPct), [todayPct]);
 
+  // Portal Rev 43 (2026-06-04): DAY W/L (ET) — mobile mirror of the PC Rev-42
+  // banner cell. Wins/total of trades CLOSED today on the ET calendar boundary
+  // (NOT the Alpaca-session TODAY P&L window — hence "(ET)"). `tradesClosedToday`
+  // is the raw poll feed (win_loss per row); null = feed unavailable → dash.
+  const closedToday = data?.tradesClosedToday;
+  const dayWins = Array.isArray(closedToday) ? closedToday.filter((r) => r.win_loss === 'Win').length : 0;
+  const dayTotal = Array.isArray(closedToday) ? closedToday.length : 0;
+  const dayPct = dayTotal ? Math.round((dayWins / dayTotal) * 100) : null;
+
   return (
     <div className="acct">
       <div className="aitem"><span className="alabel">Capital Base</span><span className="aval">${capitalBase.toLocaleString()}</span></div>
@@ -286,6 +295,15 @@ function MobileAccountBar({ mode, liveAccountBar, data }) {
                 <span className={'aval-sub ' + cls(todayPct)}>{sign(todayPct)}{todayPct.toFixed(2)}%</span>
               )}
             </>
+          )}
+      </div>
+      <div className="aitem"><span className="alabel">Day W/L (ET)</span>
+        {bootstrap || !Array.isArray(closedToday)
+          ? dash
+          : (
+            <span className={'aval ' + (dayTotal && dayPct >= 50 ? 'g' : '')}>
+              {dayWins}/{dayTotal}{dayTotal ? ` · ${dayPct}%` : ''}
+            </span>
           )}
       </div>
       {/* Poll indicator moved to mobile header per Change 3 dispatch */}

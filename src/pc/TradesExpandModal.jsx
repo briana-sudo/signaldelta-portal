@@ -202,6 +202,16 @@ export default function TradesExpandModal({
     return [...filtered].sort(makeComparator(sortKey, sortDir));
   }, [assetFiltered, symbolFilter, sortKey, sortDir]);
 
+  // Rev 43 — win ratio over the CURRENTLY VISIBLE filtered set (window/day +
+  // CLASS + symbol; sort-independent). Closed-only denominator (OPEN/null
+  // winLoss excluded); recomputes reactively as any filter changes.
+  const ratio = useMemo(() => {
+    const wins = visible.filter((t) => t.winLoss === 'Win').length;
+    const losses = visible.filter((t) => t.winLoss === 'Loss').length;
+    const total = wins + losses;
+    return { wins, total, pct: total ? Math.round((wins / total) * 100) : null };
+  }, [visible]);
+
   if (!open) return null;
 
   // PC clickable-header → sort field map (win/loss rides the Progress header,
@@ -344,6 +354,9 @@ export default function TradesExpandModal({
         <div className={isMobile ? 'm-trades-sheet-head' : 'trades-expand-head'}>
           <span><span className="ptitle-bar" />ALL TRADES</span>
           <span className="trades-expand-head-r">
+            <span className="tx-winratio" title="Win ratio over the visible filtered set (closed-only)">
+              W/L {ratio.total ? `${ratio.wins}/${ratio.total} · ${ratio.pct}%` : '—'}
+            </span>
             {countLabel}
             <button type="button" className="trades-expand-close" onClick={onClose}>CLOSE ✕</button>
           </span>
