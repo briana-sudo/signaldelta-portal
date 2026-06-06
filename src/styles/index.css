@@ -783,7 +783,7 @@ body::after {
    the existing two-line P&L cell pattern. Renders only when t.exitTimestamp
    is present (CLOSED rows). */
 .pc-shell .hold-closed { font-family:var(--mono); font-size:7px; color:var(--w3); letter-spacing:.5px; margin-top:2px; line-height:1.1; }
-.mobile-shell .hold-closed { font-family:var(--mono); font-size:7px; color:var(--w3); letter-spacing:.5px; margin-top:2px; line-height:1.1; }
+.mobile-shell .hold-closed { font-family:var(--mono); font-size:9px; color:var(--w2); letter-spacing:.5px; margin-top:2px; line-height:1.1; }
 .pc-shell .passet { font-size:11px; font-weight:700; color:var(--white); letter-spacing:.5px; }
 .pc-shell .ptrack { font-size:7px; padding:2px 4px; border-radius:1px; letter-spacing:1px; }
 .pc-shell .ptrack.con { color:var(--w2); border:1px solid var(--w3); }
@@ -1151,7 +1151,7 @@ body::after {
 
 .mobile-shell .panel { background:var(--navy2); margin:8px; padding:10px; border:1px solid var(--border); position:relative; }
 .mobile-shell .panel:first-child { margin-top:8px; }
-.mobile-shell .ptitle { font-family:var(--disp); font-weight:600; font-size:9px; letter-spacing:3px; color:var(--w3); text-transform:uppercase; display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.mobile-shell .ptitle { font-family:var(--disp); font-weight:600; font-size:10px; letter-spacing:3px; color:var(--w2); text-transform:uppercase; display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
 .mobile-shell .ptitle-bar { width:14px; height:1px; background:var(--cyan); margin-right:6px; display:inline-block; vertical-align:middle; }
 .mobile-shell .ptitle-r { font-family:var(--mono); font-size:8px; color:var(--w3); letter-spacing:1px; }
 
@@ -1179,7 +1179,7 @@ body::after {
 .mobile-shell .pc-pnl-pct { font-size:9px; margin-top:2px; }
 .mobile-shell .pc-row2 { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; margin-bottom:8px; padding:6px; background:var(--navy); }
 .mobile-shell .pc-cell { display:flex; flex-direction:column; gap:1px; min-width:0; }
-.mobile-shell .pc-cell-lbl { font-family:var(--mono); font-size:6px; color:var(--w3); letter-spacing:1.5px; text-transform:uppercase; }
+.mobile-shell .pc-cell-lbl { font-family:var(--mono); font-size:9px; color:var(--w2); letter-spacing:1.5px; text-transform:uppercase; }
 .mobile-shell .pc-cell-val { font-family:var(--mono); font-size:9px; color:var(--white); letter-spacing:.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mobile-shell .pc-cell-val.r { color:var(--red); }
 .mobile-shell .pc-cell-val.g { color:var(--green); }
@@ -1187,8 +1187,8 @@ body::after {
 .mobile-shell .pc-prog-wrap { flex:1; display:flex; flex-direction:column; gap:2px; }
 .mobile-shell .pc-prog-bg { height:4px; background:var(--navy4); overflow:hidden; }
 .mobile-shell .pc-prog-fill { height:100%; transition:width 1s; }
-.mobile-shell .pc-prog-lbl { font-family:var(--mono); font-size:7px; color:var(--w3); letter-spacing:.5px; }
-.mobile-shell .pc-hold { font-family:var(--mono); font-size:9px; color:var(--w3); letter-spacing:.5px; flex-shrink:0; }
+.mobile-shell .pc-prog-lbl { font-family:var(--mono); font-size:10px; color:var(--w3); letter-spacing:.5px; }
+.mobile-shell .pc-hold { font-family:var(--mono); font-size:11px; color:var(--w2); letter-spacing:.5px; flex-shrink:0; }
 
 /* mobile equity */
 .mobile-shell .eq-panel { padding:10px; }
@@ -1250,7 +1250,7 @@ body::after {
   font-family: var(--mono); font-size: 8px; line-height: 1;
   padding: 1px 4px; border-radius: 6px; z-index: 5; white-space: nowrap;
 }
-.mobile-shell .wf-lbl { font-family:var(--mono); font-size:6px; color:var(--w3); letter-spacing:.5px; }
+.mobile-shell .wf-lbl { font-family:var(--mono); font-size:8px; color:var(--w2); letter-spacing:.5px; }
 
 /* mobile scanner */
 /* Mobile mirror of PC v1.2 scanner cycle.
@@ -1302,13 +1302,13 @@ body::after {
 .mobile-shell .mc:last-child { margin-bottom:0; }
 .mobile-shell .mc.offline { border-color:rgba(255,171,0,0.25); background:linear-gradient(135deg,var(--navy3),rgba(255,171,0,0.05)); }
 .mobile-shell .mc-left { display:flex; flex-direction:column; gap:3px; flex:1; min-width:0; }
-.mobile-shell .mc-label { font-family:var(--disp); font-weight:600; font-size:8px; letter-spacing:3px; color:var(--w3); text-transform:uppercase; }
+.mobile-shell .mc-label { font-family:var(--disp); font-weight:600; font-size:10px; letter-spacing:3px; color:var(--w2); text-transform:uppercase; }
 .mobile-shell .mc-value { font-family:var(--mono); font-size:22px; line-height:1; color:var(--white); }
 .mobile-shell .mc-value.g { color:var(--green); }
 .mobile-shell .mc-value.c { color:var(--cyan); }
 .mobile-shell .mc-value.a { color:var(--amber); }
 .mobile-shell .mc-value.dim { color:var(--w3); }
-.mobile-shell .mc-sub { font-family:var(--mono); font-size:8px; color:var(--w3); letter-spacing:.3px; line-height:1.4; }
+.mobile-shell .mc-sub { font-family:var(--mono); font-size:10px; color:var(--w2); letter-spacing:.3px; line-height:1.4; }
 .mobile-shell .mc-arc { flex-shrink:0; }
 
 /* mobile conviction flat bar */
@@ -1317,13 +1317,13 @@ body::after {
 .mobile-shell .conv-seg.std { background:var(--w3); }
 .mobile-shell .conv-seg.hi { background:var(--cyan); }
 .mobile-shell .conv-seg.max { background:var(--amber); }
-.mobile-shell .conv-legend { display:flex; justify-content:space-between; margin-top:5px; font-family:var(--mono); font-size:8px; color:var(--w3); letter-spacing:.5px; }
+.mobile-shell .conv-legend { display:flex; justify-content:space-between; margin-top:5px; font-family:var(--mono); font-size:10px; color:var(--w3); letter-spacing:.5px; }
 .mobile-shell .conv-legend span { color:var(--white); }
 
 /* mobile kernel chip */
 .mobile-shell .kernel-chip { background:var(--navy3); border:1px solid var(--border); padding:12px; display:flex; flex-direction:column; gap:8px; }
 .mobile-shell .kc-head { font-family:var(--disp); font-weight:600; font-size:9px; letter-spacing:3px; color:var(--w3); text-transform:uppercase; display:flex; align-items:center; }
-.mobile-shell .kc-stats { display:flex; flex-wrap:wrap; gap:10px; font-family:var(--mono); font-size:9px; color:var(--w2); letter-spacing:.5px; }
+.mobile-shell .kc-stats { display:flex; flex-wrap:wrap; gap:10px; font-family:var(--mono); font-size:11px; color:var(--w2); letter-spacing:.5px; }
 .mobile-shell .kc-stats span.c { color:var(--cyan); }
 .mobile-shell .kc-stats span.a { color:var(--amber); }
 .mobile-shell .kc-view-btn { display:flex; align-items:center; justify-content:center; gap:6px; height:36px; background:var(--navy); border:1px solid var(--cyan); color:var(--cyan); font-family:var(--disp); font-weight:600; font-size:10px; letter-spacing:3px; text-transform:uppercase; cursor:pointer; transition:all .2s; margin-top:2px; }
@@ -1667,6 +1667,14 @@ body::after {
 .mobile-shell .rm-cell-pct { font-size: 11px; line-height: 1.1; }
 .pc-shell .rm-cell-n,
 .mobile-shell .rm-cell-n { font-size: 7px; color: var(--w3); letter-spacing: .5px; margin-top: 2px; }
+
+/* Rev 45 — mobile legibility: bump matrix heads / row-labels / n-counts (mobile
+   ONLY — the shared PC rm-* sizes above are untouched). Cell % size + green/red
+   semantics preserved; the Σ heads keep their cyan (rm-sigma-h not recolored). */
+.mobile-shell .rm-h { font-size: 10px; }
+.mobile-shell .rm-row-h { font-size: 11px; }
+.mobile-shell .rm-col-h:not(.rm-sigma-h) { color: var(--w2); }
+.mobile-shell .rm-cell-n { font-size: 9px; color: var(--w2); }
 
 .pc-shell .rm-cell.rm-pos .rm-cell-pct,
 .mobile-shell .rm-cell.rm-pos .rm-cell-pct { color: var(--green); }
