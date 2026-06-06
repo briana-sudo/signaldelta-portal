@@ -563,19 +563,19 @@ body::after {
 
 /* Mobile: single compact pill, no crypto. */
 .mobile-shell .mkt-pill {
-  display: flex; align-items: center; gap: 4px;
-  padding: 2px 6px;
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 8px;
   border: 1px solid var(--border);
-  font-family: var(--mono); font-size: 8px; letter-spacing: 1px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
   background: var(--navy3); color: var(--w2);
   white-space: nowrap;
 }
 .mobile-shell .mkt-pill .mkt-dot {
-  width: 6px; height: 6px; border-radius: 50%;
+  width: 7px; height: 7px; border-radius: 50%;
   background: var(--w3); flex-shrink: 0;
 }
 .mobile-shell .mkt-pill .mkt-label { font-weight: 700; letter-spacing: 1.2px; color: var(--white); }
-.mobile-shell .mkt-pill .mkt-time { color: var(--w2); font-size: 7px; letter-spacing: 0.6px; }
+.mobile-shell .mkt-pill .mkt-time { color: var(--w2); font-size: 9px; letter-spacing: 0.6px; }
 .mobile-shell .mkt-pill.mkt-open    { border-color: var(--green); background: rgba(0,230,118,0.10); }
 .mobile-shell .mkt-pill.mkt-open    .mkt-dot { background: var(--green); animation: mkt-pulse 1.6s ease-in-out infinite; }
 .mobile-shell .mkt-pill.mkt-open    .mkt-label { color: var(--green); }
@@ -1018,25 +1018,36 @@ body::after {
    ═══════════════════════════════════════════════════════════════ */
 .mobile-shell {
   width: 100vw;
-  min-height: 100vh;
+  /* Rev 44 — bound to the (dynamic) viewport height so the flex column makes
+     .tab-content the SOLE scroller: the top stack (.hdr + .mode-toggle + .acct)
+     and the bottom .tab-bar become flex-pinned automatically, no sticky/offset
+     math. Was `min-height:100vh`, which let the whole document scroll and
+     carried the header away. 100dvh tracks the mobile address-bar show/hide.
+     The .tab-bar owns the bottom safe-area inset, so the shell no longer adds
+     its own padding-bottom (that double-counted under the bounded height). */
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding-bottom: env(safe-area-inset-bottom);
+  overflow: hidden;
 }
 
 .mobile-shell .hdr {
-  display: flex; align-items: center; justify-content: space-between;
-  height: calc(36px + env(safe-area-inset-top));
-  padding: 0 12px; padding-top: env(safe-area-inset-top); flex-shrink: 0;
+  /* Rev 44 — two rows: row 1 = .logo wordmark, row 2 = .hdr-right (dots/pill/
+     clock/market). 8px side padding aligns the header right edge with the body
+     cards (.panel margin:8px) so nothing bleeds/clips past the gutter. */
+  display: flex; flex-direction: column; align-items: stretch; gap: 7px;
+  padding: calc(env(safe-area-inset-top) + 8px) 8px 8px;
+  flex-shrink: 0;
   background: var(--navy2); border-bottom: 1px solid var(--border);
 }
 .mobile-shell .logo { display:flex; align-items:center; gap:8px; }
 .mobile-shell .logo-mark { width:22px; height:22px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
 .mobile-shell .logo-mark svg { width:100%; height:100%; display:block; }
 .mobile-shell .logo-text { display:flex; align-items:baseline; gap:0; }
-.mobile-shell .ls { font-family:var(--disp); font-weight:900; font-size:16px; letter-spacing:2.5px; color:var(--white); }
-.mobile-shell .ld { font-family:var(--disp); font-weight:900; font-size:16px; letter-spacing:2.5px; color:var(--cyan); }
-.mobile-shell .hdr-right { display:flex; align-items:center; gap:10px; }
+.mobile-shell .ls { font-family:var(--disp); font-weight:900; font-size:19px; letter-spacing:3px; color:var(--white); }
+.mobile-shell .ld { font-family:var(--disp); font-weight:900; font-size:19px; letter-spacing:3px; color:var(--cyan); }
+.mobile-shell .hdr-right { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; }
 /* Status dot mirrors the PC badge tone selector — Section E.1.
    Phase 1.1 always renders .dot-amber (current_phase = 'Paper'). */
 .mobile-shell .status-dot { width:7px; height:7px; border-radius:50%; animation:pdot 2s ease-in-out infinite; }
@@ -1045,13 +1056,13 @@ body::after {
 .mobile-shell .status-dot.dot-split { background:linear-gradient(90deg, var(--amber) 0 50%, var(--green) 50% 100%); box-shadow:0 0 6px rgba(255,171,0,0.6), 0 0 6px rgba(0,230,118,0.6); }
 /* Mobile dual-clock — same pattern, condensed for the narrow viewport.
    Drops UTC seconds to fit; PC retains them for operator detail. */
-.mobile-shell .clock { font-family:var(--mono); letter-spacing:1px; display:flex; align-items:baseline; gap:4px; }
-.mobile-shell .clock-et  { font-size:11px; color:var(--cyan); }
-.mobile-shell .clock-sep { font-size:9px;  color:var(--w3); }
-.mobile-shell .clock-utc { font-size:8px;  color:var(--w3); letter-spacing:0.5px; }
+.mobile-shell .clock { font-family:var(--mono); letter-spacing:1px; display:flex; align-items:baseline; gap:5px; }
+.mobile-shell .clock-et  { font-size:14px; color:var(--cyan); }
+.mobile-shell .clock-sep { font-size:11px; color:var(--w3); }
+.mobile-shell .clock-utc { font-size:11px; color:var(--w2); letter-spacing:0.5px; }
 
-.mobile-shell .mode-toggle { display:flex; height:30px; flex-shrink:0; border-bottom:1px solid var(--border); background:var(--navy2); }
-.mobile-shell .mode-pill { flex:1; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:9px; letter-spacing:2px; color:var(--w3); cursor:pointer; border-right:1px solid var(--border); transition:all .2s; user-select:none; }
+.mobile-shell .mode-toggle { display:flex; height:36px; flex-shrink:0; border-bottom:1px solid var(--border); background:var(--navy2); }
+.mobile-shell .mode-pill { flex:1; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:11px; letter-spacing:2px; color:var(--w3); cursor:pointer; border-right:1px solid var(--border); transition:all .2s; user-select:none; }
 .mobile-shell .mode-pill:last-child { border-right:none; }
 .mobile-shell .mode-pill.active { background:var(--cyan2); color:var(--cyan); text-shadow:0 0 6px rgba(0,194,255,0.5); }
 
