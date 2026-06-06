@@ -960,7 +960,7 @@ function DataTab({ mode, data, liveEvents }) {
           const cacheStatus = data?.macroNews?.cache;
           return (
             <>
-              <StatusStrip recentEvents={recentEvents} />
+              <StatusStrip recentEvents={recentEvents} variant="mobile" />
               <div className="news-row macro">
                 <MacroNewsStrip items={macroItems} cacheStatus={cacheStatus} />
               </div>

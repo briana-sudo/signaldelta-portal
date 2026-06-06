@@ -15,14 +15,39 @@
 // Empty state: centered "AWAITING SYSTEM EVENTS", no animation.
 // ─────────────────────────────────────────────────────────────
 
-export default function StatusStrip({ recentEvents }) {
+export default function StatusStrip({ recentEvents, variant = 'pc' }) {
   const events = Array.isArray(recentEvents) ? recentEvents.slice(0, 5) : [];
+  const isMobile = variant === 'mobile';
 
   if (events.length === 0) {
     return (
-      <div className="system-strip-wrap empty">
+      <div className={'system-strip-wrap empty' + (isMobile ? ' sev-list' : '')}>
         <span className="system-strip-label">SYSTEM EVENTS</span>
         <span className="system-strip-empty-text">— AWAITING SYSTEM EVENTS —</span>
+      </div>
+    );
+  }
+
+  // Rev 46 — mobile: readable STACKED LIST instead of the single-line marquee.
+  // The marquee crammed badge+type+asset+age onto one 26px line and the opaque
+  // z-index label overlapped/clipped the first item at the narrow viewport.
+  // One row per event (no duplication, no animation); badge fully inside the
+  // panel inset, event-type ellipsis-clips, age pinned right. PC keeps the
+  // marquee unchanged (variant defaults to 'pc').
+  if (isMobile) {
+    return (
+      <div className="system-strip-wrap sev-list">
+        <span className="system-strip-label">SYSTEM EVENTS</span>
+        <div className="sev-list-rows">
+          {events.map((e, i) => (
+            <div className="sev-row" key={`${e.eventId || e.timestamp}-${i}`}>
+              <span className={'sev-pill sev-' + e.severityClass}>{e.severity}</span>
+              <span className="system-event">{e.eventType}</span>
+              {e.asset && <span className="system-asset">{e.asset}</span>}
+              <span className="system-time">{e.timeAgo}</span>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
