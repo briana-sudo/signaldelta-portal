@@ -12,7 +12,7 @@ import {
   adaptEquityCurve, adaptEquityHeader,
   adaptRulesThisWeek, adaptRulesFoot, adaptClosestCohort,
   adaptHeartbeat,
-  adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
+  adaptTradeList, selectVisibleTrades, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation,
   adaptAccountState,
   buildWeekFrame,
@@ -364,8 +364,8 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
   // the locked constant; EXPAND opens the shared windowed sort/filter sheet.
   const capMobile = 6;
   const [tradesExpanded, setTradesExpanded] = useState(false);
-  const tradesOverflow = trades.length > capMobile;
-  const moreCount = trades.length - capMobile;
+  // 2026-06-08: OPEN rows pin to the top and are always shown (cap guard).
+  const { visible: visibleTrades, overflow: tradesOverflow, moreCount } = selectVisibleTrades(trades, capMobile);
 
   return (
     <>
@@ -375,7 +375,7 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
           <span className="ptitle-r">
             {tradesBoot ? 'AWAITING TRADES SINCE MARKET OPEN' : (
               <>
-                {tradesOverflow ? `${capMobile} OF ${trades.length}` : `${openTrades.length} OPEN · ${trades.length} TOTAL`}
+                {tradesOverflow ? `${visibleTrades.length} OF ${trades.length}` : `${openTrades.length} OPEN · ${trades.length} TOTAL`}
                 <button type="button" className="trades-expand-btn" onClick={() => setTradesExpanded(true)}>
                   {tradesOverflow ? `+${moreCount} MORE` : 'EXPAND'}
                 </button>
@@ -387,7 +387,7 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
           <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>
             — AWAITING TRADES SINCE MARKET OPEN —
           </div>
-        ) : trades.slice(0, capMobile).map((t) => (
+        ) : visibleTrades.map((t) => (
           <MobileTradeCard key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
                            t={t}
                            m4State={m4State}

@@ -374,6 +374,21 @@ export function adaptWeeklyWaterfall(data) {
 //     falls back to entry_price if the broker has no matching position.
 //   - CLOSED rows: Current column = exit_price; pnl_dollar/pnl_percent are
 //     realized; win_loss drives the WIN/LOSS final-outcome bar.
+// Open-first visible selection for the truncated main blotter (2026-06-08).
+// ALL open rows pin to the top and are ALWAYS shown — even if older than the cap
+// cutoff, even if open count exceeds the cap (open wins the budget); remaining
+// budget fills with the most-recent CLOSED. Input is entry-time desc (proxy
+// query order), so each subgroup keeps that order. Returns { visible, overflow,
+// moreCount } — moreCount/overflow reflect the TRUE total, only ordering changes.
+export function selectVisibleTrades(trades, cap) {
+  const list = Array.isArray(trades) ? trades : [];
+  const open = list.filter((t) => t.status === 'OPEN');
+  const closed = list.filter((t) => t.status !== 'OPEN');
+  const closedBudget = Math.max(0, cap - open.length);
+  const visible = [...open, ...closed.slice(0, closedBudget)];
+  return { visible, overflow: visible.length < list.length, moreCount: list.length - visible.length };
+}
+
 export function adaptTradeList(data) {
   const rows = data?.tradeList;
   if (!Array.isArray(rows) || rows.length === 0) return null;

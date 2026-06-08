@@ -40,8 +40,9 @@ const ASSET_FILTERS = [
   { key: 'Stocks', label: 'STOCKS' },
 ];
 
-const SORT_FIELDS = [
+export const SORT_FIELDS = [
   { key: 'entry',   label: 'Entry time' },
+  { key: 'open',    label: 'Open first' },
   { key: 'pnl',     label: 'P&L' },
   { key: 'asset',   label: 'Asset' },
   { key: 'track',   label: 'Track' },
@@ -83,9 +84,19 @@ function sortValue(t, key) {
   }
 }
 
-function makeComparator(key, dir) {
+export function makeComparator(key, dir) {
   const isOpen = (x) => x.status !== 'CLOSED';
   return (a, b) => {
+    // 2026-06-08 "Open first" (fixed-semantics, dir ignored): OPEN above CLOSED,
+    // secondary entry-time desc → surfaces an old still-open position at the top.
+    if (key === 'open') {
+      const ao = isOpen(a);
+      const bo = isOpen(b);
+      if (ao !== bo) return ao ? -1 : 1;
+      const ae = a.entryTimestamp ? Date.parse(a.entryTimestamp) : 0;
+      const be = b.entryTimestamp ? Date.parse(b.entryTimestamp) : 0;
+      return be - ae;
+    }
     // Rev 42 fixed-semantics sorts: OPEN rows always last, dir ignored.
     if (key === 'wins' || key === 'losses' || key === 'gain' || key === 'loss') {
       const ao = isOpen(a);

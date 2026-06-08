@@ -10,7 +10,7 @@ import {
   adaptEquityCurve, adaptEquityHeader,
   adaptRulesThisWeek, adaptRulesFoot, adaptClosestCohort,
   adaptHeartbeat,
-  adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
+  adaptTradeList, selectVisibleTrades, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation, adaptPriceTicker,
   adaptAccountState,
   buildWeekFrame,
@@ -595,8 +595,9 @@ function TradeListPanel({ mode, data }) {
   // EXPAND opens the windowed sort/filter modal (its own fetch).
   const capPc = 13;
   const [expanded, setExpanded] = useState(false);
-  const overflow = trades.length > capPc;
-  const moreCount = trades.length - capPc;
+  // 2026-06-08: OPEN rows pin to the top and are always shown (cap guard); the
+  // remaining budget fills with the most-recent closed.
+  const { visible: visibleTrades, overflow, moreCount } = selectVisibleTrades(trades, capPc);
 
   return (
     <div className="panel p-positions">
@@ -608,7 +609,7 @@ function TradeListPanel({ mode, data }) {
             : (
               <>
                 {overflow
-                  ? `${capPc} OF ${trades.length}`
+                  ? `${visibleTrades.length} OF ${trades.length}`
                   : `${openTrades.length} OPEN · ${trades.length} TOTAL`}
                 <button type="button" className="trades-expand-btn" onClick={() => setExpanded(true)}>
                   {overflow ? `+${moreCount} MORE` : 'EXPAND'}
@@ -629,7 +630,7 @@ function TradeListPanel({ mode, data }) {
         <tbody>
           {bootstrap ? (
             <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--w3)', padding: '20px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>— AWAITING TRADES SINCE MARKET OPEN —</td></tr>
-          ) : trades.slice(0, capPc).map((t) => (
+          ) : visibleTrades.map((t) => (
             <TradeListRow key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
                           t={t}
                           m4State={m4State}
