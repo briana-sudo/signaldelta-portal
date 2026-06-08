@@ -24,6 +24,17 @@ export function computeOpenLegPnl({ currentPx, entryPx, size, direction, target 
   return { pp, pv, pos: pp >= 0, hasPnl, isShort, sign };
 }
 
+// Open-row P&L cell tone — 2026-06-08. 'none' = no live price (P&L UNKNOWN →
+// neutral placeholder, NOT a fabricated $0.00); 'zero' = computed exactly 0
+// (neutral, NOT green); 'pos'/'neg' = real gain/loss. Mirrors the neutral-at-
+// zero treatment of the n=0 matrix cells and the BE progress badge.
+export function openPnlTone({ pv, livePriced, hasPnl }) {
+  if (!livePriced || !hasPnl) return 'none';
+  if (pv > 0) return 'pos';
+  if (pv < 0) return 'neg';
+  return 'zero';
+}
+
 // Open-row PROGRESS bar/label — 2026-06-08. Winning side fills toward TARGET;
 // losing side fills toward the LIVE stop (`current_stop`, breakeven/trailing-
 // adjusted) with fallback to the entry `stop_loss_price`. Direction-correct

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
-import { computeOpenLegPnl, computeOpenProgress } from '../lib/openPnl.js';
+import { computeOpenLegPnl, computeOpenProgress, openPnlTone } from '../lib/openPnl.js';
 import TradesExpandModal from '../pc/TradesExpandModal.jsx';
 import {
   SCANNER_ASSETS, WEEKLY_WATERFALL, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
@@ -425,11 +425,14 @@ function MobileTradeCard({ t, m4State = 'absent', unmonitoredSet = null }) {
     // entry, NO drift (mirror of PC TradeListRow). Sign comes from real P&L.
     const livePriced = !!t.brokerPriced;
     const cur = t.cur;                  // CURRENT = real broker price (no drift)
-    const { pp, pv, pos } = computeOpenLegPnl({
+    const { pp, pv, hasPnl } = computeOpenLegPnl({
       currentPx: t.cur, entryPx: t.entry ?? 0, size: t.size ?? 0,
       direction: t.direction, target: t.target,
     });
-    const clr = !livePriced ? 'var(--w3)' : (pos ? 'var(--green)' : 'var(--red)');
+    // 2026-06-08: no-live-price → neutral placeholder; neutral-at-zero (mirror PC).
+    const pnlTone = openPnlTone({ pv, livePriced, hasPnl });
+    const pnlKnown = pnlTone !== 'none';
+    const clr = pnlTone === 'pos' ? 'var(--green)' : pnlTone === 'neg' ? 'var(--red)' : 'var(--w2)';
     // Portal v1.16 (2026-05-30): M4 monitor-coverage join key derivation.
     // Used by the per-row monitor LIGHT inside .pc-asset-wrap (below).
     // Replaced the v1.14 P3.3 progress-cell takeover that became invisible
@@ -483,8 +486,14 @@ function MobileTradeCard({ t, m4State = 'absent', unmonitoredSet = null }) {
           </div>
           <div className="pc-spacer" />
           <div className="pc-pnl-wrap">
-            <div className="pc-pnl" style={{ color: clr }}>{pos ? '+' : ''}${Math.abs(pv).toFixed(2)}</div>
-            <div className="pc-pnl-pct" style={{ color: clr }}>{pos ? '+' : ''}{pp.toFixed(2)}%</div>
+            {pnlKnown ? (
+              <>
+                <div className="pc-pnl" style={{ color: clr }}>{pv > 0 ? '+' : pv < 0 ? '-' : ''}${Math.abs(pv).toFixed(2)}</div>
+                <div className="pc-pnl-pct" style={{ color: clr }}>{pp > 0 ? '+' : ''}{pp.toFixed(2)}%</div>
+              </>
+            ) : (
+              <div className="pc-pnl" style={{ color: 'var(--w2)' }} title="no live price">—</div>
+            )}
           </div>
         </div>
         <div className="pc-row2">

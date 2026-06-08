@@ -1,6 +1,6 @@
 // Open-leg since-entry P&L — real compute from current/entry/size/dir, no drift.
 import { describe, it, expect } from 'vitest';
-import { computeOpenLegPnl, computeOpenProgress } from './openPnl.js';
+import { computeOpenLegPnl, computeOpenProgress, openPnlTone } from './openPnl.js';
 
 describe('computeOpenLegPnl — real since-entry, per leg, no drift', () => {
   it('long down from entry → negative pnl, RED sign (Item 93 sign fix)', () => {
@@ -93,5 +93,22 @@ describe('computeOpenProgress — % to stop uses live current_stop + BE guard', 
     const r = computeOpenProgress({ entry: 100, target: 90, livePriced: true, direction: 'Short', cur: 103, currentStop: 106, stop: 108 });
     expect(r.mode).toBe('stop');
     expect(r.progPct).toBeCloseTo((103 - 100) / (106 - 100) * 100, 6); // 50%
+  });
+});
+
+describe('openPnlTone — no-live-price guard + neutral at zero', () => {
+  it('no live price → none (neutral placeholder, NOT $0.00 green)', () => {
+    expect(openPnlTone({ pv: 0, livePriced: false, hasPnl: false })).toBe('none');
+    expect(openPnlTone({ pv: 12, livePriced: false, hasPnl: false })).toBe('none');
+  });
+  it('live but no computable pnl → none', () => {
+    expect(openPnlTone({ pv: 0, livePriced: true, hasPnl: false })).toBe('none');
+  });
+  it('computed exactly 0 → zero (neutral, NOT green)', () => {
+    expect(openPnlTone({ pv: 0, livePriced: true, hasPnl: true })).toBe('zero');
+  });
+  it('pv > 0 → pos (green); pv < 0 → neg (red)', () => {
+    expect(openPnlTone({ pv: 48.58, livePriced: true, hasPnl: true })).toBe('pos');
+    expect(openPnlTone({ pv: -48.58, livePriced: true, hasPnl: true })).toBe('neg');
   });
 });

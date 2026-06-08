@@ -34,7 +34,7 @@ import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
 import MarketBell from '../lib/MarketBell.jsx';
-import { computeOpenLegPnl, computeOpenProgress } from '../lib/openPnl.js';
+import { computeOpenLegPnl, computeOpenProgress, openPnlTone } from '../lib/openPnl.js';
 import { useMarketStatus } from '../lib/useMarketStatus.js';
 import NewsTicker from '../lib/NewsTicker.jsx';
 import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
@@ -659,11 +659,15 @@ function TradeListRow({ t, m4State = 'absent', unmonitoredSet = null }) {
     // price already on the row (adapter `cur`); it was only drifted in the view.
     const livePriced = !!t.brokerPriced;
     const cur = t.cur;                  // CURRENT column = real broker price (no drift)
-    const { pp, pv, pos } = computeOpenLegPnl({
+    const { pp, pv, hasPnl } = computeOpenLegPnl({
       currentPx: t.cur, entryPx: t.entry ?? 0, size: t.size ?? 0,
       direction: t.direction, target: t.target,
     });
-    const clr = !livePriced ? 'var(--w3)' : (pos ? 'var(--green)' : 'var(--red)');
+    // 2026-06-08: no-live-price → neutral placeholder (P&L unknown, not a
+    // fabricated $0.00); neutral-at-zero (0 is neither gain nor loss).
+    const pnlTone = openPnlTone({ pv, livePriced, hasPnl });
+    const pnlKnown = pnlTone !== 'none';
+    const clr = pnlTone === 'pos' ? 'var(--green)' : pnlTone === 'neg' ? 'var(--red)' : 'var(--w2)';
     // Portal v1.16 (2026-05-30): M4 monitor-coverage join key derivation.
     // Used by the per-row monitor LIGHT under the asset name (see below).
     // Replaced the v1.14 P2.4 progress-cell takeover that became invisible
@@ -737,8 +741,14 @@ function TradeListRow({ t, m4State = 'absent', unmonitoredSet = null }) {
           <div style={{ fontFamily: 'var(--mono)', fontSize: '7px', color: progClr, marginTop: '2px' }}>{progLabel}</div>
         </td>
         <td>
-          <div className="ppnl" style={{ color: clr }}>{pos ? '+' : ''}${Math.abs(pv).toFixed(2)}</div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: clr }}>{pos ? '+' : ''}{pp.toFixed(2)}%</div>
+          {pnlKnown ? (
+            <>
+              <div className="ppnl" style={{ color: clr }}>{pv > 0 ? '+' : pv < 0 ? '-' : ''}${Math.abs(pv).toFixed(2)}</div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: clr }}>{pp > 0 ? '+' : ''}{pp.toFixed(2)}%</div>
+            </>
+          ) : (
+            <div className="ppnl" style={{ color: 'var(--w2)' }} title="no live price">—</div>
+          )}
         </td>
         {/* HOLD cell — raised w3→w2 (2026-06-08) for legibility; matches the
             muted-but-readable CLASS/CONV label tone. */}
