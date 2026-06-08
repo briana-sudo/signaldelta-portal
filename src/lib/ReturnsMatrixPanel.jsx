@@ -44,7 +44,20 @@ function returnClass(meanReturnPct, hasData) {
   return 'rm-flat';
 }
 
-function CellContents({ metric, ariaLabel, title }) {
+// Exported for the zero-state component test. 2026-06-08: n=0 cohorts render as
+// an INTENTIONAL muted tile (same bordered container as populated cells) — a
+// dim "—" + an explicit "n=0 · no trades" sublabel, and NO numeric %. The panel
+// reconciles to real trade records; we never fabricate a 0.0% measured return.
+export function CellContents({ metric, ariaLabel, title }) {
+  const empty = !metric.hasData || metric.count === 0 || metric.meanReturnPct == null;
+  if (empty) {
+    return (
+      <div className="rm-cell rm-empty" aria-label={ariaLabel} title={title} data-empty="true">
+        <div className="rm-cell-pct">—</div>
+        <div className="rm-cell-n">n=0 · no trades</div>
+      </div>
+    );
+  }
   const cls = returnClass(metric.meanReturnPct, metric.hasData);
   return (
     <div className={'rm-cell ' + cls} aria-label={ariaLabel} title={title}>
