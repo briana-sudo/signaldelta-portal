@@ -9,7 +9,7 @@ import {
   adaptAccountBar, adaptWeeklyWaterfall, adaptEvents,
   adaptWinRate, adaptSharpe, adaptLane2, adaptConviction,
   adaptEquityCurve, adaptEquityHeader,
-  adaptRulesThisWeek, adaptRulesFoot,
+  adaptRulesThisWeek, adaptRulesFoot, adaptClosestCohort,
   adaptHeartbeat,
   adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation, adaptPriceTicker,
@@ -39,6 +39,7 @@ import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
 import StatusStrip from '../lib/StatusStrip.jsx';
 import HealthStrip from '../lib/HealthStrip.jsx';
 import ReturnsMatrixPanel from '../lib/ReturnsMatrixPanel.jsx';
+import RulesEmptyState from '../lib/RulesEmptyState.jsx';
 import TradeOverlay from './TradeOverlay.jsx';
 import TradesExpandModal from './TradesExpandModal.jsx';
 
@@ -1141,19 +1142,23 @@ function KernelPanel({ data }) {
 function RulesAddedPanel({ mode, data }) {
   const rules = adaptRulesThisWeek(data);
   const foot = adaptRulesFoot(data);
+  const cohort = adaptClosestCohort(data);
   const bootstrap = shouldRenderBootstrap(mode) || (!rules && !foot);
 
   return (
     <div className="panel p-rules">
       <div className="ptitle">
-        <span><span className="ptitle-bar" />RULES ADDED THIS WEEK</span>
+        {/* 2026-06-08: "THIS CYCLE" (was "THIS WEEK") — rules are counted per
+            learning-loop cycle; the footer "0 RULES" is the rules count, not a
+            week number. */}
+        <span><span className="ptitle-bar" />RULES ADDED THIS CYCLE</span>
         <span className="ptitle-r">CYCLE {foot?.cycle ?? 0}</span>
       </div>
       <div className="rules-list">
         {bootstrap || !rules ? (
-          <div style={{ flex: 1, textAlign: 'center', color: 'var(--w3)', padding: '12px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>
-            — AWAITING LIVE RULES —
-          </div>
+          // 2026-06-08: informative empty-state — progress toward the first rule.
+          // Suppress cohort progress under live-mode bootstrap (no live corpus).
+          <RulesEmptyState cohort={bootstrap ? null : cohort} />
         ) : rules.map((r, i) => (
           <div className={'rule-row sec-' + r.sec.toLowerCase()} key={r.ruleId || i}>
             <div className={'rule-badge sec-' + r.sec.toLowerCase()}>{r.sec}</div>

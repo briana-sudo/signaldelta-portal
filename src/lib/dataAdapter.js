@@ -628,6 +628,29 @@ export function adaptRulesFoot(data) {
   };
 }
 
+// ── Closest cohort to the rule-action floor (2026-06-08) ─────────────
+// Powers the "RULES ADDED" empty-state progress toward the first rule.
+// Reads the singleton `closest_cohort` proxy row. Returns null when absent
+// (e.g. proxy not yet restarted with the new query, or empty corpus) so the
+// panel falls back to the bare "AWAITING LIVE RULES" state.
+export function adaptClosestCohort(data) {
+  const r = data?.closestCohort;
+  if (!r) return null;
+  const count = Number(r.closest_cohort_count);
+  const floor = Number(r.rule_floor);
+  const value = r.closest_cohort_value;
+  if (!Number.isFinite(count) || !Number.isFinite(floor) || floor <= 0 || !value) {
+    return null;
+  }
+  return {
+    dimension: r.closest_cohort_dimension || null,
+    value: String(value),
+    count,
+    floor,
+    pct: Math.max(0, Math.min(100, (count / floor) * 100)),
+  };
+}
+
 // ── Engine heartbeat (reconciliation Section K) ──────────────────────
 // Returns { state, minutesAgo, lastWriteEt, lastWriteIso } or null.
 // State thresholds:

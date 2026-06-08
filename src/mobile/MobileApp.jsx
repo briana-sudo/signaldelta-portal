@@ -10,7 +10,7 @@ import {
   adaptAccountBar, adaptWeeklyWaterfall, adaptEvents,
   adaptWinRate, adaptSharpe, adaptConviction,
   adaptEquityCurve, adaptEquityHeader,
-  adaptRulesThisWeek, adaptRulesFoot,
+  adaptRulesThisWeek, adaptRulesFoot, adaptClosestCohort,
   adaptHeartbeat,
   adaptTradeList, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation,
@@ -35,6 +35,7 @@ import NewsTicker from '../lib/NewsTicker.jsx';
 import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
 import StatusStrip from '../lib/StatusStrip.jsx';
 import HealthStrip from '../lib/HealthStrip.jsx';
+import RulesEmptyState from '../lib/RulesEmptyState.jsx';
 import ReturnsMatrixPanel from '../lib/ReturnsMatrixPanel.jsx';
 
 const MODES = ['live', 'training', 'combined'];
@@ -893,6 +894,7 @@ function SystemTab({ mode, data, onOpenKernel }) {
 function DataTab({ mode, data, liveEvents }) {
   const rules = adaptRulesThisWeek(data);
   const foot = adaptRulesFoot(data);
+  const cohort = adaptClosestCohort(data);
   const bootstrap = shouldRenderBootstrap(mode);
   const rulesBoot = bootstrap || (!rules && !foot);
   const eventsBoot = bootstrap || !liveEvents;
@@ -928,14 +930,14 @@ function DataTab({ mode, data, liveEvents }) {
 
       <div className="panel">
         <div className="ptitle">
-          <span><span className="ptitle-bar" />RULES ADDED THIS WEEK</span>
+          {/* 2026-06-08: "THIS CYCLE" (was "THIS WEEK") — mirrors PC; the 0 is
+              the per-cycle rules count, not a week number. */}
+          <span><span className="ptitle-bar" />RULES ADDED THIS CYCLE</span>
           <span className="ptitle-r">CYCLE {foot?.cycle ?? 0}</span>
         </div>
         <div className="rules-list">
           {rulesBoot || !rules ? (
-            <div style={{ textAlign: 'center', color: 'var(--w3)', padding: '12px', fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '1px' }}>
-              — AWAITING LIVE RULES —
-            </div>
+            <RulesEmptyState cohort={bootstrap ? null : cohort} />
           ) : rules.map((r, i) => (
             <div className={'rule-row sec-' + r.sec.toLowerCase()} key={r.ruleId || i}>
               <div className={'rule-badge sec-' + r.sec.toLowerCase()}>{r.sec}</div>

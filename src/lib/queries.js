@@ -47,6 +47,9 @@ export const Q_RETURNS_SIGMA_CORNER = 'returns_matrix_sigma_corner';
 // ── Section D3: Rules Added This Week ──
 export const Q_RULES_THIS_WEEK = 'rules_this_week';
 export const Q_RULES_FOOT = 'rules_footer';
+// 2026-06-08: closest single-dimension cohort to the rule-action floor — powers
+// the "RULES ADDED" empty-state progress bar toward the first rule.
+export const Q_CLOSEST_COHORT = 'closest_cohort';
 
 // ── Mount-time + per-event ──
 export const Q_MONITORED_ASSETS = 'monitored_assets';

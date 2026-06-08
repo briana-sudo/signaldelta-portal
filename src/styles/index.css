@@ -952,6 +952,15 @@ body::after {
 .pc-shell .rule-text strong { color:var(--white); font-weight:600; }
 .pc-shell .rules-foot { font-family:var(--mono); font-size:7px; color:var(--w3); letter-spacing:1px; text-align:center; padding-top:6px; border-top:1px solid var(--border); margin-top:auto; flex-shrink:0; }
 .pc-shell .rules-foot span { color:var(--cyan); }
+/* 2026-06-08: RULES ADDED informative empty-state (closest-cohort progress). */
+.pc-shell .rules-empty-bare { flex:1; text-align:center; color:var(--w3); padding:12px; font-family:var(--mono); font-size:9px; letter-spacing:1px; }
+.pc-shell .rules-empty { flex:1; display:flex; flex-direction:column; justify-content:center; gap:5px; padding:6px 8px; }
+.pc-shell .rules-empty-head { font-family:var(--mono); font-size:7px; letter-spacing:1px; color:var(--w3); text-align:center; }
+.pc-shell .rules-cohort-row { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+.pc-shell .rules-cohort-val { font-family:var(--mono); font-size:10px; color:var(--white); letter-spacing:.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pc-shell .rules-cohort-count { font-family:var(--mono); font-size:11px; font-weight:700; color:var(--cyan); flex-shrink:0; }
+.pc-shell .rules-cohort-bar { height:6px; background:var(--navy); border:1px solid var(--border); border-radius:2px; overflow:hidden; }
+.pc-shell .rules-cohort-fill { height:100%; background:linear-gradient(90deg,var(--cyan),rgba(0,194,255,.55)); box-shadow:0 0 5px rgba(0,194,255,.4); transition:width .8s ease; }
 
 /* trade overlay (markup ready, fire logic deferred to Step G) */
 .pc-shell .overlay { position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center; background:rgba(6,13,24,.45); opacity:0; pointer-events:none; transition:opacity .3s; }
@@ -1406,6 +1415,15 @@ body::after {
 .mobile-shell .rule-text strong { color:var(--white); font-weight:600; }
 .mobile-shell .rules-foot { font-family:var(--mono); font-size:8px; color:var(--w3); letter-spacing:1px; text-align:center; padding-top:8px; margin-top:6px; border-top:1px solid var(--border); }
 .mobile-shell .rules-foot span { color:var(--cyan); }
+/* 2026-06-08: RULES ADDED informative empty-state (mirror of PC). */
+.mobile-shell .rules-empty-bare { text-align:center; color:var(--w3); padding:12px; font-family:var(--mono); font-size:9px; letter-spacing:1px; }
+.mobile-shell .rules-empty { display:flex; flex-direction:column; gap:6px; padding:8px 6px; }
+.mobile-shell .rules-empty-head { font-family:var(--mono); font-size:8px; letter-spacing:1px; color:var(--w3); text-align:center; }
+.mobile-shell .rules-cohort-row { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+.mobile-shell .rules-cohort-val { font-family:var(--mono); font-size:11px; color:var(--white); letter-spacing:.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mobile-shell .rules-cohort-count { font-family:var(--mono); font-size:12px; font-weight:700; color:var(--cyan); flex-shrink:0; }
+.mobile-shell .rules-cohort-bar { height:8px; background:var(--navy); border:1px solid var(--border); border-radius:2px; overflow:hidden; }
+.mobile-shell .rules-cohort-fill { height:100%; background:linear-gradient(90deg,var(--cyan),rgba(0,194,255,.55)); box-shadow:0 0 5px rgba(0,194,255,.4); transition:width .8s ease; }
 
 /* mobile event feed */
 .mobile-shell .event-feed { display:flex; flex-direction:column; gap:3px; }
