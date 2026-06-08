@@ -744,7 +744,9 @@ function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) 
           <div className="ppnl" style={{ color: clr }}>{pos ? '+' : ''}${Math.abs(pv).toFixed(2)}</div>
           <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: clr }}>{pos ? '+' : ''}{pp.toFixed(2)}%</div>
         </td>
-        <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w3)' }}>{t.hold}</td>
+        {/* HOLD cell — raised w3→w2 (2026-06-08) for legibility; matches the
+            muted-but-readable CLASS/CONV label tone. */}
+        <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w2)' }}>{t.hold}</td>
       </tr>
     );
   }
@@ -770,7 +772,8 @@ function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) 
         <div className="ppnl" style={{ color: finalClr }}>{t.pnl >= 0 ? '+' : ''}${Math.abs(t.pnl).toFixed(2)}</div>
         <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: finalClr }}>{t.pnlPct >= 0 ? '+' : ''}{t.pnlPct.toFixed(2)}%</div>
       </td>
-      <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w3)' }}>
+      {/* HOLD cell — raised w3→w2 (2026-06-08) for legibility. */}
+      <td style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--w2)' }}>
         {t.hold}
         {t.exitTimestamp && <div className="hold-closed">Closed {fmtCloseET(t.exitTimestamp)}</div>}
       </td>

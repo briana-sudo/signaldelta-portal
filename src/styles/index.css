@@ -817,7 +817,7 @@ body::after {
    HOLD duration. Dim greyed font, smaller than the duration line; mirrors
    the existing two-line P&L cell pattern. Renders only when t.exitTimestamp
    is present (CLOSED rows). */
-.pc-shell .hold-closed { font-family:var(--mono); font-size:7px; color:var(--w3); letter-spacing:.5px; margin-top:2px; line-height:1.1; }
+.pc-shell .hold-closed { font-family:var(--mono); font-size:7px; color:var(--w2); letter-spacing:.5px; margin-top:2px; line-height:1.1; }
 .mobile-shell .hold-closed { font-family:var(--mono); font-size:9px; color:var(--w2); letter-spacing:.5px; margin-top:2px; line-height:1.1; }
 .pc-shell .passet { font-size:11px; font-weight:700; color:var(--white); letter-spacing:.5px; }
 .pc-shell .ptrack { font-size:7px; padding:2px 4px; border-radius:1px; letter-spacing:1px; }
