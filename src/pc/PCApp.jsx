@@ -34,6 +34,8 @@ const RETURN_STRIP_H = 40;
 import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
+import MarketBell from '../lib/MarketBell.jsx';
+import { useMarketStatus } from '../lib/useMarketStatus.js';
 import NewsTicker from '../lib/NewsTicker.jsx';
 import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
 import StatusStrip from '../lib/StatusStrip.jsx';
@@ -70,6 +72,9 @@ export default function PCApp({ data, errors = {}, hasAnyData = false, error, lo
   const heartbeat = adaptHeartbeat(data);
   const recon = adaptReconciliation(data);
   const pollTimestamp = data?.pollTimestamp;
+  // 2026-06-08: ONE market-status instance for the shell — shared by the pill
+  // and the open/close bell (no second clock/poll).
+  const marketStatus = useMarketStatus();
 
   return (
     <div className="pc-shell">
@@ -83,6 +88,7 @@ export default function PCApp({ data, errors = {}, hasAnyData = false, error, lo
         recon={recon}
         pollSecs={pollSecs}
         pollPulse={pollPulse}
+        marketStatus={marketStatus}
       />
       <AccountBar
         mode={mode}
@@ -171,7 +177,7 @@ function ReconPill({ recon }) {
   );
 }
 
-function Header({ clock, mode, setMode, currentPhase, heartbeat, recon, pollSecs, pollPulse }) {
+function Header({ clock, mode, setMode, currentPhase, heartbeat, recon, pollSecs, pollPulse, marketStatus }) {
   return (
     <div className="hdr">
       <div className="logo">
@@ -200,7 +206,8 @@ function Header({ clock, mode, setMode, currentPhase, heartbeat, recon, pollSecs
             of PollIndicator (SYNC) per dispatch's "plenty of empty space"
             placement. Two pills: stocks (OPEN/CLOSED/HOLIDAY with countdown)
             + crypto (static 24/7). */}
-        <MarketStatusPill variant="pc" />
+        <MarketStatusPill variant="pc" status={marketStatus} />
+        <MarketBell marketState={marketStatus?.state} />
         <PollIndicator secs={pollSecs} pulse={pollPulse} variant="pc" />
       </div>
       <div className="clock">

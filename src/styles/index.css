@@ -547,6 +547,17 @@ body::after {
 .pc-shell .mkt-cluster {
   display: flex; align-items: center; gap: 4px;
 }
+/* 2026-06-08: market open/close bell mute toggle (header). */
+.pc-shell .market-bell-toggle,
+.mobile-shell .market-bell-toggle {
+  background: transparent; border: none; cursor: pointer; padding: 0 2px;
+  font-size: 11px; line-height: 1; opacity: 0.85;
+}
+.pc-shell .market-bell-toggle.muted,
+.mobile-shell .market-bell-toggle.muted { opacity: 0.45; }
+.pc-shell .market-bell-toggle:hover,
+.mobile-shell .market-bell-toggle:hover { opacity: 1; }
+
 .pc-shell .mkt-pill {
   display: flex; align-items: center; gap: 6px;
   padding: 3px 8px;

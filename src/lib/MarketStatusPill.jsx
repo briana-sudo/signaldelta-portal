@@ -11,8 +11,9 @@
 // drops the crypto pill (crypto is always-on context the operator already
 // knows). Operator can re-enable crypto on mobile if requested.
 // ─────────────────────────────────────────────────────────────
-import { useMarketStatus } from './useMarketStatus.js';
-
+// 2026-06-08: market-state is now LIFTED to the shell (one useMarketStatus()
+// call per shell, shared with the MarketBell). The pill consumes it as a prop —
+// no second clock/poll. `status` is required (shell always passes it).
 const STATE_CLASS = {
   OPEN:     'mkt-open',
   CLOSED:   'mkt-closed',
@@ -21,8 +22,8 @@ const STATE_CLASS = {
   FALLBACK: 'mkt-closed',
 };
 
-export default function MarketStatusPill({ variant = 'pc' }) {
-  const status = useMarketStatus();
+export default function MarketStatusPill({ variant = 'pc', status }) {
+  if (!status) return null;
   const cls = STATE_CLASS[status.state] || 'mkt-closed';
 
   if (variant === 'mobile') {

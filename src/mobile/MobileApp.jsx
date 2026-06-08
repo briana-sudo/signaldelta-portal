@@ -31,6 +31,8 @@ const RETURN_STRIP_H = 40;
 import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
+import MarketBell from '../lib/MarketBell.jsx';
+import { useMarketStatus } from '../lib/useMarketStatus.js';
 import NewsTicker from '../lib/NewsTicker.jsx';
 import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
 import StatusStrip from '../lib/StatusStrip.jsx';
@@ -69,6 +71,9 @@ export default function MobileApp({ data, errors = {}, hasAnyData = false, error
   const heartbeat = adaptHeartbeat(data);
   const recon = adaptReconciliation(data);
   const pollTimestamp = data?.pollTimestamp;
+  // 2026-06-08: ONE market-status instance for the shell — shared by the pill
+  // and the open/close bell (no second clock/poll).
+  const marketStatus = useMarketStatus();
 
   return (
     <div className="mobile-shell">
@@ -81,6 +86,7 @@ export default function MobileApp({ data, errors = {}, hasAnyData = false, error
         recon={recon}
         pollSecs={pollSecs}
         pollPulse={pollPulse}
+        marketStatus={marketStatus}
       />
       <ModeToggle mode={mode} setMode={setMode} />
       <MobileAccountBar
@@ -169,7 +175,7 @@ function MobileReconPill({ recon }) {
   );
 }
 
-function MobileHeader({ clock, mode, currentPhase, heartbeat, recon, pollSecs, pollPulse }) {
+function MobileHeader({ clock, mode, currentPhase, heartbeat, recon, pollSecs, pollPulse, marketStatus }) {
   // Section E.1 phase badge dot + Section K engine heartbeat dot + Section K
   // prominent poll indicator. Phase dot reflects paper/live/split per the
   // performanceBadge selector; engine dot reflects engine liveness independently.
@@ -195,7 +201,8 @@ function MobileHeader({ clock, mode, currentPhase, heartbeat, recon, pollSecs, p
         {/* Market status clock (2026-05-26 dispatch) — compact mobile
             variant, placed just before SYNC. Crypto pill dropped on mobile
             per dispatch (always-on context). */}
-        <MarketStatusPill variant="mobile" />
+        <MarketStatusPill variant="mobile" status={marketStatus} />
+        <MarketBell marketState={marketStatus?.state} />
         <PollIndicator secs={pollSecs} pulse={pollPulse} variant="mobile" />
       </div>
     </div>
