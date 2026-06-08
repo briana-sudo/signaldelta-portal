@@ -8,17 +8,18 @@ import { CellContents } from './ReturnsMatrixPanel.jsx';
 afterEach(cleanup);
 
 describe('ReturnsMatrix CellContents — zero-state', () => {
-  it('n=0 cohort: muted box + "—" + n=0 marker, NO numeric %', () => {
+  it('n=0 cohort: neutral box shows "0.0%" + n=0, never pos/neg colored', () => {
     const { container } = render(
       <CellContents metric={{ count: 0, meanReturnPct: null, hasData: false }} ariaLabel="x" title="x" />,
     );
     const cell = container.querySelector('.rm-cell');
     expect(cell).toBeTruthy();
-    expect(cell.classList.contains('rm-empty')).toBe(true);     // muted/neutral tile
+    expect(cell.classList.contains('rm-empty')).toBe(true);     // neutral/grey tile
     expect(cell.getAttribute('data-empty')).toBe('true');       // explicit zero-state marker
-    expect(cell.textContent).toContain('—');                    // dash placeholder
-    expect(cell.textContent).toContain('n=0');                  // n=0 sublabel
-    expect(cell.textContent).not.toContain('%');                // NO numeric % (no fabricated return)
+    expect(cell.textContent).toContain('0.0%');                 // fills the field with a value
+    expect(cell.textContent).toContain('n=0');                  // honest: no trades
+    expect(cell.classList.contains('rm-pos')).toBe(false);      // never green (no real gain)
+    expect(cell.classList.contains('rm-neg')).toBe(false);      // never red  (no real loss)
   });
 
   it('populated cohort: renders % with positive sign color, not empty', () => {
