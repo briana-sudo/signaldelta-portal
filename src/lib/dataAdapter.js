@@ -213,48 +213,108 @@ export function adaptAccountBar(data) {
   };
 }
 
-// ── Reconciliation indicator (Session 40 CHANGE 5) ────────────────────
-// Compares broker open positions against graph OPEN TradeNodes (already
-// forensic-excluded at the proxy via trade_list_recent). Returns
-// { diff:boolean, brokerCount, graphCount, onlyBroker:[...], onlyGraph:[...] }.
-// diff=true → the portal shows the amber "RECON DIFF" pill near EnginePill.
+// ── Reconciliation indicator (Session 40 CHANGE 5; netting 2026-06-06) ───
+// S50-style netted reconciliation: groups graph OPEN TradeNodes by
+// (normSymbol, direction) and sums position_size per group, then compares
+// against broker positions keyed by (normSymbol, side→direction) with their
+// consolidated qty. A reconciled multi-leg state (e.g. TS-0047 + TS-0048
+// both META Long summing to the broker's consolidated position) resolves as
+// RECONCILED and suppresses the amber badge. Only genuine divergences flag:
+//   • broker-only (sym,dir): broker position with no graph legs
+//   • graph-only (sym,dir): graph leg(s) with no broker backing
+//   • qty mismatch: netted graph qty ≠ broker qty beyond NETTING_EPSILON
+//
+// Returns { diff:boolean, brokerCount, graphCount, onlyBroker:[sym,...],
+//           onlyGraph:[sym,...], qtyMismatch:[...], unavailable:boolean }.
+// diff=true → portal shows the amber "RECON DIFF" pill near EnginePill.
+//
+// Replaces the prior raw-count comparison (brokerPosCount !== graphOpenCount)
+// that falsely flagged the legitimate 2-leg/1-broker META multi-track state.
 export function adaptReconciliation(data) {
-  // Broker side
-  const broker = adaptBrokerPositions(data);
   if (data?.brokerAccount?.account == null) {
     // Broker unavailable — can't reconcile; suppress the pill (don't false-alarm).
     return { diff: false, brokerCount: null, graphCount: null, unavailable: true };
   }
-  // Graph side — OPEN trades from the cutoff+forensic-filtered trade list.
+
+  // Tolerance mirrors the engine's S50 netting: fractional crypto sizes can
+  // differ by tiny fp amounts when summed across legs. 0.01 is safe for all
+  // Phase 1 assets (crypto positions are integer multiples of a small unit;
+  // the broker consolidates fractional fills but rounds to ~4dp).
+  const NETTING_EPSILON = 0.01;
+
+  // Normalize broker "side" ("long"/"short") to lowercase to match graph
+  // "direction" ("Long"/"Short") after lowercasing both sides.
+  function normDir(s) { return typeof s === 'string' ? s.toLowerCase() : ''; }
+
+  // ── Graph side ─────────────────────────────────────────────────────────
+  // Group OPEN TradeNodes by (normSymbol, direction); sum position_size.
   const tradeRows = Array.isArray(data?.tradeList) ? data.tradeList : [];
-  const graphOpen = new Set();
-  let graphOpenCount = 0;          // raw OPEN trade count (per-trade)
+  const graphNet = new Map();   // "SYM|dir" → summed position_size
   for (const t of tradeRows) {
-    if (t?.status === 'OPEN' && t.asset) {
-      graphOpen.add(normSymbol(t.asset));
-      graphOpenCount += 1;
+    if (t?.status !== 'OPEN' || !t.asset) continue;
+    const sym = normSymbol(t.asset);
+    const dir = normDir(t.direction);
+    const key = sym + '|' + dir;
+    // position_size is §8-required (never null); fallback 1 guards any
+    // pre-restart rows that predate the query addition (2026-06-06).
+    const qty = (t.position_size != null && Number.isFinite(Number(t.position_size)))
+      ? Number(t.position_size) : 1;
+    graphNet.set(key, (graphNet.get(key) ?? 0) + qty);
+  }
+
+  // ── Broker side ────────────────────────────────────────────────────────
+  // Key each Alpaca position by (normSymbol, side). Alpaca always gives one
+  // row per symbol per side, so no summing needed, but we use the same map
+  // pattern for symmetry.
+  const positions = Array.isArray(data?.brokerAccount?.positions)
+    ? data.brokerAccount.positions : [];
+  const brokerNet = new Map();  // "SYM|dir" → qty
+  for (const p of positions) {
+    const sym = normSymbol(p?.symbol);
+    if (!sym) continue;
+    const dir = normDir(p?.side);
+    const key = sym + '|' + dir;
+    const qty = (p?.qty != null && Number.isFinite(Number(p.qty)))
+      ? Number(p.qty) : 0;
+    brokerNet.set(key, (brokerNet.get(key) ?? 0) + qty);
+  }
+
+  // ── Compare ────────────────────────────────────────────────────────────
+  const allKeys = new Set([...graphNet.keys(), ...brokerNet.keys()]);
+  const onlyBrokerDetails = [];   // broker positions with no graph legs
+  const onlyGraphDetails = [];    // graph legs with no broker backing
+  const qtyMismatch = [];         // matched (sym,dir) but qty outside epsilon
+
+  for (const key of allKeys) {
+    const gQty = graphNet.get(key);
+    const bQty = brokerNet.get(key);
+    const [sym, dir] = key.split('|');
+    if (gQty === undefined) {
+      onlyBrokerDetails.push({ sym, dir, brokerQty: bQty });
+    } else if (bQty === undefined) {
+      onlyGraphDetails.push({ sym, dir, graphQty: gQty });
+    } else if (Math.abs(gQty - bQty) > NETTING_EPSILON) {
+      qtyMismatch.push({ sym, dir, graphQty: gQty, brokerQty: bQty });
     }
   }
-  // v1.6 Fix 3 (2026-05-29): count-aware reconciliation. The prior symbol-
-  // set diff missed the 2-positions-vs-3-trades case (two SPY trades dedupe
-  // to one symbol). Compare RAW COUNTS — broker positions.length vs graph
-  // OPEN TradeNode count — as the primary trigger, AND keep the symbol-set
-  // diff for cases where counts match but assets differ.
-  const brokerPosCount = Array.isArray(data?.brokerAccount?.positions)
-    ? data.brokerAccount.positions.length : broker.symbols.size;
-  const onlyBroker = [...broker.symbols].filter((s) => !graphOpen.has(s));
-  const onlyGraph = [...graphOpen].filter((s) => !broker.symbols.has(s));
-  const countMismatch = brokerPosCount !== graphOpenCount;
-  const symbolMismatch = onlyBroker.length > 0 || onlyGraph.length > 0;
-  const diff = countMismatch || symbolMismatch;
+
+  const diff = onlyBrokerDetails.length > 0
+            || onlyGraphDetails.length > 0
+            || qtyMismatch.length > 0;
+
+  // brokerCount / graphCount = number of distinct netted (sym,dir) groups —
+  // shown in the badge label (e.g. "RECON DIFF: 1 broker vs 2 graph").
+  // onlyBroker / onlyGraph = symbol strings for the tooltip (legacy shape).
   return {
     diff,
-    brokerCount: brokerPosCount,   // raw broker positions
-    graphCount: graphOpenCount,    // raw graph OPEN trades
-    onlyBroker,
-    onlyGraph,
-    countMismatch,
-    symbolMismatch,
+    brokerCount: brokerNet.size,
+    graphCount: graphNet.size,
+    onlyBroker: onlyBrokerDetails.map((x) => x.sym),
+    onlyGraph:  onlyGraphDetails.map((x) => x.sym),
+    qtyMismatch,
+    // legacy compat — callers that checked these booleans still work
+    countMismatch: brokerNet.size !== graphNet.size,
+    symbolMismatch: onlyBrokerDetails.length > 0 || onlyGraphDetails.length > 0,
     unavailable: false,
   };
 }
