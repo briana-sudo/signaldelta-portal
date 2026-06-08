@@ -34,7 +34,7 @@ import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
 import MarketBell from '../lib/MarketBell.jsx';
-import { computeOpenLegPnl } from '../lib/openPnl.js';
+import { computeOpenLegPnl, computeOpenProgress } from '../lib/openPnl.js';
 import { useMarketStatus } from '../lib/useMarketStatus.js';
 import NewsTicker from '../lib/NewsTicker.jsx';
 import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
@@ -659,7 +659,7 @@ function TradeListRow({ t, m4State = 'absent', unmonitoredSet = null }) {
     // price already on the row (adapter `cur`); it was only drifted in the view.
     const livePriced = !!t.brokerPriced;
     const cur = t.cur;                  // CURRENT column = real broker price (no drift)
-    const { pp, pv, pos, isShort, sign } = computeOpenLegPnl({
+    const { pp, pv, pos } = computeOpenLegPnl({
       currentPx: t.cur, entryPx: t.entry ?? 0, size: t.size ?? 0,
       direction: t.direction, target: t.target,
     });
@@ -685,23 +685,19 @@ function TradeListRow({ t, m4State = 'absent', unmonitoredSet = null }) {
     //   - winning side: green fill toward target (denominator = target range)
     //   - losing side:  red fill toward stop      (denominator = stop range)
     //   - no-broker:    grey "NO LIVE PRICE" badge, no fill.
-    // Stop and target prices are already on the row (trade_list_recent
-    // returns t.stop_loss_price and t.target_price; adaptTradeList sets
-    // `brokerPriced` from priceBySymbol match on /broker_account positions).
-    // livePriced / isShort / sign are computed once at the top of this block.
-    const targetRange = Math.abs((t.target ?? 0) - (t.entry ?? 0));
-    const stopRange = Math.abs((t.entry ?? 0) - (t.stop ?? 0));
-    const signedMove = (cur - (t.entry ?? 0)) * sign; // >0 toward target, <0 toward stop
-    const winning = signedMove >= 0;
-    const progPct = winning
-      ? (targetRange ? Math.min(100, (signedMove / targetRange) * 100) : 0)
-      : (stopRange   ? Math.min(100, (-signedMove / stopRange) * 100) : 0);
-    const progClr = !livePriced ? 'var(--w3)' : (winning ? 'var(--green)' : 'var(--red)');
-    const progLabel = !livePriced
-      ? 'NO LIVE PRICE'
-      : winning
-        ? `${progPct.toFixed(0)}% TO TARGET`
-        : `${progPct.toFixed(0)}% TO STOP`;
+    // 2026-06-08: "% TO STOP" measures against the LIVE current_stop (breakeven/
+    // trailing-adjusted), fallback entry stop_loss_price; BE guard when the stop
+    // has ratcheted to/past entry. See computeOpenProgress.
+    const prog = computeOpenProgress({
+      cur, entry: t.entry, target: t.target,
+      currentStop: t.currentStop, stop: t.stop,
+      direction: t.direction, livePriced,
+    });
+    const progPct = prog.progPct;
+    const progLabel = prog.label;
+    const progClr = prog.mode === 'nolive' ? 'var(--w3)'
+                  : prog.mode === 'be' ? 'var(--w2)'          // neutral/locked, NOT red
+                  : prog.winning ? 'var(--green)' : 'var(--red)';
     // Portal v1.16 (2026-05-30): per-row monitor LIGHT under the asset cell.
     // Replaces the v1.15 visible trade-ID sub-label (clutter) and the dormant
     // Option-I badge that hid in the % TO TARGET cell (invisible when

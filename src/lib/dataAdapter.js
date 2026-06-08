@@ -414,6 +414,10 @@ export function adaptTradeList(data) {
       brokerPriced: status !== 'CLOSED' && brokerCur != null && Number.isFinite(brokerCur),
       exit,
       stop,
+      // Live breakeven/trailing-adjusted stop for the "% TO STOP" progress bar
+      // (2026-06-08). Null when the proxy hasn't shipped current_stop or it's a
+      // closed row → progress falls back to the entry `stop`.
+      currentStop: r.current_stop != null ? Number(r.current_stop) : null,
       target,
       status,
       pnl: status === 'CLOSED' ? realizedPnl : 0,

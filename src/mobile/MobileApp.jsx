@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
-import { computeOpenLegPnl } from '../lib/openPnl.js';
+import { computeOpenLegPnl, computeOpenProgress } from '../lib/openPnl.js';
 import TradesExpandModal from '../pc/TradesExpandModal.jsx';
 import {
   SCANNER_ASSETS, WEEKLY_WATERFALL, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
@@ -425,7 +425,7 @@ function MobileTradeCard({ t, m4State = 'absent', unmonitoredSet = null }) {
     // entry, NO drift (mirror of PC TradeListRow). Sign comes from real P&L.
     const livePriced = !!t.brokerPriced;
     const cur = t.cur;                  // CURRENT = real broker price (no drift)
-    const { pp, pv, pos, isShort, sign } = computeOpenLegPnl({
+    const { pp, pv, pos } = computeOpenLegPnl({
       currentPx: t.cur, entryPx: t.entry ?? 0, size: t.size ?? 0,
       direction: t.direction, target: t.target,
     });
@@ -445,20 +445,18 @@ function MobileTradeCard({ t, m4State = 'absent', unmonitoredSet = null }) {
     // Was: clamp(0,100, (cur-entry)/(target-entry)) — hid every loss
     // direction and silently fell back to entry on broker miss. See PC
     // TradeListRow comment for the full rationale.
-    // livePriced / isShort / sign are computed once at the top of this block.
-    const targetRange = Math.abs((t.target ?? 0) - (t.entry ?? 0));
-    const stopRange = Math.abs((t.entry ?? 0) - (t.stop ?? 0));
-    const signedMove = (cur - (t.entry ?? 0)) * sign;
-    const winning = signedMove >= 0;
-    const progPct = winning
-      ? (targetRange ? Math.min(100, (signedMove / targetRange) * 100) : 0)
-      : (stopRange   ? Math.min(100, (-signedMove / stopRange) * 100) : 0);
-    const progClr = !livePriced ? 'var(--w3)' : (winning ? 'var(--green)' : 'var(--red)');
-    const progLabel = !livePriced
-      ? 'NO LIVE PRICE'
-      : winning
-        ? `${progPct.toFixed(0)}% TO TARGET`
-        : `${progPct.toFixed(0)}% TO STOP`;
+    // 2026-06-08: "% TO STOP" uses the LIVE current_stop (fallback entry stop) +
+    // BE guard. Shared helper => PC/mobile parity. See computeOpenProgress.
+    const prog = computeOpenProgress({
+      cur, entry: t.entry, target: t.target,
+      currentStop: t.currentStop, stop: t.stop,
+      direction: t.direction, livePriced,
+    });
+    const progPct = prog.progPct;
+    const progLabel = prog.label;
+    const progClr = prog.mode === 'nolive' ? 'var(--w3)'
+                  : prog.mode === 'be' ? 'var(--w2)'          // neutral/locked, NOT red
+                  : prog.winning ? 'var(--green)' : 'var(--red)';
     return (
       <div className="pos-card card-open">
         <div className="pc-row1">
