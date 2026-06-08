@@ -1742,20 +1742,21 @@ body::after {
 .pc-shell .rm-cell.rm-flat .rm-cell-pct,
 .mobile-shell .rm-cell.rm-flat .rm-cell-pct { color: var(--w2); }
 
-/* 2026-06-08: n=0 cohorts read as an INTENTIONAL muted tile — a solid muted
-   border (same box weight as populated cells, not the old near-invisible 0.08
-   dashed that made "—" look like it was floating in a gap) + a faint neutral
-   fill. The dim "—" + "n=0 · no trades" sublabel make "no closed trades yet"
-   obvious, distinct from a render failure or a measured 0%. */
+/* 2026-06-08: n=0 cohorts read as an INTENTIONAL, COMPLETE tile — same visual
+   WEIGHT as a populated cell, only neutral in color. SOLID full-opacity neutral
+   grey border + a real grey fill (opacity matched to the populated cells' tint
+   weight, grey instead of green/red), so empty tiles are indistinguishable in
+   weight from populated ones — never a hollow gap or render failure. The
+   "—" + "n=0 · no trades" label stays fully legible (no fabricated value). */
 .pc-shell .rm-cell.rm-empty,
 .mobile-shell .rm-cell.rm-empty {
-  background: rgba(122,155,184,0.05);
-  border: 1px solid rgba(122,155,184,0.22);
+  background: rgba(138,160,184,0.10);
+  border: 1px solid rgba(138,160,184,0.45);
 }
 .pc-shell .rm-cell.rm-empty .rm-cell-pct,
-.mobile-shell .rm-cell.rm-empty .rm-cell-pct { color: var(--w3); opacity: 0.85; }
+.mobile-shell .rm-cell.rm-empty .rm-cell-pct { color: var(--w2); opacity: 1; }
 .pc-shell .rm-cell.rm-empty .rm-cell-n,
-.mobile-shell .rm-cell.rm-empty .rm-cell-n { color: var(--w3); opacity: 0.8; }
+.mobile-shell .rm-cell.rm-empty .rm-cell-n { color: var(--w2); opacity: 1; }
 
 /* Bootstrap message (no node yet) */
 .pc-shell .p-returns .rm-bootstrap,
