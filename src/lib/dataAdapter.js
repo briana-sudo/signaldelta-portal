@@ -407,6 +407,9 @@ export function adaptTradeList(data) {
       conv: c.cls,
       cl: c.label,
       entry,
+      // Leg position_size — used for the OPEN-row since-entry pnl$ compute
+      // (2026-06-08, Item 93). Already on the trade_list_* RETURN columns.
+      size: Number(r.position_size) || 0,
       cur: status === 'CLOSED' ? (exit ?? entry) : openCur,
       brokerPriced: status !== 'CLOSED' && brokerCur != null && Number.isFinite(brokerCur),
       exit,

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
-import { usePositionDrift } from '../lib/useDrift.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
 import {
   SCANNER_ASSETS, WEEKLY_WATERFALL, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
@@ -35,6 +34,7 @@ import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
 import MarketBell from '../lib/MarketBell.jsx';
+import { computeOpenLegPnl } from '../lib/openPnl.js';
 import { useMarketStatus } from '../lib/useMarketStatus.js';
 import NewsTicker from '../lib/NewsTicker.jsx';
 import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
@@ -573,13 +573,9 @@ function TradeListPanel({ mode, data }) {
   const bootstrap = shouldRenderBootstrap(mode) || !liveTrades;
   const trades = liveTrades ?? [];
   const openTrades = trades.filter((t) => t.status === 'OPEN');
-  // Drift only over the OPEN rows. usePositionDrift expects positions[i]; we
-  // pass open-only and look up by request_id when rendering.
-  const openOffsets = usePositionDrift(openTrades, {
-    pollTimestamp: data?.pollTimestamp,
-    enabled: !bootstrap,
-  });
-  const openOffsetByReq = new Map(openTrades.map((t, i) => [t.requestId, openOffsets[i] ?? 0]));
+  // 2026-06-08 (Item 93): the cosmetic per-row price drift is GONE. OPEN-row
+  // P&L is now a real since-entry compute (live price vs graph entry) done in
+  // TradeListRow — no random offset feeds any displayed price or P&L.
   // Portal v1.14 P2.4 (2026-05-30): build the M4 monitor-coverage Set from
   // AccountStateNode.monitor_coverage_unmonitored_trade_ids — union across
   // all accounts (current portal has one account, future-proof for many).
@@ -636,7 +632,6 @@ function TradeListPanel({ mode, data }) {
           ) : trades.slice(0, capPc).map((t) => (
             <TradeListRow key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
                           t={t}
-                          offset={openOffsetByReq.get(t.requestId) ?? 0}
                           m4State={m4State}
                           unmonitoredSet={unmonitoredSet} />
           ))}
@@ -654,14 +649,21 @@ function TradeListPanel({ mode, data }) {
   );
 }
 
-function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) {
+function TradeListRow({ t, m4State = 'absent', unmonitoredSet = null }) {
   const isOpen = t.status === 'OPEN';
   if (isOpen) {
-    const pv = t.pnl + offset;
-    const pp = t.pnlPct + (t.entry ? (offset / t.entry) * 100 : 0);
-    const cur = t.cur + offset * 0.01;
-    const pos = pv >= 0;
-    const clr = pos ? 'var(--green)' : 'var(--red)';
+    // 2026-06-08 (Item 93): REAL since-entry P&L per leg — live price vs graph
+    // entry, NO drift. The old `t.pnl/t.pnlPct + offset` was a random walk over
+    // the null engine field (the displayed value AND its green/red sign were
+    // noise; a losing long could render green). currentPx is the real broker
+    // price already on the row (adapter `cur`); it was only drifted in the view.
+    const livePriced = !!t.brokerPriced;
+    const cur = t.cur;                  // CURRENT column = real broker price (no drift)
+    const { pp, pv, pos, isShort, sign } = computeOpenLegPnl({
+      currentPx: t.cur, entryPx: t.entry ?? 0, size: t.size ?? 0,
+      direction: t.direction, target: t.target,
+    });
+    const clr = !livePriced ? 'var(--w3)' : (pos ? 'var(--green)' : 'var(--red)');
     // Portal v1.16 (2026-05-30): M4 monitor-coverage join key derivation.
     // Used by the per-row monitor LIGHT under the asset name (see below).
     // Replaced the v1.14 P2.4 progress-cell takeover that became invisible
@@ -686,9 +688,7 @@ function TradeListRow({ t, offset, m4State = 'absent', unmonitoredSet = null }) 
     // Stop and target prices are already on the row (trade_list_recent
     // returns t.stop_loss_price and t.target_price; adaptTradeList sets
     // `brokerPriced` from priceBySymbol match on /broker_account positions).
-    const livePriced = !!t.brokerPriced;
-    const isShort = t.direction === 'Short' || (t.target != null && t.entry != null && t.target < t.entry);
-    const sign = isShort ? -1 : 1;
+    // livePriced / isShort / sign are computed once at the top of this block.
     const targetRange = Math.abs((t.target ?? 0) - (t.entry ?? 0));
     const stopRange = Math.abs((t.entry ?? 0) - (t.stop ?? 0));
     const signedMove = (cur - (t.entry ?? 0)) * sign; // >0 toward target, <0 toward stop

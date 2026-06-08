@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClock, usePollCountdown } from '../lib/useClock.js';
-import { usePositionDrift } from '../lib/useDrift.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
+import { computeOpenLegPnl } from '../lib/openPnl.js';
 import TradesExpandModal from '../pc/TradesExpandModal.jsx';
 import {
   SCANNER_ASSETS, WEEKLY_WATERFALL, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
@@ -344,8 +344,8 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
   const tradesBoot = shouldRenderBootstrap(mode) || !liveTrades;
   const trades = liveTrades ?? [];
   const openTrades = trades.filter((t) => t.status === 'OPEN');
-  const openOffsets = usePositionDrift(openTrades, { pollTimestamp, enabled: !tradesBoot });
-  const openOffsetByReq = new Map(openTrades.map((t, i) => [t.requestId, openOffsets[i] ?? 0]));
+  // 2026-06-08 (Item 93): cosmetic price drift removed — OPEN-row P&L is a real
+  // since-entry compute in MobileTradeCard (mirrors PC TradeListRow).
   // Portal v1.14 P3.3 (2026-05-30): M4 monitor-coverage Set for the badge
   // in MobileTradeCard (R5 Option I). Same precedence as PC TradeListRow.
   const stateAccounts = adaptAccountState(data).accounts;
@@ -390,7 +390,6 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
         ) : trades.slice(0, capMobile).map((t) => (
           <MobileTradeCard key={t.requestId || `${t.asset}-${t.entryTimestamp}`}
                            t={t}
-                           offset={openOffsetByReq.get(t.requestId) ?? 0}
                            m4State={m4State}
                            unmonitoredSet={unmonitoredSet} />
         ))}
@@ -419,14 +418,18 @@ function DeskTab({ mode, data, eventsCount, pollTimestamp }) {
   );
 }
 
-function MobileTradeCard({ t, offset, m4State = 'absent', unmonitoredSet = null }) {
+function MobileTradeCard({ t, m4State = 'absent', unmonitoredSet = null }) {
   const isOpen = t.status === 'OPEN';
   if (isOpen) {
-    const pv = t.pnl + offset;
-    const pp = t.pnlPct + (t.entry ? (offset / t.entry) * 100 : 0);
-    const cur = t.cur + offset * 0.01;
-    const pos = pv >= 0;
-    const clr = pos ? 'var(--green)' : 'var(--red)';
+    // 2026-06-08 (Item 93): REAL since-entry P&L per leg — live price vs graph
+    // entry, NO drift (mirror of PC TradeListRow). Sign comes from real P&L.
+    const livePriced = !!t.brokerPriced;
+    const cur = t.cur;                  // CURRENT = real broker price (no drift)
+    const { pp, pv, pos, isShort, sign } = computeOpenLegPnl({
+      currentPx: t.cur, entryPx: t.entry ?? 0, size: t.size ?? 0,
+      direction: t.direction, target: t.target,
+    });
+    const clr = !livePriced ? 'var(--w3)' : (pos ? 'var(--green)' : 'var(--red)');
     // Portal v1.16 (2026-05-30): M4 monitor-coverage join key derivation.
     // Used by the per-row monitor LIGHT inside .pc-asset-wrap (below).
     // Replaced the v1.14 P3.3 progress-cell takeover that became invisible
@@ -442,9 +445,7 @@ function MobileTradeCard({ t, offset, m4State = 'absent', unmonitoredSet = null 
     // Was: clamp(0,100, (cur-entry)/(target-entry)) — hid every loss
     // direction and silently fell back to entry on broker miss. See PC
     // TradeListRow comment for the full rationale.
-    const livePriced = !!t.brokerPriced;
-    const isShort = t.direction === 'Short' || (t.target != null && t.entry != null && t.target < t.entry);
-    const sign = isShort ? -1 : 1;
+    // livePriced / isShort / sign are computed once at the top of this block.
     const targetRange = Math.abs((t.target ?? 0) - (t.entry ?? 0));
     const stopRange = Math.abs((t.entry ?? 0) - (t.stop ?? 0));
     const signedMove = (cur - (t.entry ?? 0)) * sign;
