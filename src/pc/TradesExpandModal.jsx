@@ -26,6 +26,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { adaptTradeList } from '../lib/dataAdapter.js';
 import { callTradesWindow, callTradesClosedDay } from '../hooks/useNeo4jPoll.js';
 import { etDayRange } from '../lib/etDay.js';
+import ModalPortal from '../lib/ModalPortal.jsx';
 
 const WINDOW_PRESETS = [
   { key: '6h',  label: '6H',  ms: 6 * 3600 * 1000 },
@@ -356,7 +357,7 @@ export default function TradesExpandModal({
     );
   })();
 
-  return (
+  const sheet = (
     <div className={isMobile ? 'm-trades-sheet' : 'overlay show'} onClick={onClose}>
       <div
         className={isMobile ? 'm-trades-sheet-card' : 'ov-card trades-expand-card'}
@@ -379,4 +380,7 @@ export default function TradesExpandModal({
       </div>
     </div>
   );
+  // 2026-06-08: mobile renders through a body-portal so the sheet sits above the
+  // sticky header (close button hit-testable); PC render path is unchanged.
+  return isMobile ? <ModalPortal>{sheet}</ModalPortal> : sheet;
 }

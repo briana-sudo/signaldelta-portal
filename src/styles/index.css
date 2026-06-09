@@ -425,7 +425,10 @@ body::after {
 /* trades expand — mobile full-screen sheet (Portal v1.17, 2026-06-04).
    Mirrors PC TradesExpandModal; full-screen dim-layer + scrollable card body. */
 .mobile-shell .trades-expand-btn { margin-left:8px; font-family:var(--mono); font-size:8px; letter-spacing:1px; color:var(--cyan); background:transparent; border:1px solid var(--cyan); padding:2px 6px; cursor:pointer; text-transform:uppercase; }
-.mobile-shell .m-trades-sheet { position:fixed; inset:0; z-index:1000; display:flex; align-items:flex-end; justify-content:center; background:rgba(6,13,24,.55); }
+/* 2026-06-08: portal'd modals must sit ABOVE the sticky mobile header (z-index
+   10000). The modal-portal wrapper is inert (display:contents). */
+.modal-portal { display: contents; }
+.mobile-shell .m-trades-sheet { position:fixed; inset:0; z-index:100000; display:flex; align-items:flex-end; justify-content:center; background:rgba(6,13,24,.55); }
 .mobile-shell .m-trades-sheet-card { background:var(--navy2); border-top:1px solid var(--border); width:100%; max-height:88vh; display:flex; flex-direction:column; animation:card-in .3s ease; }
 .mobile-shell .m-trades-sheet-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--border); font-family:var(--disp); font-weight:900; font-size:11px; letter-spacing:2px; text-transform:uppercase; }
 .mobile-shell .m-trades-sheet-head > span:first-child { display:flex; align-items:center; gap:8px; }
@@ -1613,6 +1616,34 @@ body::after {
   padding: 2px 8px; cursor: pointer;
 }
 .pc-shell .hs-overlay-close:hover { color: var(--red); border-color: var(--red); }
+
+/* 2026-06-08: mobile Account Health popup — portal'd above the sticky header
+   (z-index 10000). Mirrors the PC overlay; centered, viewport-bounded. */
+.mobile-shell .hs-overlay-scrim {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center; z-index: 100001;
+  padding: 16px;
+}
+.mobile-shell .hs-overlay {
+  background: var(--navy3); border: 1px solid var(--cyan);
+  width: min(560px, 94vw); max-height: 82vh; overflow: auto;
+  padding: 0; box-shadow: 0 0 24px rgba(0,194,255,0.25);
+}
+.mobile-shell .hs-overlay-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  background: var(--navy2); position: sticky; top: 0;
+}
+.mobile-shell .hs-overlay-title {
+  font-family: var(--disp); font-weight: 600; font-size: 11px;
+  letter-spacing: 1.5px; color: var(--white); text-transform: uppercase; flex: 1;
+}
+.mobile-shell .hs-overlay-close {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--w2); font-family: var(--mono); font-size: 14px;
+  padding: 4px 12px; cursor: pointer; min-width: 40px; min-height: 32px;
+}
+.mobile-shell .hs-overlay-close:active { color: var(--red); border-color: var(--red); }
 
 .mobile-shell .health-strip.hs-mobile-data .hs-detail-block { margin-top: 4px; }
 

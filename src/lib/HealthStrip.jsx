@@ -22,6 +22,7 @@
 // freshness stamp. ONE detail surface for all states.
 import { useEffect, useMemo, useState } from 'react';
 import { adaptAccountState, adaptHealthHistory } from './dataAdapter.js';
+import ModalPortal from './ModalPortal.jsx';
 
 const STALE_MS = 90 * 1000;
 
@@ -103,10 +104,12 @@ function HealthStripRow({ account: a, data, nowMs, layout, isOpen, onToggle }) {
   // expand only (so the strip stays one line on PC).
   const summaryReason = reasons.length > 0 ? reasons[0] : null;
 
-  // Inline expand allowed for mobile-data RED only (per dispatch P3.2).
-  // PC always opens the overlay regardless of state (unified affordance).
-  const inlineExpand = layout === 'mobile-data' && a.healthState === 'RED' && isOpen;
-  const overlayOpen  = layout === 'pc' && isOpen;
+  // 2026-06-08: BOTH shells open the Account Health detail as an overlay popup.
+  // Was: mobile-data inline-expanded RED only — non-RED toggles rendered nothing,
+  // so the popup "never appeared". Mobile now portals the overlay above the
+  // sticky header. PC overlay render path is unchanged.
+  const overlayPc     = layout === 'pc' && isOpen;
+  const overlayMobile = layout === 'mobile-data' && isOpen;
 
   return (
     <>
@@ -151,11 +154,13 @@ function HealthStripRow({ account: a, data, nowMs, layout, isOpen, onToggle }) {
           {isOpen ? 'hide details' : 'details'}
         </button>
       </div>
-      {inlineExpand && (
-        <HealthDetailBlock account={a} data={data} nowMs={nowMs} />
-      )}
-      {overlayOpen && (
+      {overlayPc && (
         <HealthDetailOverlay account={a} data={data} nowMs={nowMs} onClose={onToggle} />
+      )}
+      {overlayMobile && (
+        <ModalPortal>
+          <HealthDetailOverlay account={a} data={data} nowMs={nowMs} onClose={onToggle} />
+        </ModalPortal>
       )}
     </>
   );

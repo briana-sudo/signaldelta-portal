@@ -239,7 +239,7 @@ function PaceBadge({ pace }) {
   );
 }
 
-function MobileAccountBar({ mode, liveAccountBar, data }) {
+export function MobileAccountBar({ mode, liveAccountBar, data }) {
   // Session 40 rebuild (2026-05-29): broker-sourced live state, same as PC.
   // Current Value / Today P&L are broker-derived (null when broker down →
   // dash); Total Return stays graph-sourced.
@@ -313,6 +313,14 @@ function MobileAccountBar({ mode, liveAccountBar, data }) {
               {dayWins}/{dayTotal}{dayTotal ? ` · ${dayPct}%` : ''}
             </span>
           )}
+      </div>
+      {/* 2026-06-08: TRADES + OPEN tiles — mobile parity with the PC banner;
+          same source fields (liveAccountBar.trades / .open), cyan tone. */}
+      <div className="aitem"><span className="alabel">Trades</span>
+        <span className="aval c">{bootstrap ? 0 : (liveAccountBar?.trades ?? 0)}</span>
+      </div>
+      <div className="aitem"><span className="alabel">Open</span>
+        <span className="aval c">{bootstrap || liveAccountBar?.open == null ? '—' : liveAccountBar.open}</span>
       </div>
       {/* Poll indicator moved to mobile header per Change 3 dispatch */}
     </div>
