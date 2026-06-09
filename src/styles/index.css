@@ -829,16 +829,15 @@ body::after {
 .pc-shell .scanner-ctx .dot-stale   { background:var(--amber); box-shadow:0 0 5px var(--amber); animation:pdot 4s ease-in-out infinite; }
 .pc-shell .scanner-ctx .dot-stopped { background:var(--red); }
 .pc-shell .scanner-ctx .ctx-blocked { color:var(--red); border:1px solid var(--red); background:var(--red2); padding:0 4px; margin-left:5px; letter-spacing:1px; }
-/* score column now stacks the number + a tiny age tag */
+/* score column stacks the number + the age tag */
 .pc-shell .scol { display:flex; flex-direction:column; align-items:flex-end; justify-content:center; }
-.pc-shell .sage { font-family:var(--mono); font-size:6px; letter-spacing:.5px; color:var(--w3); margin-top:1px; }
-.pc-shell .sage.sage-stale { color:var(--amber); opacity:.9; }
-/* lit-but-stale: a real score, no open position, older than the cutoff —
-   desaturate the bar + score so it reads inactive (the amber age tag explains why) */
-.pc-shell .srow.stale { border-color:rgba(255,171,0,0.18); }
-.pc-shell .srow.stale .sbar-fill { opacity:.35; filter:saturate(.4); }
-.pc-shell .srow.stale .sscore { opacity:.5; }
-.pc-shell .srow.stale .sasset { color:var(--w2); }
+/* Score-age tag (Tier 1.1, 2026-06-09): a primary signal now, sized like one.
+   ONE neutral tone always (--w2, outside the green/cyan/amber magnitude
+   palette so it never reads as a score band); staleness is emphasized by
+   weight only — no color shift, no row dim, so the board stays crisp even
+   when every row is stale. */
+.pc-shell .sage { font-family:var(--mono); font-size:12px; line-height:1.1; letter-spacing:.3px; color:var(--w2); margin-top:2px; }
+.pc-shell .sage.sage-stale { font-weight:700; }
 
 /* positions table */
 .pc-shell .pos-table { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:9px; flex:1; }
@@ -1392,12 +1391,11 @@ body::after {
 .mobile-shell .scanner-ctx .dot-stopped { background:var(--red); }
 .mobile-shell .scanner-ctx .ctx-blocked { color:var(--red); border:1px solid var(--red); background:var(--red2); padding:0 5px; margin-left:5px; letter-spacing:1px; }
 .mobile-shell .scol { display:flex; flex-direction:column; align-items:flex-end; justify-content:center; }
-.mobile-shell .sage { font-family:var(--mono); font-size:7px; letter-spacing:.5px; color:var(--w3); margin-top:2px; }
-.mobile-shell .sage.sage-stale { color:var(--amber); opacity:.9; }
-.mobile-shell .srow.stale { border-color:rgba(255,171,0,0.18); }
-.mobile-shell .srow.stale .sbar-fill { opacity:.35; filter:saturate(.4); }
-.mobile-shell .srow.stale .sscore { opacity:.5; }
-.mobile-shell .srow.stale .sasset { color:var(--w2); }
+/* Score-age tag (Tier 1.1, 2026-06-09): primary signal, neutral --w2 tone
+   always (off the magnitude palette), stale emphasized by weight only — no
+   color shift, no row dim. See PC .sage for rationale. */
+.mobile-shell .sage { font-family:var(--mono); font-size:13px; line-height:1.1; letter-spacing:.3px; color:var(--w2); margin-top:2px; }
+.mobile-shell .sage.sage-stale { font-weight:700; }
 
 /* mobile metric cards */
 .mobile-shell .mc { display:flex; align-items:center; justify-content:space-between; background:var(--navy3); border:1px solid var(--border); padding:10px 12px; margin-bottom:6px; gap:10px; }

@@ -548,8 +548,11 @@ function ScannerRow({ a, fallback }) {
   const isFired = !fallback && a.fired;
   const isStale = !fallback && a.stale;
   let cls = 'srow';
+  // Tier 1.1 (2026-06-09): staleness no longer dims the row body — it's
+  // carried by the larger age tag + the strip summary, so the board reads
+  // crisp even when every row is stale. `thresh` (score-band ≥65) is the
+  // only body highlight; `isStale` now only weights the age tag.
   if (isFired) cls += ' fired';
-  else if (isStale) cls += ' stale';
   else if (showScore && a.score >= 65) cls += ' thresh';
   return (
     <div className={cls}>
