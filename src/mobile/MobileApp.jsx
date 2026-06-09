@@ -15,6 +15,7 @@ import {
   adaptTradeList, selectVisibleTrades, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation,
   adaptAccountState,
+  ageTag,
   buildWeekFrame,
   fmtCloseET,
   assetClassTag,
@@ -29,6 +30,7 @@ const STRONG_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'strong')?.dailyMinPct
 const ELITE_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'elite')?.dailyMinPct ?? Infinity;
 const RETURN_STRIP_H = 40;
 import EnginePill from '../lib/EnginePill.jsx';
+import ScannerContext from '../lib/ScannerContext.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
 import MarketBell from '../lib/MarketBell.jsx';
@@ -720,6 +722,9 @@ function ScanTab({ mode, data }) {
         sym: a.sym, sub: a.track, score: 0, hasScore: false, fired: false,
       }))
     : scanRows;
+  // Tier 1 (2026-06-09): freshest score age across scored rows for the strip.
+  const scoredAges = fallback ? [] : rows.filter((r) => r.hasScore && r.ageMin != null).map((r) => r.ageMin);
+  const lastClearAgeMin = scoredAges.length ? Math.min(...scoredAges) : null;
   // Portal v1.8 P2 (2026-05-29): mobile renders a SINGLE copy of the rows.
   // The `doubled = [...rows, ...rows]` was only there to seam the desktop-
   // style vscroll ticker. With the mobile animation disabled in CSS, a
@@ -731,6 +736,7 @@ function ScanTab({ mode, data }) {
         <span><span className="ptitle-bar" />SIGNAL SCANNER</span>
         <span className="ptitle-r">{rows.length} ASSETS</span>
       </div>
+      <ScannerContext data={data} lastClearAgeMin={lastClearAgeMin} />
       <div className="scanner-list">
         <div className="scanner-list-inner">
           {rows.map((a, i) => (
@@ -745,8 +751,10 @@ function ScanTab({ mode, data }) {
 function MobileScannerRow({ a, fallback }) {
   const showScore = !fallback && a.hasScore;
   const isFired = !fallback && a.fired;
+  const isStale = !fallback && a.stale;
   let cls = 'srow';
   if (isFired) cls += ' fired';
+  else if (isStale) cls += ' stale';
   else if (showScore && a.score >= 65) cls += ' thresh';
   return (
     <div className={cls}>
@@ -763,8 +771,13 @@ function MobileScannerRow({ a, fallback }) {
           <div className="sbuilding">BUILDING DATA</div>
         )}
       </div>
-      <div className={'sscore ' + (showScore ? scoreCls(a.score) : 'lo')}>
-        {showScore ? a.score : '·'}
+      <div className="scol">
+        <div className={'sscore ' + (showScore ? scoreCls(a.score) : 'lo')}>
+          {showScore ? a.score : '·'}
+        </div>
+        {showScore && a.ageMin != null && (
+          <div className={'sage' + (isStale ? ' sage-stale' : '')}>{ageTag(a.ageMin)}</div>
+        )}
       </div>
       {isFired && <div className="fired-badge">FIRED</div>}
     </div>

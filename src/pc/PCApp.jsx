@@ -13,6 +13,7 @@ import {
   adaptTradeList, selectVisibleTrades, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation, adaptPriceTicker,
   adaptAccountState,
+  ageTag,
   buildWeekFrame,
   fmtCloseET,
   assetClassTag,
@@ -31,6 +32,7 @@ const ELITE_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'elite')?.dailyMinPct ?
 // it to the ~24px CSS box beneath the equity curve).
 const RETURN_STRIP_H = 40;
 import EnginePill from '../lib/EnginePill.jsx';
+import ScannerContext from '../lib/ScannerContext.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
 import MarketBell from '../lib/MarketBell.jsx';
@@ -518,12 +520,18 @@ function ScannerPanel({ mode, data }) {
   // window precisely as the first copy exits the top.
   const doubled = [...rows, ...rows];
 
+  // Tier 1 (2026-06-09): freshest score age across scored rows — drives the
+  // "last clear Xm ago" hint in the context strip. null in fallback / no clears.
+  const scoredAges = fallback ? [] : rows.filter((r) => r.hasScore && r.ageMin != null).map((r) => r.ageMin);
+  const lastClearAgeMin = scoredAges.length ? Math.min(...scoredAges) : null;
+
   return (
     <div className="panel p-scanner">
       <div className="ptitle">
         <span><span className="ptitle-bar" />SIGNAL SCANNER</span>
         <span className="ptitle-r">{rows.length} ASSETS</span>
       </div>
+      <ScannerContext data={data} lastClearAgeMin={lastClearAgeMin} />
       <div className="scanner-list">
         <div className="scanner-list-inner">
           {doubled.map((a, i) => (
@@ -538,8 +546,10 @@ function ScannerPanel({ mode, data }) {
 function ScannerRow({ a, fallback }) {
   const showScore = !fallback && a.hasScore;
   const isFired = !fallback && a.fired;
+  const isStale = !fallback && a.stale;
   let cls = 'srow';
   if (isFired) cls += ' fired';
+  else if (isStale) cls += ' stale';
   else if (showScore && a.score >= 65) cls += ' thresh';
   return (
     <div className={cls}>
@@ -556,8 +566,13 @@ function ScannerRow({ a, fallback }) {
           <div className="sbuilding">BUILDING DATA</div>
         )}
       </div>
-      <div className={'sscore ' + (showScore ? scoreCls(a.score) : 'lo')}>
-        {showScore ? a.score : '·'}
+      <div className="scol">
+        <div className={'sscore ' + (showScore ? scoreCls(a.score) : 'lo')}>
+          {showScore ? a.score : '·'}
+        </div>
+        {showScore && a.ageMin != null && (
+          <div className={'sage' + (isStale ? ' sage-stale' : '')}>{ageTag(a.ageMin)}</div>
+        )}
       </div>
       {isFired && <div className="fired-badge">FIRED</div>}
     </div>

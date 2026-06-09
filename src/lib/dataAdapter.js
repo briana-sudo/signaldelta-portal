@@ -866,10 +866,24 @@ export function adaptLastEvent(data) {
 // asset-class lozenge (CRY / STK) so the row still has a sub-label slot.
 // `hasScore=false` triggers the BUILDING DATA placeholder render in the
 // component (no score number, no bar, no fired badge, still cycles).
+// Compact minutes→label for the scanner per-row score age ("7m", "2h", "3d").
+export function ageTag(min) {
+  if (min == null || !Number.isFinite(min)) return '';
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
 const SUB_TRACK_MAP = { Conservative: 'CON', Moderate: 'MOD', Aggressive: 'AGG' };
 function subFallback(sym) {
   return typeof sym === 'string' && sym.includes('/') ? 'CRY' : 'STK';
 }
+// Tier 1 score-staleness (2026-06-09): the scanner score is a LAST-CLEARED
+// value (most-recent THRESHOLD_HIT), not a live read. A score this many
+// minutes old or older reads as "not currently clearing" — the engine
+// evaluates per 1-min bar, so an actively-clearing asset re-stamps last_seen
+// within a couple minutes. FIRED rows (open position) are never marked stale.
+const SCANNER_STALE_MIN = 10;
 export function adaptScanner(data) {
   const assets = Array.isArray(data?.monitoredAssets) ? data.monitoredAssets : [];
   if (assets.length === 0) return null;
@@ -887,16 +901,27 @@ export function adaptScanner(data) {
     const sr = scoreMap.get(sym);
     const rawScore = sr ? sr.last_score : null;
     const score = rawScore != null ? Math.round(Number(rawScore)) : null;
+    const hasScore = score != null && Number.isFinite(score);
     const sub = sr && sr.last_track && SUB_TRACK_MAP[sr.last_track]
       ? SUB_TRACK_MAP[sr.last_track]
       : subFallback(sym);
+    const fired = openSet.has(sym);
+    const lastSeen = sr?.last_seen || null;
+    const lastMs = lastSeen ? new Date(lastSeen).getTime() : NaN;
+    const ageMin = Number.isFinite(lastMs)
+      ? Math.max(0, Math.floor((Date.now() - lastMs) / 60_000))
+      : null;
     return {
       sym,
       sub,
-      score: score != null && Number.isFinite(score) ? score : 0,
-      hasScore: score != null && Number.isFinite(score),
-      fired: openSet.has(sym),
-      lastSeen: sr?.last_seen || null,
+      score: hasScore ? score : 0,
+      hasScore,
+      fired,
+      lastSeen,
+      ageMin,
+      // Lit but not currently clearing: a real score, no open position, and
+      // older than the staleness cutoff. Drives the row's dimmed treatment.
+      stale: hasScore && !fired && ageMin != null && ageMin >= SCANNER_STALE_MIN,
     };
   });
 }
