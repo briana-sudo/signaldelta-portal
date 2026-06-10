@@ -95,6 +95,7 @@ export default function PCApp({ data, errors = {}, hasAnyData = false, error, lo
         liveWeeklyWaterfall={adaptWeeklyWaterfall(data)}
         data={data}
       />
+      <SecondaryStrip mode={mode} liveAccountBar={liveAccountBar} data={data} />
       <Main mode={mode} data={data} />
       <Ticker data={data} />
       <TradeOverlay trigger={overlayTrigger} />
@@ -330,28 +331,14 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
   const av = liveAccountBar?.currentValue;            // broker equity or null
   const ap = liveAccountBar?.todayPnl;                // hybrid or null
   const totalReturnPct = liveAccountBar?.totalReturnPct; // graph or null
-  const openCount = liveAccountBar?.open;             // broker or null
   const valFmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sign = (v) => (v >= 0 ? '+' : '');
   const cls = (v) => (v >= 0 ? 'g' : 'r');
-  const dash = <span className="aval dim" style={{ color: 'var(--w3)' }}>—</span>;
 
-  // Portal Rev 33 (2026-06-04): annualized stat + per-day pace badge, computed
-  // client-side from the same daily equity series the curve uses (no 2nd
-  // fetch). Annualized rides the account-bar LIVE/TRAINING filter (dash under
-  // LIVE, like its siblings); pace + daily-% derive from broker Today P&L.
+  // Sparkline source — same daily equity series the curve uses (no 2nd fetch).
+  // (Capital Base / Annualized / Day W/L / Trades / Open moved to <SecondaryStrip/>.)
   const series = adaptEquityCurve(data);
-  const annual = useMemo(() => computeAnnualized(series), [series]);
-  const annualBoot = bootstrap || !series;
   const todayPct = deriveTodayPct(av, ap);
-
-  // Portal Rev 42 (2026-06-04): DAY W/L (ET) — wins/total of trades CLOSED today
-  // on the ET calendar boundary (America/New_York). `tradesClosedToday` is the
-  // raw row feed (win_loss per row); null = feed unavailable (proxy pre-restart).
-  const closedToday = data?.tradesClosedToday;
-  const dayWins = Array.isArray(closedToday) ? closedToday.filter((r) => r.win_loss === 'Win').length : 0;
-  const dayTotal = Array.isArray(closedToday) ? closedToday.length : 0;
-  const dayPct = dayTotal ? Math.round((dayWins / dayTotal) * 100) : null;
 
   // Portal KPI tiles (2026-06-10) — broker/count-sourced values + sparklines.
   const winRate = bootstrap ? null : adaptWinRate(data);
@@ -445,18 +432,37 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
           title="§15.5: expectancy reads pnl_dollar, which the exit-price fix corrects. Stays numberless until a live close is verified (price_source = broker_fill)."
         />
       </div>
-      {/* Thin secondary row — plain numbers, no sparkline (demoted, not lost). */}
-      <div className="acct-secondary">
-        <span className="asec"><span className="asec-l">Base</span> ${capitalBase.toLocaleString()}</span>
-        <span className="asec"><span className="asec-l">Ann</span> {annualBoot ? '—' : annual.display}</span>
-        <span className="asec"><span className="asec-l">Day W/L</span> {bootstrap || !Array.isArray(closedToday) ? '—' : `${dayWins}/${dayTotal}${dayTotal ? ` · ${dayPct}%` : ''}`}</span>
-        <span className="asec"><span className="asec-l">Trades</span> {bootstrap ? 0 : (liveAccountBar?.trades ?? 0)}</span>
-        <span className="asec"><span className="asec-l">Open</span> {bootstrap || openCount == null ? '—' : openCount}</span>
-      </div>
       {void liveWeeklyWaterfall}
       <div className="acct-health">
         <HealthStrip data={data} layout="pc" />
       </div>
+    </div>
+  );
+}
+
+// Portal secondaries relocate (2026-06-10): the 5 plain secondary items moved
+// OUT of the KPI tile row into a thin full-width line directly under the
+// account/broker (health) bar, above the main grid. Readable color restored
+// (pre-build): Base white · Day W/L white (green ≥50%) · Trades/Open cyan;
+// "Ann" stays muted grey (correct no-data 'building' state). No size change.
+function SecondaryStrip({ mode, liveAccountBar, data }) {
+  const bootstrap = shouldRenderBootstrap(mode) || !liveAccountBar;
+  const capitalBase = liveAccountBar?.capitalBase ?? 10000;
+  const openCount = liveAccountBar?.open;
+  const series = adaptEquityCurve(data);
+  const annual = useMemo(() => computeAnnualized(series), [series]);
+  const annualBoot = bootstrap || !series;
+  const closedToday = data?.tradesClosedToday;
+  const dayWins = Array.isArray(closedToday) ? closedToday.filter((r) => r.win_loss === 'Win').length : 0;
+  const dayTotal = Array.isArray(closedToday) ? closedToday.length : 0;
+  const dayPct = dayTotal ? Math.round((dayWins / dayTotal) * 100) : null;
+  return (
+    <div className="acct-secondary-row">
+      <span className="asec"><span className="asec-l">Base</span><span className="asec-v">${capitalBase.toLocaleString()}</span></span>
+      <span className="asec"><span className="asec-l">Ann</span><span className="asec-v dim">{annualBoot ? '—' : annual.display}</span></span>
+      <span className="asec"><span className="asec-l">Day W/L</span><span className={'asec-v' + (dayTotal && dayPct >= 50 ? ' g' : '')}>{bootstrap || !Array.isArray(closedToday) ? '—' : `${dayWins}/${dayTotal}${dayTotal ? ` · ${dayPct}%` : ''}`}</span></span>
+      <span className="asec"><span className="asec-l">Trades</span><span className="asec-v c">{bootstrap ? 0 : (liveAccountBar?.trades ?? 0)}</span></span>
+      <span className="asec"><span className="asec-l">Open</span><span className="asec-v c">{bootstrap || openCount == null ? '—' : openCount}</span></span>
     </div>
   );
 }

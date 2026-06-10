@@ -112,19 +112,29 @@ body::after {
 .pc-shell .clock-sep { font-size:11px; color:var(--w3); }
 .pc-shell .clock-utc { font-size:9px;  color:var(--w3); letter-spacing:1px; }
 
-/* Portal KPI tiles (2026-06-10): header grows 50px → 64px to hold 6 KPI tiles
-   (top) + a thin secondary row (bottom), HealthStrip spanning on the right.
-   Grid keeps tiles+secondary stacked on the left without changing the JSX. */
+/* Portal KPI tiles (2026-06-10): header holds the 6 KPI tiles (left) + the
+   HealthStrip broker bar (right). 2026-06-10 revise: the secondaries moved OUT
+   to their own full-width line below (see .acct-secondary-row) — header is now a
+   single grid row at 52px. */
 .pc-shell .acct {
-  height: 64px; background: var(--navy3); border-bottom: 1px solid var(--border);
-  display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-rows: 1fr auto;
+  height: 52px; background: var(--navy3); border-bottom: 1px solid var(--border);
+  display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-rows: 1fr;
   padding: 0 12px; flex-shrink: 0; column-gap: 8px;
 }
 .pc-shell .acct-tiles { grid-column: 1; grid-row: 1; display: flex; min-width: 0; align-items: stretch; }
-.pc-shell .acct-secondary { grid-column: 1; grid-row: 2; display: flex; align-items: center; gap: 14px; padding: 0 2px 3px; }
-.pc-shell .acct-health { grid-column: 2; grid-row: 1 / span 2; display: flex; align-items: center; justify-content: flex-end; min-width: 0; padding-left: 8px; }
-.pc-shell .asec { font-family: var(--mono); font-size: 8px; letter-spacing: 1px; color: var(--w2); white-space: nowrap; }
-.pc-shell .asec-l { color: var(--w3); margin-right: 3px; }
+.pc-shell .acct-health { grid-column: 2; grid-row: 1; display: flex; align-items: center; justify-content: flex-end; min-width: 0; padding-left: 8px; }
+
+/* Relocated secondaries (2026-06-10): thin full-width line directly under the
+   account/broker (health) bar, above the main grid. Readable value colors
+   restored to pre-build (Base white · Day W/L white/green · Trades/Open cyan);
+   "Ann" stays muted grey — correct no-data 'building' state. No size change. */
+.pc-shell .acct-secondary-row { display: flex; align-items: center; gap: 18px; height: 18px; padding: 0 14px; background: var(--navy2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.pc-shell .asec { font-family: var(--mono); font-size: 8px; letter-spacing: 1px; white-space: nowrap; }
+.pc-shell .asec-l { color: var(--w3); margin-right: 4px; text-transform: uppercase; }
+.pc-shell .asec-v { color: var(--white); }
+.pc-shell .asec-v.c { color: var(--cyan); }
+.pc-shell .asec-v.g { color: var(--green); }
+.pc-shell .asec-v.dim { color: var(--w3); }
 
 /* KPI tile */
 .pc-shell .kpi-tile { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center;
