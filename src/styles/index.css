@@ -733,7 +733,10 @@ body::after {
    return strip + a readable equity curve no longer fit the prior ~84px draw
    wrap (would leave the curve ~2px); +30px restores a ~32px equity band atop
    the 80px strip. Steals 30px from the 1fr trades row (cap stays 13). */
-.pc-shell .col-center { display:grid; grid-template-rows: 1fr 150px 90px; gap:1px; background:rgba(0,194,255,0.05); min-width:0; }
+/* Portal reflow (2026-06-10): equity track 150px → 214px absorbs the 64px freed
+   by removing WeekRow, landing the gain on the equity panel (curve ~36px → ~100px;
+   the 80px return strip stays fixed). TradeList (1fr) and News (90px) unchanged. */
+.pc-shell .col-center { display:grid; grid-template-rows: 1fr 214px 90px; gap:1px; background:rgba(0,194,255,0.05); min-width:0; }
 .pc-shell .col-metrics { display:grid; grid-template-rows: 1fr 1fr; gap:1px; background:rgba(0,194,255,0.05); }
 .pc-shell .col-extra { display:grid; grid-template-rows: 1fr 1fr; gap:1px; background:rgba(0,194,255,0.05); }
 
@@ -877,18 +880,14 @@ body::after {
 .pc-shell .eq-ret-lbl { position:absolute; top:0; left:2px; z-index:2; pointer-events:none;
   font-family:var(--mono); font-size:7px; letter-spacing:1px; color:var(--w2);
   background:rgba(6,13,24,0.72); padding:0 3px; border-radius:1px; }
-/* Rev 36: zero baseline + tier-colored return bars. */
+/* Portal reflow (2026-06-10): zero baseline + muted TWO-TONE return bars
+   (gain teal / loss red, 0.85 opacity). Replaces the 4-tier down/pos/strong/
+   elite coloring (incl. saturated amber). Magnitude reads from bar height;
+   the STRONG/ELITE header legend was removed alongside. */
 .pc-shell .eq-ret-zero { stroke:var(--w3); stroke-width:0.5; opacity:0.6; }
-.pc-shell .eq-ret-bar { opacity:0.88; }
-.pc-shell .eq-ret-bar.t-down   { fill:var(--red); }
-.pc-shell .eq-ret-bar.t-pos    { fill:var(--green); }
-.pc-shell .eq-ret-bar.t-strong { fill:var(--cyan); }
-.pc-shell .eq-ret-bar.t-elite  { fill:var(--amber); }
-/* Rev 36: tier legend chips in the equity header (STRONG/ELITE only). */
-.pc-shell .eq-leg { display:inline-flex; align-items:center; gap:3px; color:var(--w2); }
-.pc-shell .eq-leg-sw { display:inline-block; width:7px; height:7px; border-radius:1px; }
-.pc-shell .eq-leg-sw.sw-strong { background:var(--cyan); }
-.pc-shell .eq-leg-sw.sw-elite  { background:var(--amber); }
+.pc-shell .eq-ret-bar { opacity:0.85; }
+.pc-shell .eq-ret-bar.up   { fill:var(--cyan); }
+.pc-shell .eq-ret-bar.down { fill:var(--red); }
 
 /* event feed */
 .pc-shell .event-feed { flex:1; display:flex; flex-direction:column; gap:2px; overflow:hidden; }
@@ -1478,39 +1477,9 @@ body::after {
    rules carry their own scope inside.
    ─────────────────────────────────────────────────────────────────────── */
 
-/* P2.1 — full-width week row directly beneath the banner. Same 50px height
-   as .acct so the visual rhythm continues. Inside it the existing
-   .acct-wf-* MiniWaterfall fills the body. */
-.pc-shell .week-row {
-  height: 64px;
-  background: var(--navy3);
-  border-bottom: 1px solid var(--border);
-  display: flex; flex-direction: column;
-  padding: 4px 16px 6px;
-  flex-shrink: 0;
-}
-.pc-shell .week-row-head {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 2px;
-}
-.pc-shell .week-row-title {
-  font-family: var(--disp); font-weight: 600; font-size: 8px;
-  letter-spacing: 3px; color: var(--w3); text-transform: uppercase;
-  display: inline-flex; align-items: center;
-}
-.pc-shell .week-row-bar {
-  width: 16px; height: 1px; background: var(--cyan);
-  margin-right: 6px; display: inline-block; vertical-align: middle;
-}
-.pc-shell .week-row-r {
-  font-family: var(--mono); font-size: 8px; color: var(--w3);
-  letter-spacing: 1px;
-}
-.pc-shell .week-row-body {
-  flex: 1; display: flex; align-items: stretch;
-  min-height: 0;
-}
-.pc-shell .week-row-body .acct-wf { flex: 1; min-height: 0; padding-top: 0; padding-bottom: 2px; }
+/* Portal reflow (2026-06-10): .week-row + .week-row-* removed with WeekRow.
+   The 64px it occupied is reclaimed into the equity panel via the .col-center
+   grid retune (1fr 150px 90px → 1fr 214px 90px). */
 
 /* Banner-right health strip slot in the PC .acct row. Flexes the freed
    space that the MiniWaterfall used to occupy. */

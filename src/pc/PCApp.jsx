@@ -13,7 +13,6 @@ import {
   adaptTradeList, selectVisibleTrades, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation, adaptPriceTicker,
   adaptAccountState,
-  buildWeekFrame,
   fmtCloseET,
   assetClassTag,
 } from '../lib/dataAdapter.js';
@@ -98,7 +97,6 @@ export default function PCApp({ data, errors = {}, hasAnyData = false, error, lo
         liveWeeklyWaterfall={adaptWeeklyWaterfall(data)}
         data={data}
       />
-      <WeekRow mode={mode} data={data} />
       <Main mode={mode} data={data} />
       <Ticker data={data} />
       <TradeOverlay trigger={overlayTrigger} />
@@ -349,117 +347,11 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
   );
 }
 
-// Portal v1.14 P2.1 + P2.3 (2026-05-30): full-width week-tracker row sitting
-// directly beneath the banner. 5-slot default that expand-and-shrinks up to
-// the proxy's MAX 13 (rolling-quarter window per dispatch decision 2). The
-// inner waterfall reuses the existing MiniWaterfall, which already applies
-// the 1B color scheme via .acct-wf-bar.{cur|pos|neg} (cyan-pulse current,
-// green completed positive, red completed negative). Header reads "{N}
-// WEEKS · CUR W{idx}" derived from the data array — fixes the prior
-// hardcoded "6 WEEKS · CUR W6" stamp.
-function WeekRow({ mode, data }) {
-  const liveWeeklyWaterfall = adaptWeeklyWaterfall(data);
-  const bootstrap = shouldRenderBootstrap(mode) || !liveWeeklyWaterfall;
-  // Portal v1.15 Item A (2026-05-30): min 5-slot frame, max 13. Frame
-  // build moved into buildWeekFrame() in dataAdapter so PC + mobile
-  // share one source of truth. Header rule: realCount < 5 → "WEEK c OF 5"
-  // (the operator sees today's W1 with W2..W5 ahead); else
-  // "{realCount} WEEKS · CUR W{c}".
-  const frame = buildWeekFrame(liveWeeklyWaterfall ?? []);
-  const header = bootstrap
-    ? 'AWAITING LIVE WEEKLY CONTEXTS'
-    : (frame.realCount < 5
-        ? `WEEK ${Math.max(1, frame.currentIdx)} OF 5`
-        : `${frame.realCount} WEEKS · CUR W${frame.currentIdx}`);
-  return (
-    <div className="week-row">
-      <div className="week-row-head">
-        <span className="week-row-title"><span className="week-row-bar" />WEEKLY P&amp;L</span>
-        <span className="week-row-r">{header}</span>
-      </div>
-      <div className="week-row-body">
-        <MiniWaterfall mode={mode} liveWeeklyWaterfall={liveWeeklyWaterfall} />
-      </div>
-    </div>
-  );
-}
-
-function MiniWaterfall({ mode, liveWeeklyWaterfall }) {
-  // Section E (updated): waterfall reads WeeklyContextNode.system_weekly_pnl_pct
-  // filtered by phase. Empty under LIVE in Phase 1.1 (no live weekly contexts
-  // exist) OR when the query returns no rows yet.
-  // Portal v1.15 Item A (2026-05-30): always render a min 5-slot frame
-  // (max 13). Real slots use existing pos/neg/cur classes; placeholders for
-  // [realCount..frameLen-1] get the new .ahead class (muted grey, no
-  // numeric label, no height — just the slot reservation).
-  const wrapRef = useRef(null);
-  const series = liveWeeklyWaterfall;
-  const bootstrap = shouldRenderBootstrap(mode) || !series;
-  const frame = buildWeekFrame(series ?? []);
-  const slots = bootstrap ? buildWeekFrame([]).slots : frame.slots;
-  const [heights, setHeights] = useState(() => slots.map(() => 2));
-  useEffect(() => {
-    if (bootstrap) return;
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    // Portal v1.19 (2026-06-01): pct label is now an absolute pill (~10px
-    // tall) anchored to top of the column, no longer in-flow. Reserve only
-    // the pill + label headroom (~10px) instead of the prior 20px phantom.
-    const barH = wrap.clientHeight - 10;
-    const maxP = 7;
-    slots.forEach((w, i) => {
-      if (w.ahead) return; // placeholders stay at min height
-      setTimeout(() => {
-        setHeights((prev) => {
-          const next = [...prev];
-          // Portal v1.18 (2026-06-01): upper clamp so an outlier weekly value
-          // (e.g. -60.77% from a buggy WeeklyContextNode) saturates at full
-          // strip height instead of bleeding upward over the banner.
-          // Portal v1.19 (2026-06-01): log-scale magnitude so a tiny W (-0.55%)
-          // and a big W (-60.77%) are visually distinct. LOG_MAX=100 expands
-          // the dynamic range without truncating outliers. Clamp + floor kept
-          // from v1.18: never exceeds barH (no overflow), never < 4 px floor.
-          const LOG_MAX = 100;
-          const frac = Math.log10(1 + Math.abs(w.p)) / Math.log10(1 + LOG_MAX);
-          next[i] = Math.min(barH, Math.max(4, frac * barH));
-          return next;
-        });
-      }, 80 + i * 100);
-    });
-  }, [bootstrap, slots]);
-  if (bootstrap) {
-    return (
-      <div className="acct-wf" ref={wrapRef}>
-        <div className="acct-wf-baseline" />
-        <div style={{ flex: 1, textAlign: 'center', alignSelf: 'center', color: 'var(--w3)', fontFamily: 'var(--mono)', fontSize: '7px', letterSpacing: '1px' }}>
-          — AWAITING LIVE WEEKLY CONTEXTS —
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className="acct-wf" ref={wrapRef}>
-      <div className="acct-wf-baseline" />
-      {slots.map((w, i) => (
-        <div className="acct-wf-col" key={w.w}>
-          {w.ahead ? (
-            <div className="acct-wf-pct acct-wf-pct-ahead">—</div>
-          ) : (
-            <div
-              className="acct-wf-pct"
-              style={{ color: w.cur ? 'var(--cyan)' : w.pos ? 'var(--green)' : 'var(--red)' }}
-            >{(w.p >= 0 ? '+' : '') + w.p.toFixed(2) + '%'}</div>
-          )}
-          <div
-            className={'acct-wf-bar ' + (w.ahead ? 'ahead' : (w.cur ? 'cur' : w.pos ? 'pos' : 'neg'))}
-            style={{ height: heights[i] + 'px' }}
-          />
-          <div className="acct-wf-lbl">{w.w}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
+// Portal reflow (2026-06-10): WeekRow + MiniWaterfall removed. The full-width
+// Weekly P&L row was retired (freed 64px reclaimed into the equity panel via
+// .col-center grid retune); this also retired the −60.77% double-×100 weekly
+// render bug. The mobile waterfall (MobileApp.jsx) is independent and unchanged;
+// shared adaptWeeklyWaterfall/buildWeekFrame in dataAdapter are still used by it.
 
 function Main({ mode, data }) {
   return (
@@ -872,10 +764,9 @@ function EquityCurvePanel({ mode, data }) {
           <span className="lbl">PEAK</span><span className="g">{peakFmt}</span>
           <span className="lbl">DRAWDOWN</span><span className="r">{ddFmt}</span>
           <span className="lbl">TWR</span><span>{twrFmt}</span>{subscript}
-          {/* Rev 36: daily-return tier legend — STRONG/ELITE only (no entry for
-              red-down or standard-green-positive). Swatch colors match the bars. */}
-          <span className="eq-leg"><span className="eq-leg-sw sw-strong" />STRONG</span>
-          <span className="eq-leg"><span className="eq-leg-sw sw-elite" />ELITE</span>
+          {/* Portal reflow (2026-06-10): STRONG/ELITE tier legend removed — the
+              daily-return strip is now a muted two-tone (gain teal / loss red),
+              magnitude read from bar height, so the tier legend is obsolete. */}
         </span>
       </div>
       <div className="eq-svg-wrap">
@@ -890,9 +781,11 @@ function EquityCurvePanel({ mode, data }) {
           <span className="eq-base-lbl">$10K</span>
           <svg id="equity-svg" viewBox="0 0 600 80" preserveAspectRatio="none">
             <defs>
+              {/* Portal reflow (2026-06-10): single teal accent — subtle area
+                  fill beneath the line (was a heavier green gradient). */}
               <linearGradient id="eqGradPos" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="rgba(0,230,118,0.35)" />
-                <stop offset="100%" stopColor="rgba(0,230,118,0)" />
+                <stop offset="0%" stopColor="rgba(0,194,255,0.18)" />
+                <stop offset="100%" stopColor="rgba(0,194,255,0)" />
               </linearGradient>
             </defs>
             {svg && (
@@ -900,11 +793,12 @@ function EquityCurvePanel({ mode, data }) {
                 <line x1="0" y1={svg.baseY} x2={svg.width} y2={svg.baseY}
                   stroke="rgba(255,171,0,0.4)" strokeWidth="0.6" strokeDasharray="3,3" />
                 <path d={svg.fillD} fill="url(#eqGradPos)" stroke="none" />
-                <path d={svg.d} fill="none" stroke="var(--green)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                <circle cx={svg.endX} cy={svg.endY} r="2.5" fill="var(--green)">
+                {/* teal single-accent line, thin + smooth (rounded joins) */}
+                <path d={svg.d} fill="none" stroke="var(--cyan)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx={svg.endX} cy={svg.endY} r="2.5" fill="var(--cyan)">
                   <animate attributeName="r" values="2.5;4;2.5" dur="2s" repeatCount="indefinite" />
                 </circle>
-                <circle cx={svg.peakX} cy={svg.peakY} r="2" fill="var(--cyan)" opacity="0.8" />
+                <circle cx={svg.peakX} cy={svg.peakY} r="2" fill="var(--cyan)" opacity="0.5" />
               </>
             )}
             {bootstrap && (
@@ -919,9 +813,11 @@ function EquityCurvePanel({ mode, data }) {
               <>
                 <line x1="0" y1={retStrip.zeroY} x2="600" y2={retStrip.zeroY}
                   className="eq-ret-zero" strokeDasharray="2,2" />
+                {/* Portal reflow (2026-06-10): two-tone (gain teal / loss red),
+                    uniform slots, small corner radius — magnitude = bar height. */}
                 {retStrip.bars.map((b, i) => (
-                  <rect key={i} className={'eq-ret-bar t-' + b.tier}
-                    x={b.x} y={b.y} width={b.w} height={b.h} />
+                  <rect key={i} className={'eq-ret-bar ' + (b.up ? 'up' : 'down')}
+                    x={b.x} y={b.y} width={b.w} height={b.h} rx="1" ry="1" />
                 ))}
               </>
             )}
