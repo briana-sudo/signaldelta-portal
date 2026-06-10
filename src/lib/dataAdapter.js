@@ -708,8 +708,24 @@ export function adaptPanelSharpe(data) {
     confidence: s.confidence || null,
     basis: s.basis_label || null,
     dailyAvailable: !!s.daily_equity_basis_available,
+    dailySharpe: s.daily_sharpe_value == null ? null : Number(s.daily_sharpe_value),
+    dailyReturnCount: Number(s.daily_return_count) || 0,
     insufficientHistory: !!s.insufficient_history,
     equityDays: Number(s.equity_days) || 0,
+  };
+}
+
+// Account-level annualized return for the header ANN field — proxy-served
+// (panel_annualized_return; same (1+cum)^(252/equity_days)−1 basis + flag the
+// RBD% and Sharpe-daily use). No frontend annualization.
+export function adaptPanelAnnReturn(data) {
+  const a = data?.panelAnnReturn;
+  if (!a || a.annualized_pct == null) return null;
+  return {
+    annualizedPct: Number(a.annualized_pct),
+    cumReturnPct: a.cum_return_pct == null ? null : Number(a.cum_return_pct),
+    equityDays: Number(a.equity_days) || 0,
+    insufficientHistory: !!a.insufficient_history,
   };
 }
 

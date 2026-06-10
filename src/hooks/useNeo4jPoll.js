@@ -32,6 +32,7 @@ import {
   Q_ACCOUNT_STATE, Q_ACCOUNT_HEALTH_HISTORY,
   Q_PANEL_PNL_BY_TRACK, Q_PANEL_RETURNS_BY_DOMAIN,
   Q_PANEL_PROFIT_FACTOR, Q_PANEL_EXPECTANCY, Q_PANEL_SHARPE,
+  Q_PANEL_ANNUALIZED_RETURN,
 } from '../lib/queries.js';
 import { etDayRange } from '../lib/etDay.js';
 
@@ -74,6 +75,7 @@ const QUERY_SPECS = [
   { key: 'panelProfitFactor',    name: Q_PANEL_PROFIT_FACTOR,     singleton: false },
   { key: 'panelExpectancy',      name: Q_PANEL_EXPECTANCY,        singleton: false },
   { key: 'panelSharpe',          name: Q_PANEL_SHARPE,            singleton: true  },
+  { key: 'panelAnnReturn',       name: Q_PANEL_ANNUALIZED_RETURN, singleton: true  },
 ];
 
 function getProxyConfig() {

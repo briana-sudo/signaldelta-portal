@@ -54,6 +54,8 @@ export const Q_PANEL_RETURNS_BY_DOMAIN = 'panel_returns_by_domain';
 export const Q_PANEL_PROFIT_FACTOR = 'panel_profit_factor';
 export const Q_PANEL_EXPECTANCY = 'panel_expectancy';
 export const Q_PANEL_SHARPE = 'panel_sharpe_excl_corrupt';
+// Account-level annualized return (header ANN field) — same basis + flag as RBD%.
+export const Q_PANEL_ANNUALIZED_RETURN = 'panel_annualized_return';
 
 // ── Section D3: Rules Added This Week ──
 export const Q_RULES_THIS_WEEK = 'rules_this_week';

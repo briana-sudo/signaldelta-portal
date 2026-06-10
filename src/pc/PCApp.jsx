@@ -14,7 +14,7 @@ import {
   adaptScanner, adaptReconciliation, adaptPriceTicker,
   adaptAccountState,
   adaptPanelProfitFactor, adaptPanelExpectancy,
-  adaptPanelReturnsByDomainPct, adaptPanelSharpe,
+  adaptPanelReturnsByDomainPct, adaptPanelSharpe, adaptPanelAnnReturn,
   fmtCloseET,
   assetClassTag,
 } from '../lib/dataAdapter.js';
@@ -482,9 +482,10 @@ function SecondaryStrip({ mode, liveAccountBar, data }) {
   const bootstrap = shouldRenderBootstrap(mode) || !liveAccountBar;
   const capitalBase = liveAccountBar?.capitalBase ?? 10000;
   const openCount = liveAccountBar?.open;
-  const series = adaptEquityCurve(data);
-  const annual = useMemo(() => computeAnnualized(series), [series]);
-  const annualBoot = bootstrap || !series;
+  // ANN now reads the proxy account-level annualized return (same
+  // (1+cum)^(252/equity_days)−1 basis + insufficient_history flag as RBD% /
+  // Sharpe-daily) instead of the frontend computeAnnualized 'building' state.
+  const ann = bootstrap ? null : adaptPanelAnnReturn(data);
   const closedToday = data?.tradesClosedToday;
   const dayWins = Array.isArray(closedToday) ? closedToday.filter((r) => r.win_loss === 'Win').length : 0;
   const dayTotal = Array.isArray(closedToday) ? closedToday.length : 0;
@@ -492,7 +493,16 @@ function SecondaryStrip({ mode, liveAccountBar, data }) {
   return (
     <div className="acct-sec-line">
       <span className="asec"><span className="asec-l">Base</span><span className="asec-v">${capitalBase.toLocaleString()}</span></span>
-      <span className="asec"><span className="asec-l">Ann</span><span className="asec-v dim">{annualBoot ? '—' : annual.display}</span></span>
+      <span className="asec">
+        <span className="asec-l">Ann</span>
+        <span className={'asec-v' + (ann ? (ann.annualizedPct >= 0 ? ' g' : ' r') : ' dim')}>
+          {ann ? `${ann.annualizedPct >= 0 ? '+' : ''}${ann.annualizedPct.toFixed(1)}%` : '—'}
+        </span>
+        {ann && ann.insufficientHistory && (
+          <span className="asec-flag" style={{ color: 'var(--amber)', marginLeft: '2px' }}
+            title={`Annualized from only ${ann.equityDays} equity-days (< 30) — flagged: not a real forward rate.`}>⚠</span>
+        )}
+      </span>
       <span className="asec"><span className="asec-l">Day W/L</span><span className={'asec-v' + (dayTotal && dayPct >= 50 ? ' g' : '')}>{bootstrap || !Array.isArray(closedToday) ? '—' : `${dayWins}/${dayTotal}${dayTotal ? ` · ${dayPct}%` : ''}`}</span></span>
       <span className="asec"><span className="asec-l">Trades</span><span className="asec-v c">{bootstrap ? 0 : (liveAccountBar?.trades ?? 0)}</span></span>
       <span className="asec"><span className="asec-l">Open</span><span className="asec-v c">{bootstrap || openCount == null ? '—' : openCount}</span></span>
@@ -1335,9 +1345,12 @@ function MetricsPanel({ mode, data }) {
                 {' · '}conf {sharpe.confidence}{' · '}n={sharpe.n}
               </div>
               <div className="mc-sub" style={{ color: 'var(--w3)' }}>per-trade log-return · excl-36 · broker-reconciling</div>
-              {sharpe.insufficientHistory && (
-                <div className="mc-sub" style={{ color: 'var(--amber)', opacity: 0.85 }}>
-                  annualized (daily-equity) basis UNAVAILABLE — {sharpe.equityDays} equity days &lt; 30 (insufficient history)
+              {sharpe.dailyAvailable && sharpe.dailySharpe != null && (
+                <div className="mc-sub">
+                  daily-equity ×√252 <span style={{ color: sharpe.dailySharpe >= 0 ? 'var(--cyan)' : 'var(--loss)', fontWeight: 700 }}>{fmtSharpeVal(sharpe.dailySharpe)}</span>
+                  {sharpe.insufficientHistory && (
+                    <span style={{ color: 'var(--amber)', opacity: 0.85 }}> · ⚠ {sharpe.equityDays} eq-days &lt; 30</span>
+                  )}
                 </div>
               )}
             </>
