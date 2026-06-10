@@ -757,7 +757,10 @@ body::after {
   flex: 1;
   display: grid;
   overflow: hidden;
-  grid-template-columns: 240px 1fr 220px 200px;
+  /* D2 (2026-06-10): col-extra 200→248 so the consolidated Returns-by-Domain
+     matrix has room to hold $/% values without collision (the flexible center
+     1fr absorbs the 48px; col-scanner + col-metrics unchanged). */
+  grid-template-columns: 240px 1fr 220px 248px;
   grid-template-rows: 1fr;
   gap: 1px;
   background: rgba(0,194,255,0.05);
@@ -1874,31 +1877,45 @@ body::after {
 .pc-shell .rbd-tab.on {
   color: var(--cyan); border-color: var(--cyan); background: rgba(0,194,255,0.10);
 }
+/* Time-window selector row (drives the proxy `window` param). */
+.pc-shell .rbd-winrow { display: flex; gap: 2px; padding: 5px 10px 0; }
+.pc-shell .rbd-win {
+  flex: 1; font-family: var(--mono); font-size: 10px; line-height: 1; padding: 3px 0;
+  background: var(--navy3); color: var(--w3);
+  border: 1px solid rgba(0,194,255,0.14); cursor: pointer; letter-spacing: 1px;
+}
+.pc-shell .rbd-win.on {
+  color: var(--cyan); border-color: var(--cyan); background: rgba(0,194,255,0.10);
+}
 .pc-shell .rbd-meta {
   font-family: var(--mono); font-size: 10px; color: var(--w3);
-  letter-spacing: .5px; padding: 3px 10px 0;
+  letter-spacing: .5px; padding: 5px 10px 0;
 }
-.pc-shell .rbd-pending {
-  flex: 1; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 10px; text-align: center; padding: 20px 16px;
+.pc-shell .rbd-flag { color: var(--amber); font-weight: 600; }
+/* WIDEN: tighter label/summary share, generous track columns so values never
+   collide; shrink the 3 asset rows; taller Total row. */
+.pc-shell .rbd-grid {
+  grid-template-columns: minmax(34px, 0.5fr) repeat(4, minmax(42px, 1fr));
+  grid-template-rows: auto 0.8fr 0.8fr 0.8fr 1.5fr;
+  column-gap: 2px; padding: 6px 8px 8px;
 }
-.pc-shell .rbd-pending-main {
-  font-family: var(--mono); font-size: 15px; letter-spacing: 2px; color: var(--w2);
-}
-.pc-shell .rbd-pending-sub {
-  font-family: var(--mono); font-size: 10px; line-height: 1.55; color: var(--w3);
-  max-width: 300px;
-}
-/* Shrink the 3 asset rows; taller Total row. */
-.pc-shell .rbd-grid { grid-template-rows: auto 0.82fr 0.82fr 0.82fr 1.55fr; }
-/* Larger cell numbers + labels (room reclaimed from the two deleted panels). */
-.pc-shell .rbd-grid .rm-cell-pct { font-size: 16px; }
-.pc-shell .rbd-grid .rm-cell-n { font-size: 9px; }
-.pc-shell .rbd-grid .rm-h { font-size: 13px; }
-.pc-shell .rbd-grid .rm-row-h { font-size: 13px; }
-/* Total row + Total summary heads emphasized. */
-.pc-shell .rbd-grid .rbd-total-cell .rm-cell-pct { font-size: 19px; font-weight: 700; }
-.pc-shell .rbd-grid .rbd-total-h { font-size: 14px; font-weight: 700; }
+.pc-shell .rbd-grid .rm-cell { padding: 3px 1px; }
+.pc-shell .rbd-grid .rm-cell-n { font-size: 8px; }
+.pc-shell .rbd-grid .rm-h { font-size: 12px; }
+.pc-shell .rbd-grid .rm-row-h { font-size: 12px; letter-spacing: 0; padding-right: 3px; }
+.pc-shell .rbd-grid .rbd-total-h { font-size: 12px; font-weight: 700; }
+/* DYNAMIC TEXT-FIT: font steps DOWN as the value string grows (class set per
+   cell by rbdFitClass) — larger where there's room, never overflowing. Sized to
+   the ~42px value cells: 5-char values read at 13px; longer values shrink. */
+.pc-shell .rbd-grid .rm-cell-pct.rbd-fit-l { font-size: 13px; }
+.pc-shell .rbd-grid .rm-cell-pct.rbd-fit-m { font-size: 11px; }
+.pc-shell .rbd-grid .rm-cell-pct.rbd-fit-s { font-size: 9px; }
+.pc-shell .rbd-grid .rm-cell-pct.rbd-fit-xs { font-size: 8px; }
+/* Total rim/corner: one step bigger + bold. */
+.pc-shell .rbd-grid .rbd-total-cell .rm-cell-pct.rbd-fit-l { font-size: 15px; font-weight: 700; }
+.pc-shell .rbd-grid .rbd-total-cell .rm-cell-pct.rbd-fit-m { font-size: 13px; font-weight: 700; }
+.pc-shell .rbd-grid .rbd-total-cell .rm-cell-pct.rbd-fit-s { font-size: 11px; font-weight: 700; }
+.pc-shell .rbd-grid .rbd-total-cell .rm-cell-pct.rbd-fit-xs { font-size: 9px; font-weight: 700; }
 
 /* Mobile sizing nudges — slightly larger numbers, more breathing room */
 .mobile-shell .rm-cell-pct { font-size: 13px; }

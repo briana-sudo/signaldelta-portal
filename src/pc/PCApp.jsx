@@ -14,7 +14,7 @@ import {
   adaptScanner, adaptReconciliation, adaptPriceTicker,
   adaptAccountState,
   adaptPanelProfitFactor, adaptPanelExpectancy,
-  adaptPanelReturnsByDomain, adaptPanelSharpe,
+  adaptPanelReturnsByDomainPct, adaptPanelSharpe,
   fmtCloseET,
   assetClassTag,
 } from '../lib/dataAdapter.js';
@@ -1117,107 +1117,155 @@ function fmtUsd0(v) {
   return (r < 0 ? '-$' : '+$') + Math.abs(r);
 }
 
-function DollarCell({ metric, title, ariaLabel, extraCls }) {
-  const ec = extraCls ? ' ' + extraCls : '';
+function fmtPctSigned(v) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const r = Math.round(v * 10) / 10;
+  return (r < 0 ? '' : '+') + r.toFixed(1) + '%';
+}
+
+// Compact CELL formatters — tone/color carries the sign (so positives drop the
+// "+"), and large annualized %s collapse to an integer. Keeps every cell value
+// short enough to render readably in the dense matrix (full precision lives in
+// the cell title/aria-label).
+function fmtUsdCell(v) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const r = Math.round(v);
+  return (r < 0 ? '-$' : '$') + Math.abs(r);
+}
+function fmtPctCell(v) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const a = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if (a >= 100) return sign + Math.round(a) + '%';
+  return sign + a.toFixed(1) + '%';
+}
+
+// Dynamic text-fit: step the font DOWN by the rendered value's length so a long
+// number (e.g. "+795.8%") never overflows / collides. Scales down only.
+function rbdFitClass(str) {
+  const L = (str || '').length;
+  if (L <= 5) return 'rbd-fit-l';
+  if (L <= 7) return 'rbd-fit-m';
+  if (L <= 9) return 'rbd-fit-s';
+  return 'rbd-fit-xs';
+}
+
+// Asset-class row labels — abbreviated to fit the label column (full name in
+// title), matching the CONS/MOD/AGG track-header convention.
+const RBD_AC_ABBR = { Crypto: 'CRYPTO', 'Large-cap stock': 'LG-CAP', 'Growth stock': 'GROWTH' };
+
+// One grid cell — renders $ (pnl) or % (annualized) per the panel's view, tone
+// paired to the number, with a length-based font fit. `total` = Total rim/corner.
+function RbdCell({ metric, view, title, ariaLabel, total }) {
+  const tcls = total ? ' rbd-total-cell' : '';
   if (!metric || !metric.hasData) {
     return (
-      <div className={'rm-cell rm-empty' + ec} title={title} aria-label={ariaLabel} data-empty="true">
+      <div className={'rm-cell rm-empty' + tcls} title={title} aria-label={ariaLabel} data-empty="true">
         <div className="rm-cell-pct">—</div>
         <div className="rm-cell-n">n=0</div>
       </div>
     );
   }
-  const cls = metric.pnl > 0 ? 'rm-pos' : (metric.pnl < 0 ? 'rm-neg' : 'rm-flat');
+  const raw = view === '%' ? metric.annPct : metric.pnl;
+  const str = view === '%' ? fmtPctCell(metric.annPct) : fmtUsdCell(metric.pnl);
+  const tone = raw == null ? 'rm-flat' : (raw > 0 ? 'rm-pos' : (raw < 0 ? 'rm-neg' : 'rm-flat'));
   return (
-    <div className={'rm-cell ' + cls + ec} title={title} aria-label={ariaLabel}>
-      <div className="rm-cell-pct">{fmtUsd0(metric.pnl)}</div>
+    <div className={'rm-cell ' + tone + tcls} title={title} aria-label={`${ariaLabel}: ${str} over ${metric.n} trades`}>
+      <div className={'rm-cell-pct ' + rbdFitClass(str)}>{str}</div>
       <div className="rm-cell-n">n={metric.n}</div>
     </div>
   );
 }
 
-// §6.6 RETURNS BY DOMAIN — consolidated panel with a PANEL-LOCAL $/% toggle
-// (drives ONLY this panel). "$" = LIVE cumulative dollars (proxy
-// panel_returns_by_domain; exclude-36, asset_class folded — no 'Large Cap
-// Stock' split). "%" = DEFERRED: a pending state, NOT a number — annualized-%
-// awaits the proxy methodology + insufficient_history flag. ZERO frontend
-// annualization; when the proxy serves it, "%" is a field wire-up, no relayout.
+function RbdRow({ assetClass, trackOrder, cell, colSigma, view }) {
+  return (
+    <>
+      <div className="rm-h rm-row-h" title={assetClass}>{RBD_AC_ABBR[assetClass] ?? assetClass}</div>
+      {trackOrder.map((tr) => (
+        <RbdCell key={tr} metric={cell[`${assetClass}:${tr}`]} view={view}
+          title={`${assetClass} · ${tr}`} ariaLabel={`${assetClass} · ${tr}`} />
+      ))}
+      <RbdCell metric={colSigma} view={view} title={`${assetClass} · all tracks`} ariaLabel={`${assetClass} · all tracks`} />
+    </>
+  );
+}
+
+// Window selector options (proxy `window` param). Order per dispatch; default ALL.
+const RBD_WINDOW_OPTS = [
+  { key: 'current_month', label: 'MTD' },
+  { key: 'ytd', label: 'YTD' },
+  { key: '1y', label: '1Y' },
+  { key: '5y', label: '5Y' },
+  { key: 'all', label: 'ALL' },
+];
+
+// §6.6 RETURNS BY DOMAIN — consolidated panel. Panel-local $/% toggle (BOTH
+// live) + a time-window selector driving the proxy `window` param. $ =
+// cumulative pnl_dollar; % = ANNUALIZED return served by the proxy, with the
+// insufficient_history flag rendered honestly (never suppressed). All numbers
+// from panel_returns_by_domain_pct[window] — $ and % share ONE population.
 function ReturnsByDomainPanel({ mode, data }) {
   const liveMode = mode === 'live';
   const [view, setView] = useState('$');
-  const m = liveMode ? null : adaptPanelReturnsByDomain(data);
+  const [win, setWin] = useState('all');
+  const rows = liveMode ? null : (data?.panelReturnsByDomainPct?.[win] ?? null);
+  const m = rows ? adaptPanelReturnsByDomainPct(rows) : null;
   const TRACK_ABBR = { Conservative: 'CONS', Moderate: 'MOD', Aggressive: 'AGG' };
 
   const header = (
-    <div className="ptitle">
-      <span><span className="ptitle-bar" />RETURNS BY DOMAIN</span>
-      <span className="rbd-toggle" role="group" aria-label="dollar or percent view">
-        <button type="button" className={'rbd-tab' + (view === '$' ? ' on' : '')} aria-pressed={view === '$'} onClick={() => setView('$')}>$</button>
-        <button type="button" className={'rbd-tab' + (view === '%' ? ' on' : '')} aria-pressed={view === '%'} onClick={() => setView('%')}>%</button>
-      </span>
-    </div>
+    <>
+      <div className="ptitle">
+        <span><span className="ptitle-bar" />RETURNS BY DOMAIN</span>
+        <span className="rbd-toggle" role="group" aria-label="dollar or percent view">
+          <button type="button" className={'rbd-tab' + (view === '$' ? ' on' : '')} aria-pressed={view === '$'} onClick={() => setView('$')}>$</button>
+          <button type="button" className={'rbd-tab' + (view === '%' ? ' on' : '')} aria-pressed={view === '%'} onClick={() => setView('%')}>%</button>
+        </span>
+      </div>
+      <div className="rbd-winrow" role="group" aria-label="time window">
+        {RBD_WINDOW_OPTS.map((w) => (
+          <button key={w.key} type="button" className={'rbd-win' + (win === w.key ? ' on' : '')} aria-pressed={win === w.key} onClick={() => setWin(w.key)}>{w.label}</button>
+        ))}
+      </div>
+    </>
   );
 
-  // "%" — DEFERRED pending state. No number, no frontend annualization.
-  if (view === '%') {
-    return (
-      <div className="panel p-returns p-returns-pc rbd-panel">
-        {header}
-        <div className="rbd-pending">
-          <div className="rbd-pending-main">— % VIEW PENDING —</div>
-          <div className="rbd-pending-sub">Annualized return awaiting proxy methodology + insufficient-history flag (12 equity days &lt; 30 → ~30× annualization). No frontend annualization.</div>
-        </div>
-      </div>
-    );
-  }
-
-  // "$" — LIVE (default view).
   if (!m) {
     return (
       <div className="panel p-returns p-returns-pc rbd-panel">
         {header}
-        <div className="rm-bootstrap">— AWAITING LIVE $ MATRIX —</div>
+        <div className="rm-bootstrap">— AWAITING LIVE RETURNS MATRIX —</div>
       </div>
     );
   }
-  const { assetClassOrder, trackOrder, cell, rowSigma, colSigma, corner } = m;
+  const { assetClassOrder, trackOrder, cell, rowSigma, colSigma, corner, insufficient, equityDays } = m;
+  const cornerStr = view === '%' ? fmtPctSigned(corner.annPct) : fmtUsd0(corner.pnl);
   return (
     <div className="panel p-returns p-returns-pc rbd-panel">
       {header}
-      <div className="rbd-meta" title="§15.5: cumulative pnl_dollar per track × asset_class, broker-reconciling; 36 §6.6 corrupt closes excluded; asset_class folded.">excl-36 · broker-reconciling · {fmtUsd0(corner.pnl)} · {corner.n} closed</div>
+      <div className="rbd-meta" title="excl-36 · broker-reconciling · asset_class folded. $ = cumulative pnl_dollar; % = annualized return (proxy-computed, exclude-36).">
+        excl-36 · {cornerStr} · {corner.n} closed
+        {view === '%' && insufficient && (
+          <span className="rbd-flag" title={`Annualized from only ${equityDays} equity-days (< 30): the ×${Math.round(252 / Math.max(equityDays, 1))} scale-up is NOT a real forward rate.`}> · ⚠ insufficient history ({equityDays} eq-days &lt; 30)</span>
+        )}
+      </div>
       <div className="rm-grid rbd-grid">
         <div className="rm-h rm-corner-h" aria-hidden="true" />
         {trackOrder.map((tr) => (
           <div key={tr} className="rm-h rm-col-h" title={tr}>{TRACK_ABBR[tr] ?? tr}</div>
         ))}
-        <div className="rm-h rm-col-h rm-sigma-h" title="Per-asset-class $ totals">Total</div>
+        <div className="rm-h rm-col-h rm-sigma-h" title="Per-asset-class totals">Total</div>
 
         {assetClassOrder.map((ac) => (
-          <DomainDollarRow key={ac} assetClass={ac} trackOrder={trackOrder} cell={cell} colSigma={colSigma[ac]} />
+          <RbdRow key={ac} assetClass={ac} trackOrder={trackOrder} cell={cell} colSigma={colSigma[ac]} view={view} />
         ))}
 
-        <div className="rm-h rm-row-h rm-sigma-h rbd-total-h" title="Per-track $ totals">Total</div>
+        <div className="rm-h rm-row-h rm-sigma-h rbd-total-h" title="Per-track totals">Total</div>
         {trackOrder.map((tr) => (
-          <DollarCell key={'rs-' + tr} metric={rowSigma[tr]} extraCls="rbd-total-cell" title={`All asset classes · ${tr}`} ariaLabel={`All asset classes · ${tr}: ${fmtUsdSigned(rowSigma[tr]?.pnl)} over ${rowSigma[tr]?.n ?? 0} trades`} />
+          <RbdCell key={'rs-' + tr} metric={rowSigma[tr]} view={view} total title={`All asset classes · ${tr}`} ariaLabel={`All asset classes · ${tr}`} />
         ))}
-        <DollarCell metric={corner} extraCls="rbd-total-cell" title="Grand total ($)" ariaLabel={`Grand total: ${fmtUsdSigned(corner.pnl)} over ${corner.n} trades`} />
+        <RbdCell metric={corner} view={view} total title="Grand total" ariaLabel="Grand total" />
       </div>
     </div>
-  );
-}
-
-function DomainDollarRow({ assetClass, trackOrder, cell, colSigma }) {
-  return (
-    <>
-      <div className="rm-h rm-row-h" title={assetClass}>{assetClass}</div>
-      {trackOrder.map((tr) => {
-        const c = cell[`${assetClass}:${tr}`];
-        return (
-          <DollarCell key={tr} metric={c} title={`${assetClass} · ${tr}`} ariaLabel={`${assetClass} · ${tr}: ${c ? fmtUsdSigned(c.pnl) : '—'} over ${c?.n ?? 0} trades`} />
-        );
-      })}
-      <DollarCell metric={colSigma} title={`${assetClass} · all tracks`} ariaLabel={`${assetClass} · all tracks: ${fmtUsdSigned(colSigma?.pnl)} over ${colSigma?.n ?? 0} trades`} />
-    </>
   );
 }
 

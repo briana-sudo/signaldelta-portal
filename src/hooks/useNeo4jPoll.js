@@ -217,6 +217,21 @@ async function callReturnsMatrix() {
   };
 }
 
+// §6.6 Returns-by-Domain ANNUALIZED % (2026-06-10, D2): fan out the 5 time
+// windows so the panel's window selector switches client-side with NO refetch.
+// Each call returns the flat grid (cells + Total rim + corner) the proxy
+// post-processes (pnl_dollar + annualized_pct per group); $corrupt_ids is
+// auto-injected server-side. A failed window degrades to [] (panel bootstraps).
+const RBD_WINDOWS = ['all', 'current_month', 'ytd', '1y', '5y'];
+async function callReturnsByDomainPct() {
+  const entries = await Promise.all(RBD_WINDOWS.map((w) =>
+    callProxy('panel_returns_by_domain_pct', { window: w })
+      .then((rows) => [w, Array.isArray(rows) ? rows : []])
+      .catch(() => [w, []])
+  ));
+  return Object.fromEntries(entries);
+}
+
 // Portal v1.11 (2026-05-29): live bottom price ticker via GET /price_ticker.
 // Replaces the hardcoded TICKER literal + cosmetic wobble. Proxy fans out to
 // two batched Alpaca snapshot calls (stocks SIP + crypto) keyed off the
@@ -250,6 +265,7 @@ async function pollOnce(monitoredAssets) {
     callPriceTicker(),     // index = QUERY_SPECS.length + 2 (v1.11)
     callReturnsMatrix(),   // index = QUERY_SPECS.length + 3 (v1.17)
     callTradesClosedDay(etDayRange(0)), // index = QUERY_SPECS.length + 4 (Rev 42 — today's ET-day closed feed for DAY W/L)
+    callReturnsByDomainPct(), // index = QUERY_SPECS.length + 5 (D2 — annualized %, 5 windows)
   ];
   const settled = await Promise.allSettled(calls);
 
@@ -362,6 +378,23 @@ async function pollOnce(monitoredAssets) {
       ? closedDayResult.reason.message
       : String(closedDayResult.reason);
     data.tradesClosedToday = null;
+  }
+
+  // Returns-by-Domain annualized % (D2) — index = QUERY_SPECS.length + 5.
+  // Map of {window: flatGridRows[]}; the panel picks the selected window
+  // client-side. On any failure the whole map degrades to null (panel bootstraps).
+  const rbdPctResult = settled[QUERY_SPECS.length + 5];
+  if (rbdPctResult.status === 'fulfilled') {
+    data.panelReturnsByDomainPct = rbdPctResult.value;
+    if (Array.isArray(data.panelReturnsByDomainPct?.all)
+        && data.panelReturnsByDomainPct.all.length > 0) anyData = true;
+  } else {
+    // eslint-disable-next-line no-console
+    console.error('[signaldelta] poll panel_returns_by_domain_pct failed:', rbdPctResult.reason);
+    errors.panel_returns_by_domain_pct = rbdPctResult.reason instanceof Error
+      ? rbdPctResult.reason.message
+      : String(rbdPctResult.reason);
+    data.panelReturnsByDomainPct = null;
   }
 
   // Scanner Tier 2: data.scannerLiveState is populated by the QUERY_SPECS loop

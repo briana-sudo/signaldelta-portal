@@ -649,6 +649,52 @@ export function adaptPanelReturnsByDomain(data) {
   };
 }
 
+// §6.6 Returns-by-Domain annualized % (D2). Organizes the proxy's flat grid
+// (scope_type ∈ cell/row_total/col_total/corner) for ONE window into the
+// cell/rim/corner shape the panel renders. Every group carries BOTH pnl_dollar
+// ($ view) and annualized_pct (% view) → $ and % share one population. The
+// annualization + insufficient_history flag come straight from the proxy (no
+// frontend math). `rows` is data.panelReturnsByDomainPct[window].
+export function adaptPanelReturnsByDomainPct(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const cell = {};
+  const rowSigma = {};
+  const colSigma = {};
+  let corner = null;
+  let equityDays = 0;
+  let insufficient = false;
+  const num = (v) => (v == null ? null : Number(v));
+  for (const r of rows) {
+    if (r.equity_days != null) equityDays = Number(r.equity_days);
+    if (r.insufficient_history) insufficient = true;
+    const m = {
+      n: Number(r.n) || 0,
+      pnl: Number(r.pnl_dollar) || 0,
+      annPct: num(r.annualized_pct),
+      cumPct: num(r.cum_return_pct),
+      hasData: (Number(r.n) || 0) > 0,
+    };
+    if (r.scope_type === 'cell') cell[`${r.asset_class}:${r.track}`] = m;
+    else if (r.scope_type === 'row_total') rowSigma[r.track] = m;
+    else if (r.scope_type === 'col_total') colSigma[r.asset_class] = m;
+    else if (r.scope_type === 'corner') corner = m;
+  }
+  const DOMAIN = ['Crypto', 'Large-cap stock', 'Growth stock'];
+  const TRACKS = ['Conservative', 'Moderate', 'Aggressive'];
+  const acSet = new Set(Object.keys(colSigma));
+  const trSet = new Set(Object.keys(rowSigma));
+  const assetClassOrder = [
+    ...DOMAIN.filter((a) => acSet.has(a)),
+    ...[...acSet].filter((a) => !DOMAIN.includes(a)),
+  ];
+  const trackOrder = TRACKS.filter((t) => trSet.has(t));
+  return {
+    cell, rowSigma, colSigma,
+    corner: corner || { n: 0, pnl: 0, annPct: null, cumPct: null, hasData: false },
+    assetClassOrder, trackOrder, equityDays, insufficient,
+  };
+}
+
 // Per-trade log-return Sharpe (§6.6 exclude-36), served pre-computed by the
 // proxy (exact §12). Honest fields: band/confidence/n + the parked daily-equity
 // (annualized) basis availability flag. No recompute, no dress-up.
