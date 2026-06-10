@@ -18,7 +18,7 @@ import {
 } from '../lib/dataAdapter.js';
 import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
-import { computeAnnualized, computePaceTier, deriveTodayPct } from '../lib/annualizedReturn.js';
+import { computeAnnualized, deriveTodayPct } from '../lib/annualizedReturn.js';
 // Portal charts (2026-06-10): equity + daily-return migrated from hand-rolled
 // inline SVG to Recharts (axes / hover tooltip / time-range toggle). The old
 // buildEquityCurveSvgFromSeries / buildDailyReturnBars + PACE_TIERS tier
@@ -222,20 +222,93 @@ function PerformanceBadge({ mode, currentPhase }) {
   return <div className={'sim-tag t-' + tone}>{text}</div>;
 }
 
-// Portal Rev 33 (2026-06-04): tiered pace badge (Feature 3). Shared by PC +
-// mobile via this module's computePaceTier(). Only SOLID/STRONG/ELITE render a
-// badge; plain-positive and down bands carry color on the daily-% stat only
-// (no badge). Compliance: copy reads as PACE, never an annual-return claim;
-// far-past-elite shows ">60% pace", never a raw extrapolated annual %.
-function PaceBadge({ pace }) {
-  if (!pace || !pace.label) return null;
-  const sub = "today's pace · if every day were like this";
-  const aria = `${pace.label} — ${sub}${pace.paceDisplay ? ` (${pace.paceDisplay})` : ''}`;
+// ───────────────────────────────────────────────────────────────────────
+// Portal KPI tiles + daily-P&L tier system (2026-06-10).
+//
+// The old Rev-33 PaceBadge is removed; the per-day pace state now lives as a
+// tier badge on the Today's-P&L KPI tile.
+//
+// §15.5 (anti-fraud): the tier is a per-DAY pace state (today vs prior close),
+// broker-sourced (intraday equity), NEVER TradeNode.pnl_dollar. Every badge
+// names its source verbatim. Copy reads "Today: Alpha pace", never a standing
+// "SignalDelta is Alpha" claim. Thresholds are NAMED config — retunable here;
+// true live-without-deploy retune needs them seeded into TradingConfigNode + a
+// proxy endpoint (future), which `data?.tierConfig` will honor with NO portal
+// change. Until then these defaults apply.
+// ───────────────────────────────────────────────────────────────────────
+const TIER_DEFAULTS = { tier_alpha_pct: 0.38, tier_elite_pct: 1.0 };
+// Tier swatch colors: Green pace = teal, Alpha = blue, Elite = amber, loss = red.
+const TIER_COLOR = { green: '#00c2ff', alpha: '#3d8bff', elite: '#ffab00', loss: '#ff3d57' };
+const TIER_SRC = {
+  green: 'Green = a positive day (today’s pace > 0%). Per-day state, resets daily.',
+  alpha: 'Alpha = top-500 day-trader pace (Barber et al., +0.38%/day net). Today’s pace only.',
+  elite: 'Elite = ~2.6× the Alpha pace (≥1.0%/day). Today’s pace only, resets daily.',
+};
+
+function tierThresholds(data) {
+  const c = data?.tierConfig || {};
+  const a = Number(c.tier_alpha_pct);
+  const e = Number(c.tier_elite_pct);
+  return {
+    alpha: Number.isFinite(a) ? a : TIER_DEFAULTS.tier_alpha_pct,
+    elite: Number.isFinite(e) ? e : TIER_DEFAULTS.tier_elite_pct,
+  };
+}
+// Returns the day's tier from its return % (null for a flat/negative day).
+function dayTier(pct, thr) {
+  if (pct == null || !Number.isFinite(pct) || pct <= 0) return null;
+  if (pct >= thr.elite) return { key: 'elite', label: 'Elite', src: TIER_SRC.elite };
+  if (pct >= thr.alpha) return { key: 'alpha', label: 'Alpha', src: TIER_SRC.alpha };
+  return { key: 'green', label: 'Green', src: TIER_SRC.green };
+}
+// Bar fill for a completed day's return: tier color when positive, red on a loss.
+function tierFill(pct, thr) {
+  if (!(pct > 0)) return TIER_COLOR.loss;
+  return TIER_COLOR[dayTier(pct, thr).key];
+}
+
+// Tiny inline trend sparkline (no axes) from an existing numeric series.
+function Sparkline({ values, color, width = 50, height = 16 }) {
+  if (!Array.isArray(values) || values.length < 2) return null;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = (max - min) || 1;
+  const n = values.length;
+  const pts = values.map((v, i) => {
+    const x = (i / (n - 1)) * width;
+    const y = height - ((v - min) / range) * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
   return (
-    <div className={'pace-badge pace-' + pace.cls} title={sub} aria-label={aria}>
-      <span className="pace-dot" aria-hidden="true" />
-      <span className="pace-lbl">{pace.label}</span>
-      {pace.paceDisplay && <span className="pace-sub">{pace.paceDisplay}</span>}
+    <svg className="kpi-spark" width={width} height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
+    </svg>
+  );
+}
+
+// One header KPI tile: label · value · direction-colored delta · context line ·
+// sparkline. `pending` renders the "— pending verify" placeholder (pnl-gated
+// tiles stay numberless until the exit-price fix is verified — §15.5: a number
+// pre-verify is a wrong number). `flash` ('alpha'|'elite') glows value + delta.
+function KpiTile({ label, value, valueCls, delta, deltaCls, context, badge, spark, sparkColor, flash, pending, title }) {
+  return (
+    <div className={'kpi-tile' + (flash ? ' kpi-flash kpi-flash-' + flash : '')} title={title}>
+      <div className="kpi-top">
+        <span className="kpi-label">{label}</span>
+        {badge}
+      </div>
+      {pending ? (
+        <div className="kpi-pending">— pending verify</div>
+      ) : (
+        <div className="kpi-mid">
+          <span className={'kpi-value' + (valueCls ? ' ' + valueCls : '')}>{value}</span>
+          {delta != null && <span className={'kpi-delta ' + (deltaCls || '')}>{delta}</span>}
+        </div>
+      )}
+      <div className="kpi-bot">
+        <span className="kpi-context">{context}</span>
+        {spark && <Sparkline values={spark} color={sparkColor} />}
+      </div>
     </div>
   );
 }
@@ -271,72 +344,115 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
   const annual = useMemo(() => computeAnnualized(series), [series]);
   const annualBoot = bootstrap || !series;
   const todayPct = deriveTodayPct(av, ap);
-  const pace = useMemo(() => computePaceTier(todayPct), [todayPct]);
 
   // Portal Rev 42 (2026-06-04): DAY W/L (ET) — wins/total of trades CLOSED today
-  // on the ET calendar boundary (America/New_York). Deliberately NOT the Alpaca-
-  // session TODAY P&L window — hence the "(ET)" label. `tradesClosedToday` is the
-  // raw row feed (win_loss per row); null = feed unavailable (proxy pre-restart)
-  // → render a dash, not a misleading 0/0.
+  // on the ET calendar boundary (America/New_York). `tradesClosedToday` is the
+  // raw row feed (win_loss per row); null = feed unavailable (proxy pre-restart).
   const closedToday = data?.tradesClosedToday;
   const dayWins = Array.isArray(closedToday) ? closedToday.filter((r) => r.win_loss === 'Win').length : 0;
   const dayTotal = Array.isArray(closedToday) ? closedToday.length : 0;
   const dayPct = dayTotal ? Math.round((dayWins / dayTotal) * 100) : null;
 
+  // Portal KPI tiles (2026-06-10) — broker/count-sourced values + sparklines.
+  const winRate = bootstrap ? null : adaptWinRate(data);
+  const totalPnl = (av != null && Number.isFinite(av)) ? av - capitalBase : null;
+  const thr = tierThresholds(data);
+  const todayTier = bootstrap ? null : dayTier(todayPct, thr);
+  const tierFlash = todayTier && (todayTier.key === 'alpha' || todayTier.key === 'elite') ? todayTier.key : null;
+
+  // Sparkline series from the existing equity series + closed-trade feed (no new
+  // data wiring): equity trend, daily-P&L (equity diffs), cumulative win-rate.
+  const eqVals = useMemo(() => (series ? series.map((p) => Number(p.equity) || 0) : null), [series]);
+  const dailyPnlVals = useMemo(() => {
+    if (!series || series.length < 2) return null;
+    const out = [];
+    for (let i = 1; i < series.length; i++) out.push((Number(series[i].equity) || 0) - (Number(series[i - 1].equity) || 0));
+    return out;
+  }, [series]);
+  const winRateVals = useMemo(() => {
+    if (bootstrap) return null;
+    const tl = adaptTradeList(data);
+    if (!Array.isArray(tl)) return null;
+    const closed = tl.filter((t) => t.status === 'CLOSED' && t.exitTimestamp)
+      .sort((a, b) => String(a.exitTimestamp).localeCompare(String(b.exitTimestamp)));
+    if (closed.length < 2) return null;
+    let w = 0; const out = [];
+    closed.forEach((t, i) => { if (t.winLoss === 'Win') w++; out.push((w / (i + 1)) * 100); });
+    return out;
+  }, [bootstrap, data]);
+
+  const tierBadge = todayTier
+    ? <span className={'kpi-tier kpi-tier-' + todayTier.key} title={todayTier.src}>{todayTier.label}</span>
+    : null;
+
   return (
     <div className="acct">
-      <div className="aitem"><span className="alabel">Capital Base</span><span className="aval">${capitalBase.toLocaleString()}</span></div>
-      <div className="aitem aitem-annualized"><span className="alabel">Annualized</span>
-        {annualBoot
-          ? dash
-          : (annual.gated
-              ? <span className="aval aval-building">{annual.display}</span>
-              : <span className={'aval aval-annualized ' + cls(annual.annualizedPct)}>{annual.display}</span>)}
-        {!annualBoot && <PaceBadge pace={pace} />}
+      <div className="acct-tiles">
+        <KpiTile
+          label="Total Return"
+          value={totalReturnPct != null ? `${sign(totalReturnPct)}${totalReturnPct.toFixed(2)}%` : '—'}
+          valueCls={totalReturnPct != null ? cls(totalReturnPct) : ''}
+          delta={totalPnl != null ? `${sign(totalPnl)}$${Math.abs(totalPnl).toFixed(0)}` : null}
+          deltaCls={totalPnl != null ? cls(totalPnl) : ''}
+          context={`since $${capitalBase.toLocaleString()} base`}
+          spark={totalReturnPct != null ? eqVals : null}
+          sparkColor={totalReturnPct >= 0 ? TIER_COLOR.green : TIER_COLOR.loss}
+          title="Total return — graph equity vs capital base."
+        />
+        <KpiTile
+          label="Equity"
+          value={av != null ? `$${valFmt(av)}` : '—'}
+          valueCls={av != null ? cls(av - capitalBase) : ''}
+          delta={totalPnl != null ? `${sign(totalPnl)}$${Math.abs(totalPnl).toFixed(0)}` : null}
+          deltaCls={totalPnl != null ? cls(totalPnl) : ''}
+          context="broker equity (live)"
+          spark={av != null ? eqVals : null}
+          sparkColor={(totalPnl ?? 0) >= 0 ? TIER_COLOR.green : TIER_COLOR.loss}
+          title="Current account value — broker equity."
+        />
+        <KpiTile
+          label="Today's P&L"
+          value={ap != null ? `${sign(ap)}$${Math.abs(ap).toFixed(2)}` : '—'}
+          valueCls={ap != null ? cls(ap) : ''}
+          delta={todayPct != null ? `${sign(todayPct)}${todayPct.toFixed(2)}%` : null}
+          deltaCls={todayPct != null ? cls(todayPct) : ''}
+          badge={tierBadge}
+          flash={tierFlash}
+          context={todayTier ? `Today: ${todayTier.label} pace` : 'vs prior close'}
+          spark={ap != null ? dailyPnlVals : null}
+          sparkColor={(ap ?? 0) >= 0 ? TIER_COLOR.green : TIER_COLOR.loss}
+          title={todayTier ? todayTier.src : 'Today’s P&L — broker intraday equity vs prior-day close. Tier is today’s pace only (resets daily), never a standing claim.'}
+        />
+        <KpiTile
+          label="Win Rate"
+          value={winRate ? `${winRate.pct.toFixed(1)}%` : '—'}
+          valueCls={winRate && winRate.pct >= 50 ? 'g' : ''}
+          context={winRate ? `${winRate.wins} W / ${winRate.total} trades` : 'awaiting first close'}
+          spark={winRateVals}
+          sparkColor={TIER_COLOR.green}
+          title="Win rate — closed-trade count (forensic-excluded)."
+        />
+        <KpiTile
+          label="Profit Factor"
+          pending
+          context="pending exit-price verify"
+          title="§15.5: profit factor reads pnl_dollar, which the exit-price fix corrects. Stays numberless until a live close is verified (price_source = broker_fill) — a number pre-verify is a wrong number."
+        />
+        <KpiTile
+          label="Expectancy ($)"
+          pending
+          context="pending exit-price verify"
+          title="§15.5: expectancy reads pnl_dollar, which the exit-price fix corrects. Stays numberless until a live close is verified (price_source = broker_fill)."
+        />
       </div>
-      <div className="aitem"><span className="alabel">Current Value</span>
-        {bootstrap || av == null
-          ? dash
-          : <span className={'aval ' + cls(av - capitalBase)}>${valFmt(av)}</span>}
+      {/* Thin secondary row — plain numbers, no sparkline (demoted, not lost). */}
+      <div className="acct-secondary">
+        <span className="asec"><span className="asec-l">Base</span> ${capitalBase.toLocaleString()}</span>
+        <span className="asec"><span className="asec-l">Ann</span> {annualBoot ? '—' : annual.display}</span>
+        <span className="asec"><span className="asec-l">Day W/L</span> {bootstrap || !Array.isArray(closedToday) ? '—' : `${dayWins}/${dayTotal}${dayTotal ? ` · ${dayPct}%` : ''}`}</span>
+        <span className="asec"><span className="asec-l">Trades</span> {bootstrap ? 0 : (liveAccountBar?.trades ?? 0)}</span>
+        <span className="asec"><span className="asec-l">Open</span> {bootstrap || openCount == null ? '—' : openCount}</span>
       </div>
-      <div className="aitem"><span className="alabel">Total Return</span>
-        {bootstrap || totalReturnPct == null
-          ? dash
-          : <span className={'aval ' + cls(totalReturnPct)}>{sign(totalReturnPct)}{totalReturnPct.toFixed(2)}%</span>}
-      </div>
-      <div className="aitem"><span className="alabel">Today P&amp;L</span>
-        {bootstrap || ap == null
-          ? dash
-          : (
-            <>
-              <span className={'aval ' + cls(ap)}>{sign(ap)}${Math.abs(ap).toFixed(2)}</span>
-              {/* Rev 33 Feature 2: daily-% colored by sign (>=0 green, <0 red). */}
-              {todayPct != null && (
-                <span className={'aval-sub ' + cls(todayPct)}>{sign(todayPct)}{todayPct.toFixed(2)}%</span>
-              )}
-            </>
-          )}
-      </div>
-      <div className="aitem"><span className="alabel">Day W/L (ET)</span>
-        {bootstrap || !Array.isArray(closedToday)
-          ? dash
-          : (
-            <span className={'aval ' + (dayTotal && dayPct >= 50 ? 'g' : '')}>
-              {dayWins}/{dayTotal}{dayTotal ? ` · ${dayPct}%` : ''}
-            </span>
-          )}
-      </div>
-      <div className="aitem"><span className="alabel">Trades</span>
-        <span className="aval c">{bootstrap ? 0 : (liveAccountBar?.trades ?? 0)}</span>
-      </div>
-      <div className="aitem"><span className="alabel">Open</span>
-        <span className="aval c">{bootstrap || openCount == null ? '—' : openCount}</span>
-      </div>
-      <div className="acct-divider" />
-      {/* Portal v1.14 (2026-05-30): MiniWaterfall moved to <WeekRow/> below
-          the banner. Banner-right now hosts the collapsed M4 §6 health
-          strip (one row per AccountStateNode). Suppress `liveWeeklyWaterfall`
-          unused-var lint by intentionally referencing it. */}
       {void liveWeeklyWaterfall}
       <div className="acct-health">
         <HealthStrip data={data} layout="pc" />
@@ -741,10 +857,14 @@ function ReturnTip({ active, payload }) {
   if (!active || !payload || !payload.length) return null;
   const p = payload[0].payload;
   const up = p.r >= 0;
+  const color = p.fill || (up ? CK.cyan : CK.red);
   return (
     <div className="eq-tip">
       <div className="eq-tip-d">{fmtDateFull(p.date)}</div>
-      <div className="eq-tip-v" style={{ color: up ? CK.cyan : CK.red }}>{(up ? '+' : '') + p.r.toFixed(2)}%</div>
+      <div className="eq-tip-v" style={{ color }}>
+        {(up ? '+' : '') + p.r.toFixed(2)}%{p.tier ? ` · ${p.tier.label}` : ''}
+      </div>
+      {p.tier && <div className="eq-tip-src">{p.tier.src}</div>}
     </div>
   );
 }
@@ -769,7 +889,9 @@ function EquityCurvePanel({ mode, data }) {
     [bootstrap, series, effRange],
   );
   // Daily returns derived from the FULL series (so the first visible bar keeps a
-  // real prior), then sliced to the range — same broker-true equity points.
+  // real prior), then sliced to the range — same broker-true equity points. Each
+  // completed day carries its tier color (green/Alpha/Elite) + §15.5 source.
+  const thr = tierThresholds(data);
   const retData = useMemo(() => {
     if (bootstrap || !series || series.length < 2) return [];
     const all = [];
@@ -777,10 +899,10 @@ function EquityCurvePanel({ mode, data }) {
       const prev = series[i - 1].equity;
       const cur = series[i].equity;
       const r = (Number.isFinite(prev) && prev > 0 && Number.isFinite(cur)) ? (cur / prev - 1) * 100 : 0;
-      all.push({ date: series[i].date, r });
+      all.push({ date: series[i].date, r, fill: tierFill(r, thr), tier: dayTier(r, thr) });
     }
     return sliceByRange(all, effRange);
-  }, [bootstrap, series, effRange]);
+  }, [bootstrap, series, effRange, thr.alpha, thr.elite]);
   // Symmetric ±% domain so the daily chart's zero line sits at the vertical mid.
   const retMax = useMemo(
     () => Math.max(0.5, Math.ceil(retData.reduce((a, d) => Math.max(a, Math.abs(d.r)), 0) * 2) / 2),
@@ -907,7 +1029,7 @@ function EquityCurvePanel({ mode, data }) {
                 <Tooltip content={<ReturnTip />} cursor={{ fill: 'rgba(0,194,255,0.08)' }} />
                 <Bar dataKey="r" radius={[1, 1, 0, 0]} isAnimationActive={false}>
                   {retData.map((d, i) => (
-                    <Cell key={i} fill={d.r >= 0 ? CK.cyan : CK.red} fillOpacity={0.85} />
+                    <Cell key={i} fill={d.fill} fillOpacity={0.85} />
                   ))}
                 </Bar>
               </BarChart>

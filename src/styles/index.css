@@ -112,10 +112,55 @@ body::after {
 .pc-shell .clock-sep { font-size:11px; color:var(--w3); }
 .pc-shell .clock-utc { font-size:9px;  color:var(--w3); letter-spacing:1px; }
 
+/* Portal KPI tiles (2026-06-10): header grows 50px → 64px to hold 6 KPI tiles
+   (top) + a thin secondary row (bottom), HealthStrip spanning on the right.
+   Grid keeps tiles+secondary stacked on the left without changing the JSX. */
 .pc-shell .acct {
-  height: 50px; background: var(--navy3); border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; padding: 0 16px; gap: 0; flex-shrink: 0;
+  height: 64px; background: var(--navy3); border-bottom: 1px solid var(--border);
+  display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-rows: 1fr auto;
+  padding: 0 12px; flex-shrink: 0; column-gap: 8px;
 }
+.pc-shell .acct-tiles { grid-column: 1; grid-row: 1; display: flex; min-width: 0; align-items: stretch; }
+.pc-shell .acct-secondary { grid-column: 1; grid-row: 2; display: flex; align-items: center; gap: 14px; padding: 0 2px 3px; }
+.pc-shell .acct-health { grid-column: 2; grid-row: 1 / span 2; display: flex; align-items: center; justify-content: flex-end; min-width: 0; padding-left: 8px; }
+.pc-shell .asec { font-family: var(--mono); font-size: 8px; letter-spacing: 1px; color: var(--w2); white-space: nowrap; }
+.pc-shell .asec-l { color: var(--w3); margin-right: 3px; }
+
+/* KPI tile */
+.pc-shell .kpi-tile { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center;
+  gap: 1px; padding: 3px 10px; border-right: 1px solid var(--border); position: relative; }
+.pc-shell .kpi-tile:first-child { padding-left: 2px; }
+.pc-shell .kpi-tile:last-child { border-right: none; }
+.pc-shell .kpi-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.pc-shell .kpi-label { font-family: var(--mono); font-size: 7px; letter-spacing: 1.5px; color: var(--w3); text-transform: uppercase; white-space: nowrap; }
+.pc-shell .kpi-mid { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
+.pc-shell .kpi-value { font-family: var(--mono); font-size: 15px; letter-spacing: 1px; color: var(--white); white-space: nowrap; }
+.pc-shell .kpi-value.g { color: var(--green); }
+.pc-shell .kpi-value.r { color: var(--red); }
+.pc-shell .kpi-value.c { color: var(--cyan); }
+.pc-shell .kpi-delta { font-family: var(--mono); font-size: 8px; letter-spacing: .5px; color: var(--w2); }
+.pc-shell .kpi-delta.g { color: var(--green); }
+.pc-shell .kpi-delta.r { color: var(--red); }
+.pc-shell .kpi-bot { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.pc-shell .kpi-context { font-family: var(--mono); font-size: 6px; letter-spacing: 1px; color: var(--w3); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-shell .kpi-spark { flex-shrink: 0; display: block; }
+.pc-shell .kpi-pending { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; color: var(--w3); padding: 3px 0; }
+
+/* Daily-P&L tier badge (Today's P&L tile) + tier source tooltip line */
+.pc-shell .kpi-tier { font-family: var(--mono); font-size: 7px; letter-spacing: 1px; padding: 1px 5px; border-radius: 1px; border: 1px solid currentColor; white-space: nowrap; }
+.pc-shell .kpi-tier-green { color: var(--cyan); background: rgba(0,194,255,0.10); }
+.pc-shell .kpi-tier-alpha { color: #3d8bff; background: rgba(61,139,255,0.12); }
+.pc-shell .kpi-tier-elite { color: #ffab00; background: rgba(255,171,0,0.12); }
+.pc-shell .eq-tip-src { font-size: 6px; color: var(--w3); letter-spacing: .5px; margin-top: 2px; max-width: 170px; white-space: normal; line-height: 1.3; }
+
+/* Today's-P&L tile FLASH when today hits Alpha/Elite — a slow glow pulse on the
+   $ and % (NOT a strobe), with a subtle tile tint. ~1.3s ease. */
+@keyframes kpi-pulse-alpha { 0%,100% { text-shadow: none; } 50% { text-shadow: 0 0 8px #3d8bff; } }
+@keyframes kpi-pulse-elite { 0%,100% { text-shadow: none; } 50% { text-shadow: 0 0 11px #ffab00; } }
+.pc-shell .kpi-flash-alpha { background: rgba(61,139,255,0.08); }
+.pc-shell .kpi-flash-elite { background: rgba(255,171,0,0.10); }
+.pc-shell .kpi-flash-alpha .kpi-value, .pc-shell .kpi-flash-alpha .kpi-delta { color: #3d8bff; animation: kpi-pulse-alpha 1.3s ease-in-out infinite; }
+.pc-shell .kpi-flash-elite .kpi-value, .pc-shell .kpi-flash-elite .kpi-delta { color: #ffab00; animation: kpi-pulse-elite 1.3s ease-in-out infinite; }
 .pc-shell .aitem { display:flex; flex-direction:column; justify-content:center; padding:0 16px; gap:1px; }
 .pc-shell .aitem + .aitem { border-left:1px solid var(--border); }
 .pc-shell .alabel { font-family:var(--mono); font-size:8px; color:var(--w3); letter-spacing:2px; text-transform:uppercase; }
