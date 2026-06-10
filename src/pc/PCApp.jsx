@@ -16,19 +16,17 @@ import {
   fmtCloseET,
   assetClassTag,
 } from '../lib/dataAdapter.js';
-import { buildEquityCurveSvgFromSeries, buildDailyReturnBars } from '../lib/equityCurve.js';
 import { initKernelScene } from '../lib/kernelScene.js';
 import { computeBadge } from '../lib/performanceBadge.js';
-import { computeAnnualized, computePaceTier, deriveTodayPct, PACE_TIERS } from '../lib/annualizedReturn.js';
-
-// Portal Rev 35/36 (2026-06-04): single-source tier thresholds for the daily-
-// return strip — same Rev-33 ladder the pace badge uses, no 2nd threshold.
-// Rev 36: bars are colored by tier (STRONG/ELITE), gold pip markers removed.
-const STRONG_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'strong')?.dailyMinPct ?? Infinity;
-const ELITE_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'elite')?.dailyMinPct ?? Infinity;
-// Internal viewBox height for the return strip (preserveAspectRatio=none stretches
-// it to the ~24px CSS box beneath the equity curve).
-const RETURN_STRIP_H = 40;
+import { computeAnnualized, computePaceTier, deriveTodayPct } from '../lib/annualizedReturn.js';
+// Portal charts (2026-06-10): equity + daily-return migrated from hand-rolled
+// inline SVG to Recharts (axes / hover tooltip / time-range toggle). The old
+// buildEquityCurveSvgFromSeries / buildDailyReturnBars + PACE_TIERS tier
+// thresholds + RETURN_STRIP_H are no longer used by this PC panel.
+import {
+  ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell,
+  XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid,
+} from 'recharts';
 import EnginePill from '../lib/EnginePill.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
@@ -690,18 +688,103 @@ function TradeListRow({ t, m4State = 'absent', unmonitoredSet = null }) {
   );
 }
 
+// Portal charts (2026-06-10): time-range toggle + Recharts helpers.
+// A range is ENABLED once the series spans MORE than the previous tier's window,
+// so with ~12 days of history only 1W / 1M / All are live; 3M / 1Y grey until
+// the data exists. Toggle slices the existing broker-true series — no new wiring.
+const CHART_RANGES = [
+  { key: '1W', days: 7, minSpan: 0 },
+  { key: '1M', days: 30, minSpan: 7 },
+  { key: '3M', days: 90, minSpan: 30 },
+  { key: '1Y', days: 365, minSpan: 90 },
+  { key: 'All', days: Infinity, minSpan: 0 },
+];
+const DAY_MS = 86400000;
+// Literal hex (matches the --cyan/--red/--w3 skin vars) — CSS custom properties
+// are unreliable inside SVG presentation attributes, so pass concrete colors.
+const CK = { cyan: '#00c2ff', red: '#ff3d57', amber: 'rgba(255,171,0,0.45)',
+  grid: 'rgba(0,194,255,0.06)', axis: 'rgba(0,194,255,0.12)', tick: '#5b7da0', zero: '#3d6080' };
+const AXIS_TICK = { fill: CK.tick, fontFamily: 'Share Tech Mono', fontSize: 7 };
+
+function chartSpanDays(series) {
+  if (!series || series.length < 2) return 0;
+  return (new Date(series[series.length - 1].date).getTime() - new Date(series[0].date).getTime()) / DAY_MS;
+}
+function sliceByRange(rows, rangeKey) {
+  if (!rows || !rows.length || rangeKey === 'All') return rows || [];
+  const r = CHART_RANGES.find((x) => x.key === rangeKey);
+  if (!r || !Number.isFinite(r.days)) return rows;
+  const newest = new Date(rows[rows.length - 1].date).getTime();
+  const cutoff = newest - r.days * DAY_MS;
+  return rows.filter((p) => new Date(p.date).getTime() >= cutoff);
+}
+// Parse 'YYYY-MM-DD' as a LOCAL date (new Date('YYYY-MM-DD') is UTC-midnight and
+// shifts a day back in negative-offset timezones — the axis/tooltip off-by-one).
+const ymdLocal = (d) => { const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return new Date(y, (m || 1) - 1, dd || 1); };
+const fmtDateTick = (d) => { const t = ymdLocal(d); return `${t.getMonth() + 1}/${t.getDate()}`; };
+const fmtDateFull = (d) => ymdLocal(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+const fmtUsdTick = (v) => (Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${Math.round(v)}`);
+const fmtUsdFull = (v) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmtPctTick = (v) => `${v.toFixed(1)}%`;
+
+function EquityTip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div className="eq-tip">
+      <div className="eq-tip-d">{fmtDateFull(p.date)}</div>
+      <div className="eq-tip-v" style={{ color: CK.cyan }}>{fmtUsdFull(p.equity)}</div>
+    </div>
+  );
+}
+function ReturnTip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null;
+  const p = payload[0].payload;
+  const up = p.r >= 0;
+  return (
+    <div className="eq-tip">
+      <div className="eq-tip-d">{fmtDateFull(p.date)}</div>
+      <div className="eq-tip-v" style={{ color: up ? CK.cyan : CK.red }}>{(up ? '+' : '') + p.r.toFixed(2)}%</div>
+    </div>
+  );
+}
+
 function EquityCurvePanel({ mode, data }) {
   const series = adaptEquityCurve(data);
   const bootstrap = shouldRenderBootstrap(mode) || !series;
-  const svg = useMemo(
-    () => (bootstrap ? null : buildEquityCurveSvgFromSeries(series, { width: 600, height: 80 })),
-    [bootstrap, series],
+  // Time-range toggle (default 1M). A range greys out until the series spans
+  // past the previous tier; the selected range falls back to All if disabled.
+  const [range, setRange] = useState('1M');
+  const span = useMemo(() => chartSpanDays(series), [series]);
+  const enabled = useMemo(() => {
+    const e = {};
+    for (const r of CHART_RANGES) e[r.key] = !!series && series.length >= 2 && span >= r.minSpan;
+    return e;
+  }, [series, span]);
+  const effRange = enabled[range] ? range : 'All';
+
+  // Equity points sliced to the visible range (the chart line + fill).
+  const eqData = useMemo(
+    () => (bootstrap ? [] : sliceByRange(series, effRange)),
+    [bootstrap, series, effRange],
   );
-  // Rev 35: daily-return strip derived from the SAME equity points (no fetch,
-  // no percent_pnl_today). Elite flag uses the single-source Rev-33 threshold.
-  const retStrip = useMemo(
-    () => (bootstrap ? null : buildDailyReturnBars(series, { width: 600, height: RETURN_STRIP_H, strongThreshold: STRONG_DAILY_PCT, eliteThreshold: ELITE_DAILY_PCT })),
-    [bootstrap, series],
+  // Daily returns derived from the FULL series (so the first visible bar keeps a
+  // real prior), then sliced to the range — same broker-true equity points.
+  const retData = useMemo(() => {
+    if (bootstrap || !series || series.length < 2) return [];
+    const all = [];
+    for (let i = 1; i < series.length; i++) {
+      const prev = series[i - 1].equity;
+      const cur = series[i].equity;
+      const r = (Number.isFinite(prev) && prev > 0 && Number.isFinite(cur)) ? (cur / prev - 1) * 100 : 0;
+      all.push({ date: series[i].date, r });
+    }
+    return sliceByRange(all, effRange);
+  }, [bootstrap, series, effRange]);
+  // Symmetric ±% domain so the daily chart's zero line sits at the vertical mid.
+  const retMax = useMemo(
+    () => Math.max(0.5, Math.ceil(retData.reduce((a, d) => Math.max(a, Math.abs(d.r)), 0) * 2) / 2),
+    [retData],
   );
   const subscript = mode !== 'combined' ? <span style={{ fontSize: '6px', color: 'var(--w3)', marginLeft: '2px' }}>(combined)</span> : null;
 
@@ -725,12 +808,14 @@ function EquityCurvePanel({ mode, data }) {
   // On today's monotonic-descending zero-flow series, DRAWDOWN and TWR
   // both land ≈ TOTAL RETURN — three near-identical values is the
   // expected output, not a bug; they diverge on peak-then-recovery curves.
+  // Portal charts (2026-06-10): PEAK/DRAWDOWN/TWR now reflect the VISIBLE range
+  // (eqData) so the header stats track the selected toggle.
   const computed = useMemo(() => {
-    if (!series || series.length < 1) return null;
+    if (!eqData || eqData.length < 1) return null;
     let peak = -Infinity;
     let runningPeak = -Infinity;
     let maxDD = 0;
-    for (const p of series) {
+    for (const p of eqData) {
       const e = p.equity;
       if (!Number.isFinite(e)) continue;
       if (e > peak) peak = e;
@@ -740,8 +825,8 @@ function EquityCurvePanel({ mode, data }) {
         if (dd > maxDD) maxDD = dd;
       }
     }
-    const firstEquity = series[0]?.equity;
-    const lastEquity = series[series.length - 1]?.equity;
+    const firstEquity = eqData[0]?.equity;
+    const lastEquity = eqData[eqData.length - 1]?.equity;
     const twr = (Number.isFinite(firstEquity) && firstEquity > 0 && Number.isFinite(lastEquity))
       ? (lastEquity / firstEquity - 1) * 100
       : null;
@@ -750,7 +835,7 @@ function EquityCurvePanel({ mode, data }) {
       drawdownPct: maxDD * 100,
       twrPct: twr,
     };
-  }, [series]);
+  }, [eqData]);
 
   const peakFmt = computed?.peak != null ? `$${Math.round(computed.peak).toLocaleString()}` : '—';
   const ddFmt = computed?.drawdownPct != null ? `${computed.drawdownPct.toFixed(2)}%` : '—';
@@ -762,66 +847,72 @@ function EquityCurvePanel({ mode, data }) {
         <span className="eq-title"><span className="ptitle-bar" />EQUITY CURVE</span>
         <span className="eq-stats">
           <span className="lbl">PEAK</span><span className="g">{peakFmt}</span>
-          <span className="lbl">DRAWDOWN</span><span className="r">{ddFmt}</span>
+          <span className="lbl">DD</span><span className="r">{ddFmt}</span>
           <span className="lbl">TWR</span><span>{twrFmt}</span>{subscript}
-          {/* Portal reflow (2026-06-10): STRONG/ELITE tier legend removed — the
-              daily-return strip is now a muted two-tone (gain teal / loss red),
-              magnitude read from bar height, so the tier legend is obsolete. */}
+          {/* Portal charts (2026-06-10): time-range toggle (default 1M; ranges
+              without enough history are greyed/disabled). */}
+          <span className="eq-range">
+            {CHART_RANGES.map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                className={'eq-range-btn' + (effRange === r.key ? ' active' : '')}
+                disabled={!enabled[r.key]}
+                onClick={() => { if (enabled[r.key]) setRange(r.key); }}
+              >{r.key}</button>
+            ))}
+          </span>
         </span>
       </div>
       <div className="eq-svg-wrap">
-        {/* Rev 35: equity curve shrinks to the top band (~56px); a daily-return
-            bar strip shares the wrap below it. Banner row height unchanged. */}
+        {/* Portal charts (2026-06-10): Recharts equity AreaChart (top, flex) +
+            daily-return BarChart (bottom, fixed) — axes + hover tooltip. */}
         <div className="eq-svg-equity">
-          {/* Rev 36: BASE reference label — fixed literal "$10K", in a panel-bg
-              corner chip OFF the green fill (was an in-SVG gold text on the
-              baseline, unreadable over the fill). Literal, NOT computed from the
-              series: the curve is flow-adjusted (§11 TWR), so the base must not
-              drift when capital is added/withdrawn. Phase-1 paper base = 10000. */}
-          <span className="eq-base-lbl">$10K</span>
-          <svg id="equity-svg" viewBox="0 0 600 80" preserveAspectRatio="none">
-            <defs>
-              {/* Portal reflow (2026-06-10): single teal accent — subtle area
-                  fill beneath the line (was a heavier green gradient). */}
-              <linearGradient id="eqGradPos" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="rgba(0,194,255,0.18)" />
-                <stop offset="100%" stopColor="rgba(0,194,255,0)" />
-              </linearGradient>
-            </defs>
-            {svg && (
-              <>
-                <line x1="0" y1={svg.baseY} x2={svg.width} y2={svg.baseY}
-                  stroke="rgba(255,171,0,0.4)" strokeWidth="0.6" strokeDasharray="3,3" />
-                <path d={svg.fillD} fill="url(#eqGradPos)" stroke="none" />
-                {/* teal single-accent line, thin + smooth (rounded joins) */}
-                <path d={svg.d} fill="none" stroke="var(--cyan)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                <circle cx={svg.endX} cy={svg.endY} r="2.5" fill="var(--cyan)">
-                  <animate attributeName="r" values="2.5;4;2.5" dur="2s" repeatCount="indefinite" />
-                </circle>
-                <circle cx={svg.peakX} cy={svg.peakY} r="2" fill="var(--cyan)" opacity="0.5" />
-              </>
-            )}
-            {bootstrap && (
-              <text x="300" y="44" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--w3)" letterSpacing="2">— AWAITING LIVE EQUITY SERIES —</text>
-            )}
-          </svg>
+          {bootstrap ? (
+            <div className="eq-await">— AWAITING LIVE EQUITY SERIES —</div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={eqData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="eqGradPos" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="rgba(0,194,255,0.18)" />
+                    <stop offset="100%" stopColor="rgba(0,194,255,0)" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke={CK.grid} vertical={false} />
+                <ReferenceLine y={10000} stroke={CK.amber} strokeDasharray="3 3" ifOverflow="extendDomain" />
+                <XAxis dataKey="date" tickFormatter={fmtDateTick} tick={AXIS_TICK}
+                  tickLine={false} axisLine={{ stroke: CK.axis }} minTickGap={26} height={14} />
+                <YAxis tickFormatter={fmtUsdTick} tick={AXIS_TICK} tickLine={false}
+                  axisLine={false} width={36} domain={['auto', 'auto']} />
+                <Tooltip content={<EquityTip />} cursor={{ stroke: CK.cyan, strokeOpacity: 0.4, strokeDasharray: '3 3' }} />
+                <Area type="monotone" dataKey="equity" stroke={CK.cyan} strokeWidth={1.4}
+                  fill="url(#eqGradPos)" dot={false} activeDot={{ r: 2.5, fill: CK.cyan, stroke: 'none' }}
+                  isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
         <div className="eq-svg-return">
           <span className="eq-ret-lbl">DAILY RETURN</span>
-          <svg id="equity-svg-ret" viewBox={`0 0 600 ${RETURN_STRIP_H}`} preserveAspectRatio="none">
-            {retStrip && (
-              <>
-                <line x1="0" y1={retStrip.zeroY} x2="600" y2={retStrip.zeroY}
-                  className="eq-ret-zero" strokeDasharray="2,2" />
-                {/* Portal reflow (2026-06-10): two-tone (gain teal / loss red),
-                    uniform slots, small corner radius — magnitude = bar height. */}
-                {retStrip.bars.map((b, i) => (
-                  <rect key={i} className={'eq-ret-bar ' + (b.up ? 'up' : 'down')}
-                    x={b.x} y={b.y} width={b.w} height={b.h} rx="1" ry="1" />
-                ))}
-              </>
-            )}
-          </svg>
+          {!bootstrap && (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={retData} margin={{ top: 2, right: 8, bottom: 0, left: 0 }} barCategoryGap="22%">
+                <CartesianGrid stroke={CK.grid} vertical={false} />
+                <ReferenceLine y={0} stroke={CK.zero} strokeOpacity={0.7} />
+                <XAxis dataKey="date" tickFormatter={fmtDateTick} tick={AXIS_TICK}
+                  tickLine={false} axisLine={{ stroke: CK.axis }} minTickGap={26} height={14} />
+                <YAxis tickFormatter={fmtPctTick} tick={AXIS_TICK} tickLine={false}
+                  axisLine={false} width={36} domain={[-retMax, retMax]} />
+                <Tooltip content={<ReturnTip />} cursor={{ fill: 'rgba(0,194,255,0.08)' }} />
+                <Bar dataKey="r" radius={[1, 1, 0, 0]} isAnimationActive={false}>
+                  {retData.map((d, i) => (
+                    <Cell key={i} fill={d.r >= 0 ? CK.cyan : CK.red} fillOpacity={0.85} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
     </div>

@@ -889,6 +889,27 @@ body::after {
 .pc-shell .eq-ret-bar.up   { fill:var(--cyan); }
 .pc-shell .eq-ret-bar.down { fill:var(--red); }
 
+/* Portal charts (2026-06-10): Recharts equity+daily — range toggle, tooltip,
+   await placeholder, axis tick polish. */
+.pc-shell .eq-range { display:inline-flex; align-items:center; margin-left:10px;
+  border:1px solid var(--border); border-radius:1px; overflow:hidden; }
+.pc-shell .eq-range-btn { font-family:var(--mono); font-size:7px; letter-spacing:1px;
+  padding:1px 5px; background:transparent; color:var(--w3); border:none;
+  border-right:1px solid var(--border); cursor:pointer; line-height:1.4; }
+.pc-shell .eq-range-btn:last-child { border-right:none; }
+.pc-shell .eq-range-btn:hover:not(:disabled) { color:var(--w2); }
+.pc-shell .eq-range-btn.active { background:var(--cyan2); color:var(--cyan); }
+.pc-shell .eq-range-btn:disabled { color:rgba(61,96,128,0.4); cursor:default; }
+.pc-shell .eq-await { width:100%; height:100%; display:flex; align-items:center;
+  justify-content:center; color:var(--w3); font-family:var(--mono); font-size:8px;
+  letter-spacing:2px; }
+.pc-shell .eq-tip { background:rgba(6,13,24,0.94); border:1px solid var(--border);
+  padding:3px 7px; font-family:var(--mono); }
+.pc-shell .eq-tip-d { font-size:7px; color:var(--w3); letter-spacing:1px; }
+.pc-shell .eq-tip-v { font-size:10px; letter-spacing:1px; margin-top:1px; }
+.pc-shell .recharts-cartesian-axis-tick-value { font-family:'Share Tech Mono'; }
+.pc-shell .recharts-default-tooltip { background:transparent !important; border:none !important; }
+
 /* event feed */
 .pc-shell .event-feed { flex:1; display:flex; flex-direction:column; gap:2px; overflow:hidden; }
 .pc-shell .ev { display:flex; align-items:center; gap:8px; padding:5px 8px; background:var(--navy3); border-left:2px solid transparent; font-family:var(--mono); font-size:9px; animation:ev-in .4s ease; flex-shrink:0; }
