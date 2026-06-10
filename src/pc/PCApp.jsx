@@ -13,7 +13,7 @@ import {
   adaptTradeList, selectVisibleTrades, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation, adaptPriceTicker,
   adaptAccountState,
-  adaptPanelPnlByTrack, adaptPanelProfitFactor, adaptPanelExpectancy,
+  adaptPanelProfitFactor, adaptPanelExpectancy,
   adaptPanelReturnsByDomain, adaptPanelSharpe,
   fmtCloseET,
   assetClassTag,
@@ -39,7 +39,6 @@ import NewsTicker from '../lib/NewsTicker.jsx';
 import MacroNewsStrip from '../lib/MacroNewsStrip.jsx';
 import StatusStrip from '../lib/StatusStrip.jsx';
 import HealthStrip from '../lib/HealthStrip.jsx';
-import ReturnsMatrixPanel from '../lib/ReturnsMatrixPanel.jsx';
 import RulesEmptyState from '../lib/RulesEmptyState.jsx';
 import TradeOverlay from './TradeOverlay.jsx';
 import TradesExpandModal from './TradesExpandModal.jsx';
@@ -520,12 +519,10 @@ function Main({ mode, data }) {
       </div>
       <div className="col-metrics">
         <MetricsPanel mode={mode} data={data} />
-        <PnlByTrackPanel mode={mode} data={data} />
         <KernelPanel data={data} />
       </div>
       <div className="col-extra">
-        <ReturnsMatrixPanel data={data} layout="pc" />
-        <ReturnsByDomainDollarPanel mode={mode} data={data} />
+        <ReturnsByDomainPanel mode={mode} data={data} />
         <RulesAddedPanel mode={mode} data={data} />
       </div>
     </div>
@@ -1120,48 +1117,11 @@ function fmtUsd0(v) {
   return (r < 0 ? '-$' : '+$') + Math.abs(r);
 }
 
-// §6.6 P&L BY TRACK ($) — proxy panel_pnl_by_track. All-time, exclude-36
-// applied + broker-reconciling (per-leg attribution proven by the exit-price
-// fix). Renders what the proxy serves; no frontend recompute.
-function PnlByTrackPanel({ mode, data }) {
-  const liveMode = mode === 'live';
-  const p = liveMode ? null : adaptPanelPnlByTrack(data);
-  return (
-    <div className="panel">
-      <div className="ptitle">
-        <span><span className="ptitle-bar" />P&amp;L BY TRACK ($)</span>
-        <span className="ptitle-r" title="§15.5: all-time pnl_dollar, broker-reconciling; the 36 §6.6 corrupt trigger-copy closes are excluded server-side.">excl-36 · broker-reconciling</span>
-      </div>
-      {!p ? (
-        <div className="rm-bootstrap">— AWAITING LIVE $ P&amp;L —</div>
-      ) : (
-        <>
-          {p.byTrack.map((r) => (
-            <div className="mc" key={r.track}>
-              <div className="mc-left">
-                <div className="mc-label">{r.track.toUpperCase()}</div>
-                <div className={'mc-value ' + (r.pnl >= 0 ? 'g' : 'r')}>{fmtUsdSigned(r.pnl)}</div>
-                <div className="mc-sub">{r.n} closed</div>
-              </div>
-            </div>
-          ))}
-          <div className="mc" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-            <div className="mc-left">
-              <div className="mc-label">TOTAL</div>
-              <div className={'mc-value ' + (p.total >= 0 ? 'g' : 'r')}>{fmtUsdSigned(p.total)}</div>
-              <div className="mc-sub">{p.totalN} closed · all-time</div>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function DollarCell({ metric, title, ariaLabel }) {
+function DollarCell({ metric, title, ariaLabel, extraCls }) {
+  const ec = extraCls ? ' ' + extraCls : '';
   if (!metric || !metric.hasData) {
     return (
-      <div className="rm-cell rm-empty" title={title} aria-label={ariaLabel} data-empty="true">
+      <div className={'rm-cell rm-empty' + ec} title={title} aria-label={ariaLabel} data-empty="true">
         <div className="rm-cell-pct">—</div>
         <div className="rm-cell-n">n=0</div>
       </div>
@@ -1169,54 +1129,78 @@ function DollarCell({ metric, title, ariaLabel }) {
   }
   const cls = metric.pnl > 0 ? 'rm-pos' : (metric.pnl < 0 ? 'rm-neg' : 'rm-flat');
   return (
-    <div className={'rm-cell ' + cls} title={title} aria-label={ariaLabel}>
+    <div className={'rm-cell ' + cls + ec} title={title} aria-label={ariaLabel}>
       <div className="rm-cell-pct">{fmtUsd0(metric.pnl)}</div>
       <div className="rm-cell-n">n={metric.n}</div>
     </div>
   );
 }
 
-// §6.6 RETURNS BY DOMAIN ($) — proxy panel_returns_by_domain. Cumulative-$ per
-// (track × asset_class), asset_class FOLDED server-side (no 'Large Cap Stock'
-// split row). Same grid skeleton as the %-matrix, $-valued, with a Σ rim.
-function ReturnsByDomainDollarPanel({ mode, data }) {
+// §6.6 RETURNS BY DOMAIN — consolidated panel with a PANEL-LOCAL $/% toggle
+// (drives ONLY this panel). "$" = LIVE cumulative dollars (proxy
+// panel_returns_by_domain; exclude-36, asset_class folded — no 'Large Cap
+// Stock' split). "%" = DEFERRED: a pending state, NOT a number — annualized-%
+// awaits the proxy methodology + insufficient_history flag. ZERO frontend
+// annualization; when the proxy serves it, "%" is a field wire-up, no relayout.
+function ReturnsByDomainPanel({ mode, data }) {
   const liveMode = mode === 'live';
+  const [view, setView] = useState('$');
   const m = liveMode ? null : adaptPanelReturnsByDomain(data);
+  const TRACK_ABBR = { Conservative: 'CONS', Moderate: 'MOD', Aggressive: 'AGG' };
+
+  const header = (
+    <div className="ptitle">
+      <span><span className="ptitle-bar" />RETURNS BY DOMAIN</span>
+      <span className="rbd-toggle" role="group" aria-label="dollar or percent view">
+        <button type="button" className={'rbd-tab' + (view === '$' ? ' on' : '')} aria-pressed={view === '$'} onClick={() => setView('$')}>$</button>
+        <button type="button" className={'rbd-tab' + (view === '%' ? ' on' : '')} aria-pressed={view === '%'} onClick={() => setView('%')}>%</button>
+      </span>
+    </div>
+  );
+
+  // "%" — DEFERRED pending state. No number, no frontend annualization.
+  if (view === '%') {
+    return (
+      <div className="panel p-returns p-returns-pc rbd-panel">
+        {header}
+        <div className="rbd-pending">
+          <div className="rbd-pending-main">— % VIEW PENDING —</div>
+          <div className="rbd-pending-sub">Annualized return awaiting proxy methodology + insufficient-history flag (12 equity days &lt; 30 → ~30× annualization). No frontend annualization.</div>
+        </div>
+      </div>
+    );
+  }
+
+  // "$" — LIVE (default view).
   if (!m) {
     return (
-      <div className="panel p-returns p-returns-pc">
-        <div className="ptitle">
-          <span><span className="ptitle-bar" />RETURNS BY DOMAIN ($)</span>
-          <span className="ptitle-r">excl-36</span>
-        </div>
+      <div className="panel p-returns p-returns-pc rbd-panel">
+        {header}
         <div className="rm-bootstrap">— AWAITING LIVE $ MATRIX —</div>
       </div>
     );
   }
-  const TRACK_ABBR = { Conservative: 'CONS', Moderate: 'MOD', Aggressive: 'AGG' };
   const { assetClassOrder, trackOrder, cell, rowSigma, colSigma, corner } = m;
   return (
-    <div className="panel p-returns p-returns-pc">
-      <div className="ptitle">
-        <span><span className="ptitle-bar" />RETURNS BY DOMAIN ($)</span>
-        <span className="ptitle-r" title="§15.5: cumulative pnl_dollar per track × asset_class, broker-reconciling; 36 §6.6 corrupt closes excluded; asset_class folded.">{fmtUsd0(corner.pnl)} · {corner.n} cl</span>
-      </div>
-      <div className="rm-grid">
+    <div className="panel p-returns p-returns-pc rbd-panel">
+      {header}
+      <div className="rbd-meta" title="§15.5: cumulative pnl_dollar per track × asset_class, broker-reconciling; 36 §6.6 corrupt closes excluded; asset_class folded.">excl-36 · broker-reconciling · {fmtUsd0(corner.pnl)} · {corner.n} closed</div>
+      <div className="rm-grid rbd-grid">
         <div className="rm-h rm-corner-h" aria-hidden="true" />
         {trackOrder.map((tr) => (
           <div key={tr} className="rm-h rm-col-h" title={tr}>{TRACK_ABBR[tr] ?? tr}</div>
         ))}
-        <div className="rm-h rm-col-h rm-sigma-h" title="Per-asset-class $ totals">Σ</div>
+        <div className="rm-h rm-col-h rm-sigma-h" title="Per-asset-class $ totals">Total</div>
 
         {assetClassOrder.map((ac) => (
           <DomainDollarRow key={ac} assetClass={ac} trackOrder={trackOrder} cell={cell} colSigma={colSigma[ac]} />
         ))}
 
-        <div className="rm-h rm-row-h rm-sigma-h" title="Per-track $ totals">Σ</div>
+        <div className="rm-h rm-row-h rm-sigma-h rbd-total-h" title="Per-track $ totals">Total</div>
         {trackOrder.map((tr) => (
-          <DollarCell key={'rs-' + tr} metric={rowSigma[tr]} title={`All asset classes · ${tr}`} ariaLabel={`All asset classes · ${tr}: ${fmtUsdSigned(rowSigma[tr]?.pnl)} over ${rowSigma[tr]?.n ?? 0} trades`} />
+          <DollarCell key={'rs-' + tr} metric={rowSigma[tr]} extraCls="rbd-total-cell" title={`All asset classes · ${tr}`} ariaLabel={`All asset classes · ${tr}: ${fmtUsdSigned(rowSigma[tr]?.pnl)} over ${rowSigma[tr]?.n ?? 0} trades`} />
         ))}
-        <DollarCell metric={corner} title="Grand total ($)" ariaLabel={`Grand total: ${fmtUsdSigned(corner.pnl)} over ${corner.n} trades`} />
+        <DollarCell metric={corner} extraCls="rbd-total-cell" title="Grand total ($)" ariaLabel={`Grand total: ${fmtUsdSigned(corner.pnl)} over ${corner.n} trades`} />
       </div>
     </div>
   );

@@ -1861,6 +1861,45 @@ body::after {
   letter-spacing: 1px; text-align: center; padding: 12px;
 }
 
+/* §6.6 Returns-by-Domain consolidated panel (2026-06-10) — panel-local $/%
+   toggle + the layout revision (shrink asset rows, taller Total row, larger
+   numbers/labels). Scoped to .rbd-* so the shared .rm-* matrix (mobile) is
+   untouched. */
+.pc-shell .rbd-toggle { display: inline-flex; gap: 2px; }
+.pc-shell .rbd-tab {
+  font-family: var(--mono); font-size: 12px; line-height: 1; padding: 3px 9px;
+  background: var(--navy3); color: var(--w3);
+  border: 1px solid rgba(0,194,255,0.18); cursor: pointer; letter-spacing: 1px;
+}
+.pc-shell .rbd-tab.on {
+  color: var(--cyan); border-color: var(--cyan); background: rgba(0,194,255,0.10);
+}
+.pc-shell .rbd-meta {
+  font-family: var(--mono); font-size: 10px; color: var(--w3);
+  letter-spacing: .5px; padding: 3px 10px 0;
+}
+.pc-shell .rbd-pending {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 10px; text-align: center; padding: 20px 16px;
+}
+.pc-shell .rbd-pending-main {
+  font-family: var(--mono); font-size: 15px; letter-spacing: 2px; color: var(--w2);
+}
+.pc-shell .rbd-pending-sub {
+  font-family: var(--mono); font-size: 10px; line-height: 1.55; color: var(--w3);
+  max-width: 300px;
+}
+/* Shrink the 3 asset rows; taller Total row. */
+.pc-shell .rbd-grid { grid-template-rows: auto 0.82fr 0.82fr 0.82fr 1.55fr; }
+/* Larger cell numbers + labels (room reclaimed from the two deleted panels). */
+.pc-shell .rbd-grid .rm-cell-pct { font-size: 16px; }
+.pc-shell .rbd-grid .rm-cell-n { font-size: 9px; }
+.pc-shell .rbd-grid .rm-h { font-size: 13px; }
+.pc-shell .rbd-grid .rm-row-h { font-size: 13px; }
+/* Total row + Total summary heads emphasized. */
+.pc-shell .rbd-grid .rbd-total-cell .rm-cell-pct { font-size: 19px; font-weight: 700; }
+.pc-shell .rbd-grid .rbd-total-h { font-size: 14px; font-weight: 700; }
+
 /* Mobile sizing nudges — slightly larger numbers, more breathing room */
 .mobile-shell .rm-cell-pct { font-size: 13px; }
 .mobile-shell .rm-cell-n { font-size: 8px; }
