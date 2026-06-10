@@ -559,6 +559,114 @@ export function adaptSharpe(data) {
   };
 }
 
+// ── §6.6 all-time $-panels (2026-06-10) ──────────────────────────────
+// Pure pass-through adapters over the proxy panel_* queries. The proxy has
+// already applied the exclude-36 filter + asset_class folding + (for Sharpe)
+// the exact §12 computation; the portal renders, never recomputes. Numbers
+// arrive as JSON numbers from the proxy.
+const TRACK_ORDER = ['Conservative', 'Moderate', 'Aggressive'];
+const DOMAIN_AC_ORDER = ['Crypto', 'Large-cap stock', 'Growth stock'];
+
+export function adaptPanelPnlByTrack(data) {
+  const rows = Array.isArray(data?.panelPnlByTrack) ? data.panelPnlByTrack : null;
+  if (!rows || rows.length === 0) return null;
+  const byTrack = rows
+    .map((r) => ({ track: r.track, n: Number(r.n) || 0, pnl: Number(r.pnl_dollar) || 0 }))
+    .sort((a, b) => TRACK_ORDER.indexOf(a.track) - TRACK_ORDER.indexOf(b.track));
+  const total = byTrack.reduce((s, r) => s + r.pnl, 0);
+  const totalN = byTrack.reduce((s, r) => s + r.n, 0);
+  return { byTrack, total, totalN };
+}
+
+export function adaptPanelProfitFactor(data) {
+  const rows = Array.isArray(data?.panelProfitFactor) ? data.panelProfitFactor : null;
+  if (!rows || rows.length === 0) return null;
+  const overall = rows.find((r) => r.scope === '__OVERALL__');
+  if (!overall || overall.n == null) return null;
+  const byTrack = rows
+    .filter((r) => r.scope !== '__OVERALL__')
+    .map((r) => ({
+      track: r.scope, n: Number(r.n) || 0,
+      pf: r.profit_factor != null ? Number(r.profit_factor) : null,
+    }))
+    .sort((a, b) => TRACK_ORDER.indexOf(a.track) - TRACK_ORDER.indexOf(b.track));
+  return {
+    overall: overall.profit_factor != null ? Number(overall.profit_factor) : null,
+    n: Number(overall.n) || 0,
+    byTrack,
+  };
+}
+
+export function adaptPanelExpectancy(data) {
+  const rows = Array.isArray(data?.panelExpectancy) ? data.panelExpectancy : null;
+  if (!rows || rows.length === 0) return null;
+  const overall = rows.find((r) => r.scope === '__OVERALL__');
+  if (!overall || overall.n == null) return null;
+  const byTrack = rows
+    .filter((r) => r.scope !== '__OVERALL__')
+    .map((r) => ({
+      track: r.scope, n: Number(r.n) || 0,
+      exp: r.expectancy_dollar != null ? Number(r.expectancy_dollar) : null,
+    }))
+    .sort((a, b) => TRACK_ORDER.indexOf(a.track) - TRACK_ORDER.indexOf(b.track));
+  return { overall: Number(overall.expectancy_dollar) || 0, n: Number(overall.n) || 0, byTrack };
+}
+
+// Returns-by-Domain cumulative-$ per (track × asset_class). asset_class is
+// already FOLDED by the proxy (no 'Large Cap Stock' split row). Builds the same
+// cell/rim shape ReturnsMatrixPanel uses, but $-valued.
+export function adaptPanelReturnsByDomain(data) {
+  const rows = Array.isArray(data?.panelReturnsByDomain) ? data.panelReturnsByDomain : null;
+  if (!rows || rows.length === 0) return null;
+  const cell = {};
+  const rowSigma = {};   // per track (across asset classes)
+  const colSigma = {};   // per asset class (across tracks)
+  let corner = { pnl: 0, n: 0 };
+  for (const r of rows) {
+    const tr = r.track;
+    const ac = r.asset_class;
+    const pnl = Number(r.pnl_dollar) || 0;
+    const n = Number(r.n) || 0;
+    cell[`${ac}:${tr}`] = { pnl, n, hasData: n > 0 };
+    rowSigma[tr] = { pnl: (rowSigma[tr]?.pnl || 0) + pnl, n: (rowSigma[tr]?.n || 0) + n };
+    colSigma[ac] = { pnl: (colSigma[ac]?.pnl || 0) + pnl, n: (colSigma[ac]?.n || 0) + n };
+    corner = { pnl: corner.pnl + pnl, n: corner.n + n };
+  }
+  // mark sigma hasData
+  for (const k of Object.keys(rowSigma)) rowSigma[k].hasData = rowSigma[k].n > 0;
+  for (const k of Object.keys(colSigma)) colSigma[k].hasData = colSigma[k].n > 0;
+  corner.hasData = corner.n > 0;
+  // discovered asset classes, ordered by canonical order then any extras
+  const acSet = new Set(rows.map((r) => r.asset_class));
+  const assetClassOrder = [
+    ...DOMAIN_AC_ORDER.filter((ac) => acSet.has(ac)),
+    ...[...acSet].filter((ac) => !DOMAIN_AC_ORDER.includes(ac)),
+  ];
+  return {
+    assetClassOrder,
+    trackOrder: TRACK_ORDER.filter((t) => rowSigma[t]) ,
+    cell, rowSigma, colSigma, corner,
+  };
+}
+
+// Per-trade log-return Sharpe (§6.6 exclude-36), served pre-computed by the
+// proxy (exact §12). Honest fields: band/confidence/n + the parked daily-equity
+// (annualized) basis availability flag. No recompute, no dress-up.
+export function adaptPanelSharpe(data) {
+  const s = data?.panelSharpe;
+  if (!s || s.sharpe_value == null) return null;
+  return {
+    sr: Number(s.sharpe_value) || 0,
+    n: Number(s.n) || 0,
+    band: s.band || null,
+    confidence: s.confidence || null,
+    basis: s.basis_label || null,
+    dailyAvailable: !!s.daily_equity_basis_available,
+    insufficientHistory: !!s.insufficient_history,
+    equityDays: Number(s.equity_days) || 0,
+  };
+}
+
 // ── Lane 2 Δ ─────────────────────────────────────────────────────────
 // Phase 1.1 always renders OFFLINE per Section A. The query result is still
 // adapted in case future panels want raw numbers, but the card stays amber-OFFLINE

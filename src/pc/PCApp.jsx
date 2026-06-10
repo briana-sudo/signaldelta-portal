@@ -13,6 +13,8 @@ import {
   adaptTradeList, selectVisibleTrades, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation, adaptPriceTicker,
   adaptAccountState,
+  adaptPanelPnlByTrack, adaptPanelProfitFactor, adaptPanelExpectancy,
+  adaptPanelReturnsByDomain, adaptPanelSharpe,
   fmtCloseET,
   assetClassTag,
 } from '../lib/dataAdapter.js';
@@ -320,6 +322,21 @@ function KpiTile({ label, value, valueCls, delta, deltaCls, context, badge, spar
   );
 }
 
+// §6.6 $-panel formatters — render proxy-served broker-reconciling values
+// verbatim (no recompute).
+function fmtUsdSigned(v) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  return (v < 0 ? '-$' : '+$') + Math.abs(v).toFixed(2);
+}
+function fmtPf(v) {
+  if (v == null || !Number.isFinite(v)) return '∞';
+  return v.toFixed(3);
+}
+function fmtSharpeVal(v) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  return Math.abs(v) < 0.1 ? v.toFixed(4) : v.toFixed(2);
+}
+
 function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
   // Portal v1.14 (2026-05-30): MiniWaterfall extracted to <WeekRow/> below.
   // `liveWeeklyWaterfall` kept on the prop list (was a sibling render); the
@@ -348,6 +365,11 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
 
   // Portal KPI tiles (2026-06-10) — broker/count-sourced values + sparklines.
   const winRate = bootstrap ? null : adaptWinRate(data);
+  // §6.6 $-panels (proxy): Profit Factor + Expectancy now serve live values
+  // (exit-price fix verified → pnl_dollar trustworthy; 36 corrupt closes
+  // excluded server-side). Replaces the "— pending verify" §15.5 placeholders.
+  const pf = bootstrap ? null : adaptPanelProfitFactor(data);
+  const exp = bootstrap ? null : adaptPanelExpectancy(data);
   const totalPnl = (av != null && Number.isFinite(av)) ? av - capitalBase : null;
   const thr = tierThresholds(data);
   const todayTier = bootstrap ? null : dayTier(todayPct, thr);
@@ -427,15 +449,17 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
         />
         <KpiTile
           label="Profit Factor"
-          pending
-          context="pending exit-price verify"
-          title="§15.5: profit factor reads pnl_dollar, which the exit-price fix corrects. Stays numberless until a live close is verified (price_source = broker_fill) — a number pre-verify is a wrong number."
+          value={pf && pf.overall != null ? fmtPf(pf.overall) : '—'}
+          valueCls={pf && pf.overall != null ? (pf.overall >= 1 ? 'g' : 'r') : ''}
+          context={pf ? `${pf.n} closed · excl-36` : 'awaiting proxy'}
+          title="§15.5: profit factor = Σ gross profit / |Σ gross loss| on pnl_dollar (broker-reconciling; exit-price fix verified live). Excludes the 36 §6.6 corrupt trigger-copy closes. All-time."
         />
         <KpiTile
           label="Expectancy ($)"
-          pending
-          context="pending exit-price verify"
-          title="§15.5: expectancy reads pnl_dollar, which the exit-price fix corrects. Stays numberless until a live close is verified (price_source = broker_fill)."
+          value={exp ? fmtUsdSigned(exp.overall) : '—'}
+          valueCls={exp ? (exp.overall >= 0 ? 'g' : 'r') : ''}
+          context={exp ? `avg/trade · ${exp.n} closed` : 'awaiting proxy'}
+          title="§15.5: expectancy = mean pnl_dollar per closed trade (broker-reconciling; exit-price fix verified live). Excludes the 36 §6.6 corrupt closes. All-time."
         />
       </div>
       {void liveWeeklyWaterfall}
@@ -496,10 +520,12 @@ function Main({ mode, data }) {
       </div>
       <div className="col-metrics">
         <MetricsPanel mode={mode} data={data} />
+        <PnlByTrackPanel mode={mode} data={data} />
         <KernelPanel data={data} />
       </div>
       <div className="col-extra">
         <ReturnsMatrixPanel data={data} layout="pc" />
+        <ReturnsByDomainDollarPanel mode={mode} data={data} />
         <RulesAddedPanel mode={mode} data={data} />
       </div>
     </div>
@@ -1087,10 +1113,136 @@ function NewsAndStatusPanel({ mode, data }) {
   );
 }
 
+// Compact dollar (no decimals) for the tight 3×3 domain grid cells.
+function fmtUsd0(v) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const r = Math.round(v);
+  return (r < 0 ? '-$' : '+$') + Math.abs(r);
+}
+
+// §6.6 P&L BY TRACK ($) — proxy panel_pnl_by_track. All-time, exclude-36
+// applied + broker-reconciling (per-leg attribution proven by the exit-price
+// fix). Renders what the proxy serves; no frontend recompute.
+function PnlByTrackPanel({ mode, data }) {
+  const liveMode = mode === 'live';
+  const p = liveMode ? null : adaptPanelPnlByTrack(data);
+  return (
+    <div className="panel">
+      <div className="ptitle">
+        <span><span className="ptitle-bar" />P&amp;L BY TRACK ($)</span>
+        <span className="ptitle-r" title="§15.5: all-time pnl_dollar, broker-reconciling; the 36 §6.6 corrupt trigger-copy closes are excluded server-side.">excl-36 · broker-reconciling</span>
+      </div>
+      {!p ? (
+        <div className="rm-bootstrap">— AWAITING LIVE $ P&amp;L —</div>
+      ) : (
+        <>
+          {p.byTrack.map((r) => (
+            <div className="mc" key={r.track}>
+              <div className="mc-left">
+                <div className="mc-label">{r.track.toUpperCase()}</div>
+                <div className={'mc-value ' + (r.pnl >= 0 ? 'g' : 'r')}>{fmtUsdSigned(r.pnl)}</div>
+                <div className="mc-sub">{r.n} closed</div>
+              </div>
+            </div>
+          ))}
+          <div className="mc" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="mc-left">
+              <div className="mc-label">TOTAL</div>
+              <div className={'mc-value ' + (p.total >= 0 ? 'g' : 'r')}>{fmtUsdSigned(p.total)}</div>
+              <div className="mc-sub">{p.totalN} closed · all-time</div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function DollarCell({ metric, title, ariaLabel }) {
+  if (!metric || !metric.hasData) {
+    return (
+      <div className="rm-cell rm-empty" title={title} aria-label={ariaLabel} data-empty="true">
+        <div className="rm-cell-pct">—</div>
+        <div className="rm-cell-n">n=0</div>
+      </div>
+    );
+  }
+  const cls = metric.pnl > 0 ? 'rm-pos' : (metric.pnl < 0 ? 'rm-neg' : 'rm-flat');
+  return (
+    <div className={'rm-cell ' + cls} title={title} aria-label={ariaLabel}>
+      <div className="rm-cell-pct">{fmtUsd0(metric.pnl)}</div>
+      <div className="rm-cell-n">n={metric.n}</div>
+    </div>
+  );
+}
+
+// §6.6 RETURNS BY DOMAIN ($) — proxy panel_returns_by_domain. Cumulative-$ per
+// (track × asset_class), asset_class FOLDED server-side (no 'Large Cap Stock'
+// split row). Same grid skeleton as the %-matrix, $-valued, with a Σ rim.
+function ReturnsByDomainDollarPanel({ mode, data }) {
+  const liveMode = mode === 'live';
+  const m = liveMode ? null : adaptPanelReturnsByDomain(data);
+  if (!m) {
+    return (
+      <div className="panel p-returns p-returns-pc">
+        <div className="ptitle">
+          <span><span className="ptitle-bar" />RETURNS BY DOMAIN ($)</span>
+          <span className="ptitle-r">excl-36</span>
+        </div>
+        <div className="rm-bootstrap">— AWAITING LIVE $ MATRIX —</div>
+      </div>
+    );
+  }
+  const TRACK_ABBR = { Conservative: 'CONS', Moderate: 'MOD', Aggressive: 'AGG' };
+  const { assetClassOrder, trackOrder, cell, rowSigma, colSigma, corner } = m;
+  return (
+    <div className="panel p-returns p-returns-pc">
+      <div className="ptitle">
+        <span><span className="ptitle-bar" />RETURNS BY DOMAIN ($)</span>
+        <span className="ptitle-r" title="§15.5: cumulative pnl_dollar per track × asset_class, broker-reconciling; 36 §6.6 corrupt closes excluded; asset_class folded.">{fmtUsd0(corner.pnl)} · {corner.n} cl</span>
+      </div>
+      <div className="rm-grid">
+        <div className="rm-h rm-corner-h" aria-hidden="true" />
+        {trackOrder.map((tr) => (
+          <div key={tr} className="rm-h rm-col-h" title={tr}>{TRACK_ABBR[tr] ?? tr}</div>
+        ))}
+        <div className="rm-h rm-col-h rm-sigma-h" title="Per-asset-class $ totals">Σ</div>
+
+        {assetClassOrder.map((ac) => (
+          <DomainDollarRow key={ac} assetClass={ac} trackOrder={trackOrder} cell={cell} colSigma={colSigma[ac]} />
+        ))}
+
+        <div className="rm-h rm-row-h rm-sigma-h" title="Per-track $ totals">Σ</div>
+        {trackOrder.map((tr) => (
+          <DollarCell key={'rs-' + tr} metric={rowSigma[tr]} title={`All asset classes · ${tr}`} ariaLabel={`All asset classes · ${tr}: ${fmtUsdSigned(rowSigma[tr]?.pnl)} over ${rowSigma[tr]?.n ?? 0} trades`} />
+        ))}
+        <DollarCell metric={corner} title="Grand total ($)" ariaLabel={`Grand total: ${fmtUsdSigned(corner.pnl)} over ${corner.n} trades`} />
+      </div>
+    </div>
+  );
+}
+
+function DomainDollarRow({ assetClass, trackOrder, cell, colSigma }) {
+  return (
+    <>
+      <div className="rm-h rm-row-h" title={assetClass}>{assetClass}</div>
+      {trackOrder.map((tr) => {
+        const c = cell[`${assetClass}:${tr}`];
+        return (
+          <DollarCell key={tr} metric={c} title={`${assetClass} · ${tr}`} ariaLabel={`${assetClass} · ${tr}: ${c ? fmtUsdSigned(c.pnl) : '—'} over ${c?.n ?? 0} trades`} />
+        );
+      })}
+      <DollarCell metric={colSigma} title={`${assetClass} · all tracks`} ariaLabel={`${assetClass} · all tracks: ${fmtUsdSigned(colSigma?.pnl)} over ${colSigma?.n ?? 0} trades`} />
+    </>
+  );
+}
+
 function MetricsPanel({ mode, data }) {
   const liveMode = mode === 'live';
   const winRate = adaptWinRate(data);
-  const sharpe = adaptSharpe(data);
+  // §6.6 (2026-06-10): Sharpe now reads the proxy per-trade log-return panel
+  // (exact §12, exclude-36) instead of the stale WeeklyContextNode value.
+  const sharpe = adaptPanelSharpe(data);
   const conviction = adaptConviction(data);
   // Lane 2 is always OFFLINE in Phase 1.1 regardless of data; placeholder
   // amber treatment is the correct state per Section A.
@@ -1131,19 +1283,31 @@ function MetricsPanel({ mode, data }) {
         </svg>
       </div>
 
-      {/* SHARPE */}
+      {/* SHARPE — per-trade log-return basis (§6.6 exclude-36), proxy-served.
+          Honest display: band/confidence shown verbatim, CRITICAL not dressed
+          up; the annualized (daily-equity) basis is marked UNAVAILABLE while
+          equity-day history is thin (insufficient_history). */}
       <div className="mc">
         <div className="mc-left">
           <div className="mc-label">SHARPE RATIO</div>
           {srBoot ? (
             <>
               <div className="mc-value dim" style={{ color: 'var(--w3)' }}>—</div>
-              <div className="mc-sub">AWAITING FIRST WEEKLY SR</div>
+              <div className="mc-sub">AWAITING PROXY SHARPE</div>
             </>
           ) : (
             <>
-              <div className="mc-value c">{sharpe.sr.toFixed(2)}</div>
-              <div className="mc-sub">target ≥ 1.0 · phase 3 gate</div>
+              <div className={'mc-value ' + (sharpe.band === 'CRITICAL' ? 'r' : 'c')}>{fmtSharpeVal(sharpe.sr)}</div>
+              <div className="mc-sub">
+                band <span style={{ color: sharpe.band === 'CRITICAL' ? 'var(--loss)' : 'var(--cyan)', fontWeight: 700 }}>{sharpe.band}</span>
+                {' · '}conf {sharpe.confidence}{' · '}n={sharpe.n}
+              </div>
+              <div className="mc-sub" style={{ color: 'var(--w3)' }}>per-trade log-return · excl-36 · broker-reconciling</div>
+              {sharpe.insufficientHistory && (
+                <div className="mc-sub" style={{ color: 'var(--amber)', opacity: 0.85 }}>
+                  annualized (daily-equity) basis UNAVAILABLE — {sharpe.equityDays} equity days &lt; 30 (insufficient history)
+                </div>
+              )}
             </>
           )}
         </div>
@@ -1151,9 +1315,9 @@ function MetricsPanel({ mode, data }) {
           <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" strokeLinecap="round" />
           {!srBoot && (
             <>
-              <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="var(--cyan)" strokeWidth="5" strokeLinecap="round"
-                strokeDasharray="75.4" strokeDashoffset={Math.max(0, (1 - Math.min(sharpe.sr / 3, 1)) * 75.4)} opacity="0.9" />
-              <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--cyan)">{sharpe.sr.toFixed(2)}</text>
+              <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke={sharpe.band === 'CRITICAL' ? 'var(--loss)' : 'var(--cyan)'} strokeWidth="5" strokeLinecap="round"
+                strokeDasharray="75.4" strokeDashoffset={Math.max(0, (1 - Math.min(Math.max(sharpe.sr, 0) / 3, 1)) * 75.4)} opacity="0.9" />
+              <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="7" fill={sharpe.band === 'CRITICAL' ? 'var(--loss)' : 'var(--cyan)'}>{fmtSharpeVal(sharpe.sr)}</text>
             </>
           )}
         </svg>

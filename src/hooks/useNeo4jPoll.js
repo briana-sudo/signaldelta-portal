@@ -30,6 +30,8 @@ import {
   Q_SCANNER_LIVE_STATE,
   Q_EQUITY_SNAPSHOT_LATEST,
   Q_ACCOUNT_STATE, Q_ACCOUNT_HEALTH_HISTORY,
+  Q_PANEL_PNL_BY_TRACK, Q_PANEL_RETURNS_BY_DOMAIN,
+  Q_PANEL_PROFIT_FACTOR, Q_PANEL_EXPECTANCY, Q_PANEL_SHARPE,
 } from '../lib/queries.js';
 import { etDayRange } from '../lib/etDay.js';
 
@@ -64,6 +66,14 @@ const QUERY_SPECS = [
   // 200 anomaly events from the last 24h, portal filters by account_id.
   { key: 'accountState',         name: Q_ACCOUNT_STATE,           singleton: false },
   { key: 'accountHealthHistory', name: Q_ACCOUNT_HEALTH_HISTORY,  singleton: false },
+  // §6.6 all-time $-panels (2026-06-10): broker-reconciling, exclude-36 +
+  // asset_class folded server-side. Multi-row (per-track + __OVERALL__) except
+  // the Sharpe panel which is a single served row.
+  { key: 'panelPnlByTrack',      name: Q_PANEL_PNL_BY_TRACK,      singleton: false },
+  { key: 'panelReturnsByDomain', name: Q_PANEL_RETURNS_BY_DOMAIN, singleton: false },
+  { key: 'panelProfitFactor',    name: Q_PANEL_PROFIT_FACTOR,     singleton: false },
+  { key: 'panelExpectancy',      name: Q_PANEL_EXPECTANCY,        singleton: false },
+  { key: 'panelSharpe',          name: Q_PANEL_SHARPE,            singleton: true  },
 ];
 
 function getProxyConfig() {

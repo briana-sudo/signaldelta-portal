@@ -44,6 +44,17 @@ export const Q_RETURNS_SIGMA_ROW = 'returns_matrix_sigma_row';
 export const Q_RETURNS_SIGMA_COL = 'returns_matrix_sigma_col';
 export const Q_RETURNS_SIGMA_CORNER = 'returns_matrix_sigma_corner';
 
+// ── §6.6 all-time $-panels (2026-06-10) — broker-reconciling, exclude-36 ──
+// applied + asset_class folded server-side by the proxy. The portal renders
+// what the proxy serves (no frontend recompute). All no-params; the proxy
+// auto-injects $corrupt_ids. panel_sharpe_excl_corrupt is the per-trade
+// log-return Sharpe (band/confidence/insufficient_history served as fields).
+export const Q_PANEL_PNL_BY_TRACK = 'panel_pnl_by_track';
+export const Q_PANEL_RETURNS_BY_DOMAIN = 'panel_returns_by_domain';
+export const Q_PANEL_PROFIT_FACTOR = 'panel_profit_factor';
+export const Q_PANEL_EXPECTANCY = 'panel_expectancy';
+export const Q_PANEL_SHARPE = 'panel_sharpe_excl_corrupt';
+
 // ── Section D3: Rules Added This Week ──
 export const Q_RULES_THIS_WEEK = 'rules_this_week';
 export const Q_RULES_FOOT = 'rules_footer';
