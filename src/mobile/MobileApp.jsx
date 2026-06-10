@@ -15,7 +15,6 @@ import {
   adaptTradeList, selectVisibleTrades, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation,
   adaptAccountState,
-  ageTag,
   buildWeekFrame,
   fmtCloseET,
   assetClassTag,
@@ -30,7 +29,6 @@ const STRONG_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'strong')?.dailyMinPct
 const ELITE_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'elite')?.dailyMinPct ?? Infinity;
 const RETURN_STRIP_H = 40;
 import EnginePill from '../lib/EnginePill.jsx';
-import ScannerContext from '../lib/ScannerContext.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
 import MarketBell from '../lib/MarketBell.jsx';
@@ -52,8 +50,9 @@ const TABS = [
   { id: 'data',   icon: '▦', label: 'Data' },
 ];
 
-const scoreCls = (s) => (s >= 65 ? 'hi' : s >= 40 ? 'mi' : 'lo');
-const barClr = (s) => {
+// Tier 2 (2026-06-09): one band function colors BOTH bar fill and score number
+// (mirror of PC scoreColor) so they can never diverge. Magnitude only.
+const scoreColor = (s) => {
   if (s >= 65) return 'var(--green)';
   if (s >= 40) return 'var(--cyan)';
   if (s >= 20) return 'var(--amber)';
@@ -722,9 +721,6 @@ function ScanTab({ mode, data }) {
         sym: a.sym, sub: a.track, score: 0, hasScore: false, fired: false,
       }))
     : scanRows;
-  // Tier 1 (2026-06-09): freshest score age across scored rows for the strip.
-  const scoredAges = fallback ? [] : rows.filter((r) => r.hasScore && r.ageMin != null).map((r) => r.ageMin);
-  const lastClearAgeMin = scoredAges.length ? Math.min(...scoredAges) : null;
   // Portal v1.8 P2 (2026-05-29): mobile renders a SINGLE copy of the rows.
   // The `doubled = [...rows, ...rows]` was only there to seam the desktop-
   // style vscroll ticker. With the mobile animation disabled in CSS, a
@@ -736,7 +732,6 @@ function ScanTab({ mode, data }) {
         <span><span className="ptitle-bar" />SIGNAL SCANNER</span>
         <span className="ptitle-r">{rows.length} ASSETS</span>
       </div>
-      <ScannerContext data={data} lastClearAgeMin={lastClearAgeMin} />
       <div className="scanner-list">
         <div className="scanner-list-inner">
           {rows.map((a, i) => (
@@ -751,13 +746,14 @@ function ScanTab({ mode, data }) {
 function MobileScannerRow({ a, fallback }) {
   const showScore = !fallback && a.hasScore;
   const isFired = !fallback && a.fired;
-  const isStale = !fallback && a.stale;
+  const isGo = !fallback && a.go;
+  const noData = showScore && a.fresh === false;
+  const color = showScore ? scoreColor(a.score) : 'var(--w3)';
   let cls = 'srow';
-  // Tier 1.1 (2026-06-09): staleness no longer dims the row body (see PC
-  // ScannerRow) — carried by the larger age tag + strip summary. `thresh`
-  // (score-band ≥65) is the only body highlight; `isStale` weights the age tag.
+  // Tier 2 (2026-06-09): box lights on GO (fireable live), not a score cutoff.
   if (isFired) cls += ' fired';
-  else if (showScore && a.score >= 65) cls += ' thresh';
+  else if (isGo) cls += ' go';
+  if (noData) cls += ' nodata';
   return (
     <div className={cls}>
       <div>
@@ -767,19 +763,14 @@ function MobileScannerRow({ a, fallback }) {
       <div>
         {showScore ? (
           <div className="sbar-bg">
-            <div className="sbar-fill" style={{ width: a.score + '%', background: barClr(a.score) }} />
+            <div className="sbar-fill" style={{ width: a.score + '%', background: color }} />
           </div>
         ) : (
           <div className="sbuilding">BUILDING DATA</div>
         )}
       </div>
-      <div className="scol">
-        <div className={'sscore ' + (showScore ? scoreCls(a.score) : 'lo')}>
-          {showScore ? a.score : '·'}
-        </div>
-        {showScore && a.ageMin != null && (
-          <div className={'sage' + (isStale ? ' sage-stale' : '')}>{ageTag(a.ageMin)}</div>
-        )}
+      <div className="sscore" style={showScore ? { color } : undefined}>
+        {showScore ? a.score : '·'}
       </div>
       {isFired && <div className="fired-badge">FIRED</div>}
     </div>

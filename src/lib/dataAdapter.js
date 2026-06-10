@@ -848,49 +848,33 @@ export function adaptLastEvent(data) {
   return arr && arr[0] ? arr[0] : null;
 }
 
-// ── Signal Scanner (Portal v1.2 scanner-cycle dispatch 2026-05-26) ───
-// Joins three live inputs to produce the full-asset-list row set the
-// ScannerPanel renders. Inputs:
-//   - data.monitoredAssets : string[] (mount-time read from TradingConfigNode)
-//   - data.scannerScores   : [{asset, last_score, last_track, last_seen}] —
-//                            per-asset most-recent TradeNode composite_score
-//                            within the cutoff window; assets with no trade
-//                            in-window simply don't appear (intentional)
-//   - data.tradeList       : trade list rows, used to derive the OPEN-asset
-//                            set so the row pulses while a position is live
+// ── Signal Scanner (Tier 2 live source, 2026-06-09) ──────────────────
+// Joins the engine's LIVE per-bar gate state with the monitored-asset
+// universe. Inputs:
+//   - data.monitoredAssets  : string[] (mount-time read from TradingConfigNode)
+//   - data.scannerLiveState : [{asset, composite, contributors, g2_agreed,
+//                              direction, eval_ts, data_fresh, g1, g2, g3,
+//                              tradable, fresh, go, asset_class, ...}] — the
+//                              proxy reads ScannerLiveStateNode (recomputed
+//                              every bar) and adds the GO decision server-side
+//   - data.tradeList        : OPEN-asset set → the FIRED open-position pulse
 //
-// Per-asset output:
-//   { sym, sub, score, hasScore, fired, lastSeen }
-// `sub` derives the existing track sub-label from the most-recent trade
-// (CON/MOD/AGG); when the asset has no recent trade we fall back to the
-// asset-class lozenge (CRY / STK) so the row still has a sub-label slot.
-// `hasScore=false` triggers the BUILDING DATA placeholder render in the
-// component (no score number, no bar, no fired badge, still cycles).
-// Compact minutes→label for the scanner per-row score age ("7m", "2h", "3d").
-export function ageTag(min) {
-  if (min == null || !Number.isFinite(min)) return '';
-  if (min < 60) return `${min}m`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
-}
-const SUB_TRACK_MAP = { Conservative: 'CON', Moderate: 'MOD', Aggressive: 'AGG' };
+// Per-asset output: { sym, sub, score, hasScore, fired, go, fresh, direction }
+//   - score = LIVE composite (rounded); colors bar + number from one value
+//   - go    = fireable RIGHT NOW (G1∧G2∧G3∧tradable∧fresh) → drives the GO box
+//   - fresh = false → a single dimmed "no-data" row (NOT a board-wide wash)
+//   - hasScore=false (no live node yet) → BUILDING DATA placeholder
+// Tier 1 staleness age-tag / opacity-dim logic is intentionally gone.
 function subFallback(sym) {
   return typeof sym === 'string' && sym.includes('/') ? 'CRY' : 'STK';
 }
-// Tier 1 score-staleness (2026-06-09): the scanner score is a LAST-CLEARED
-// value (most-recent THRESHOLD_HIT), not a live read. A score this many
-// minutes old or older reads as "not currently clearing" — the engine
-// evaluates per 1-min bar, so an actively-clearing asset re-stamps last_seen
-// within a couple minutes. FIRED rows (open position) are never marked stale.
-const SCANNER_STALE_MIN = 10;
 export function adaptScanner(data) {
   const assets = Array.isArray(data?.monitoredAssets) ? data.monitoredAssets : [];
   if (assets.length === 0) return null;
-  const scoreRows = Array.isArray(data?.scannerScores) ? data.scannerScores : [];
-  const scoreMap = new Map();
-  for (const r of scoreRows) {
-    if (r && r.asset) scoreMap.set(r.asset, r);
+  const liveRows = Array.isArray(data?.scannerLiveState) ? data.scannerLiveState : [];
+  const byAsset = new Map();
+  for (const r of liveRows) {
+    if (r && r.asset) byAsset.set(r.asset, r);
   }
   const tradeRows = Array.isArray(data?.tradeList) ? data.tradeList : [];
   const openSet = new Set();
@@ -898,30 +882,21 @@ export function adaptScanner(data) {
     if (t && t.status === 'OPEN' && t.asset) openSet.add(t.asset);
   }
   return assets.map((sym) => {
-    const sr = scoreMap.get(sym);
-    const rawScore = sr ? sr.last_score : null;
-    const score = rawScore != null ? Math.round(Number(rawScore)) : null;
-    const hasScore = score != null && Number.isFinite(score);
-    const sub = sr && sr.last_track && SUB_TRACK_MAP[sr.last_track]
-      ? SUB_TRACK_MAP[sr.last_track]
-      : subFallback(sym);
-    const fired = openSet.has(sym);
-    const lastSeen = sr?.last_seen || null;
-    const lastMs = lastSeen ? new Date(lastSeen).getTime() : NaN;
-    const ageMin = Number.isFinite(lastMs)
-      ? Math.max(0, Math.floor((Date.now() - lastMs) / 60_000))
-      : null;
+    const r = byAsset.get(sym);
+    const rawComposite = r ? r.composite : null;
+    const hasScore = rawComposite != null && Number.isFinite(Number(rawComposite));
     return {
       sym,
-      sub,
-      score: hasScore ? score : 0,
+      sub: subFallback(sym),
+      score: hasScore ? Math.round(Number(rawComposite)) : 0,
       hasScore,
-      fired,
-      lastSeen,
-      ageMin,
-      // Lit but not currently clearing: a real score, no open position, and
-      // older than the staleness cutoff. Drives the row's dimmed treatment.
-      stale: hasScore && !fired && ageMin != null && ageMin >= SCANNER_STALE_MIN,
+      fired: openSet.has(sym),
+      // GO = fireable now (server-side); lights the box. False unless live.
+      go: !!(r && r.go),
+      // No-data marker for a single row: a live node exists but its state is
+      // stale (fresh===false). Rows with no node at all are BUILDING DATA.
+      fresh: r ? r.fresh !== false : true,
+      direction: r ? r.direction : null,
     };
   });
 }

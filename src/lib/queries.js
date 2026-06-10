@@ -74,7 +74,14 @@ export const Q_NEWS_TICKER = 'news_ticker_recent';
 // { asset_list: string[] } (from a mount-time monitored_assets read).
 // Cutoff is auto-injected by the proxy. Rows missing for any asset → that
 // asset renders as "BUILDING DATA" (no recent trade).
+// SUPERSEDED by Q_SCANNER_LIVE_STATE (Tier 2, 2026-06-09) — kept for reference.
 export const Q_SCANNER_SCORES = 'scanner_scores';
+
+// ── Scanner Tier 2 (2026-06-09): LIVE per-bar gate state from
+// ScannerLiveStateNode. No params. The proxy enriches each row with the
+// server-side GO decision (G1∧G2∧G3∧tradable∧fresh) + composite + direction.
+// Rows missing for a monitored asset → "BUILDING DATA".
+export const Q_SCANNER_LIVE_STATE = 'scanner_live_state';
 
 // ── Session 40 portal rebuild (2026-05-29): latest EquitySnapshotNode.
 // Provides the equity_total denominator for the broker-sourced Today P&L

@@ -13,7 +13,6 @@ import {
   adaptTradeList, selectVisibleTrades, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation, adaptPriceTicker,
   adaptAccountState,
-  ageTag,
   buildWeekFrame,
   fmtCloseET,
   assetClassTag,
@@ -32,7 +31,6 @@ const ELITE_DAILY_PCT = PACE_TIERS.find((t) => t.key === 'elite')?.dailyMinPct ?
 // it to the ~24px CSS box beneath the equity curve).
 const RETURN_STRIP_H = 40;
 import EnginePill from '../lib/EnginePill.jsx';
-import ScannerContext from '../lib/ScannerContext.jsx';
 import PollIndicator from '../lib/PollIndicator.jsx';
 import MarketStatusPill from '../lib/MarketStatusPill.jsx';
 import MarketBell from '../lib/MarketBell.jsx';
@@ -50,8 +48,10 @@ import TradesExpandModal from './TradesExpandModal.jsx';
 const MODES = ['live', 'training', 'combined'];
 const DEFAULT_MODE = 'training';
 
-const scoreCls = (s) => (s >= 65 ? 'hi' : s >= 40 ? 'mi' : 'lo');
-const barClr = (s) => {
+// Tier 2 (2026-06-09): ONE band function colors BOTH the bar fill and the
+// score number so they can never diverge. Magnitude only — amber here means
+// the score band, never staleness.
+const scoreColor = (s) => {
   if (s >= 65) return 'var(--green)';
   if (s >= 40) return 'var(--cyan)';
   if (s >= 20) return 'var(--amber)';
@@ -520,18 +520,12 @@ function ScannerPanel({ mode, data }) {
   // window precisely as the first copy exits the top.
   const doubled = [...rows, ...rows];
 
-  // Tier 1 (2026-06-09): freshest score age across scored rows — drives the
-  // "last clear Xm ago" hint in the context strip. null in fallback / no clears.
-  const scoredAges = fallback ? [] : rows.filter((r) => r.hasScore && r.ageMin != null).map((r) => r.ageMin);
-  const lastClearAgeMin = scoredAges.length ? Math.min(...scoredAges) : null;
-
   return (
     <div className="panel p-scanner">
       <div className="ptitle">
         <span><span className="ptitle-bar" />SIGNAL SCANNER</span>
         <span className="ptitle-r">{rows.length} ASSETS</span>
       </div>
-      <ScannerContext data={data} lastClearAgeMin={lastClearAgeMin} />
       <div className="scanner-list">
         <div className="scanner-list-inner">
           {doubled.map((a, i) => (
@@ -546,14 +540,17 @@ function ScannerPanel({ mode, data }) {
 function ScannerRow({ a, fallback }) {
   const showScore = !fallback && a.hasScore;
   const isFired = !fallback && a.fired;
-  const isStale = !fallback && a.stale;
+  const isGo = !fallback && a.go;
+  // Single-row no-data dim: a live node exists but its state is stale
+  // (fresh===false). NOT a board-wide wash.
+  const noData = showScore && a.fresh === false;
+  const color = showScore ? scoreColor(a.score) : 'var(--w3)';
   let cls = 'srow';
-  // Tier 1.1 (2026-06-09): staleness no longer dims the row body — it's
-  // carried by the larger age tag + the strip summary, so the board reads
-  // crisp even when every row is stale. `thresh` (score-band ≥65) is the
-  // only body highlight; `isStale` now only weights the age tag.
+  // Tier 2 (2026-06-09): the box lights on GO (fireable live), not on a raw
+  // score cutoff. FIRED (open position) takes visual precedence.
   if (isFired) cls += ' fired';
-  else if (showScore && a.score >= 65) cls += ' thresh';
+  else if (isGo) cls += ' go';
+  if (noData) cls += ' nodata';
   return (
     <div className={cls}>
       <div>
@@ -563,19 +560,14 @@ function ScannerRow({ a, fallback }) {
       <div>
         {showScore ? (
           <div className="sbar-bg">
-            <div className="sbar-fill" style={{ width: a.score + '%', background: barClr(a.score) }} />
+            <div className="sbar-fill" style={{ width: a.score + '%', background: color }} />
           </div>
         ) : (
           <div className="sbuilding">BUILDING DATA</div>
         )}
       </div>
-      <div className="scol">
-        <div className={'sscore ' + (showScore ? scoreCls(a.score) : 'lo')}>
-          {showScore ? a.score : '·'}
-        </div>
-        {showScore && a.ageMin != null && (
-          <div className={'sage' + (isStale ? ' sage-stale' : '')}>{ageTag(a.ageMin)}</div>
-        )}
+      <div className="sscore" style={showScore ? { color } : undefined}>
+        {showScore ? a.score : '·'}
       </div>
       {isFired && <div className="fired-badge">FIRED</div>}
     </div>

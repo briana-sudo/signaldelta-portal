@@ -811,33 +811,13 @@ body::after {
 }
 .pc-shell .fired-badge { display: none; }
 
-/* Tier 1 scanner liveness/capital strip + score staleness (2026-06-09) */
-.pc-shell .scanner-ctx {
-  display:flex; align-items:center; flex-wrap:wrap; gap:3px 12px;
-  font-family:var(--mono); font-size:8px; letter-spacing:1px; color:var(--w2);
-  padding:4px 7px; margin-bottom:8px; flex-shrink:0;
-  background:var(--navy3); border:1px solid var(--border);
-}
-.pc-shell .scanner-ctx .ctx-seg { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
-.pc-shell .scanner-ctx .ctx-sub { color:var(--w3); }
-.pc-shell .scanner-ctx .ctx-strong { color:var(--white); }
-.pc-shell .scanner-ctx .ctx-dot { width:6px; height:6px; border-radius:50%; display:inline-block; flex-shrink:0; }
-.pc-shell .scanner-ctx.ctx-live    .ctx-engine { color:var(--green); }
-.pc-shell .scanner-ctx.ctx-stale   .ctx-engine { color:var(--amber); }
-.pc-shell .scanner-ctx.ctx-stopped .ctx-engine { color:var(--red); }
-.pc-shell .scanner-ctx .dot-live    { background:var(--green); box-shadow:0 0 5px var(--green); animation:pdot 2s ease-in-out infinite; }
-.pc-shell .scanner-ctx .dot-stale   { background:var(--amber); box-shadow:0 0 5px var(--amber); animation:pdot 4s ease-in-out infinite; }
-.pc-shell .scanner-ctx .dot-stopped { background:var(--red); }
-.pc-shell .scanner-ctx .ctx-blocked { color:var(--red); border:1px solid var(--red); background:var(--red2); padding:0 4px; margin-left:5px; letter-spacing:1px; }
-/* score column stacks the number + the age tag */
-.pc-shell .scol { display:flex; flex-direction:column; align-items:flex-end; justify-content:center; }
-/* Score-age tag (Tier 1.1, 2026-06-09): a primary signal now, sized like one.
-   ONE neutral tone always (--w2, outside the green/cyan/amber magnitude
-   palette so it never reads as a score band); staleness is emphasized by
-   weight only — no color shift, no row dim, so the board stays crisp even
-   when every row is stale. */
-.pc-shell .sage { font-family:var(--mono); font-size:12px; line-height:1.1; letter-spacing:.3px; color:var(--w2); margin-top:2px; }
-.pc-shell .sage.sage-stale { font-weight:700; }
+/* GO box (Tier 2, 2026-06-09): lights only when the asset is fireable RIGHT
+   NOW (G1∧G2∧G3∧tradable∧fresh, computed server-side). Replaces the old
+   score≥65 `thresh` box. FIRED (open position) takes visual precedence. */
+.pc-shell .srow.go { border-color:var(--green); background:var(--green2); }
+/* Single-row no-data dim: a live node exists but its state is stale
+   (fresh=false). One row only — never a board-wide wash. */
+.pc-shell .srow.nodata { opacity:0.5; }
 
 /* positions table */
 .pc-shell .pos-table { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:9px; flex:1; }
@@ -1372,30 +1352,9 @@ body::after {
 }
 .mobile-shell .fired-badge { display: none; }
 
-/* Tier 1 scanner liveness/capital strip + score staleness (2026-06-09) */
-.mobile-shell .scanner-ctx {
-  display:flex; align-items:center; flex-wrap:wrap; gap:3px 12px;
-  font-family:var(--mono); font-size:9px; letter-spacing:1px; color:var(--w2);
-  padding:6px 8px; margin-bottom:8px;
-  background:var(--navy3); border:1px solid var(--border);
-}
-.mobile-shell .scanner-ctx .ctx-seg { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
-.mobile-shell .scanner-ctx .ctx-sub { color:var(--w3); }
-.mobile-shell .scanner-ctx .ctx-strong { color:var(--white); }
-.mobile-shell .scanner-ctx .ctx-dot { width:7px; height:7px; border-radius:50%; display:inline-block; flex-shrink:0; }
-.mobile-shell .scanner-ctx.ctx-live    .ctx-engine { color:var(--green); }
-.mobile-shell .scanner-ctx.ctx-stale   .ctx-engine { color:var(--amber); }
-.mobile-shell .scanner-ctx.ctx-stopped .ctx-engine { color:var(--red); }
-.mobile-shell .scanner-ctx .dot-live    { background:var(--green); box-shadow:0 0 5px var(--green); animation:pdot 2s ease-in-out infinite; }
-.mobile-shell .scanner-ctx .dot-stale   { background:var(--amber); box-shadow:0 0 5px var(--amber); animation:pdot 4s ease-in-out infinite; }
-.mobile-shell .scanner-ctx .dot-stopped { background:var(--red); }
-.mobile-shell .scanner-ctx .ctx-blocked { color:var(--red); border:1px solid var(--red); background:var(--red2); padding:0 5px; margin-left:5px; letter-spacing:1px; }
-.mobile-shell .scol { display:flex; flex-direction:column; align-items:flex-end; justify-content:center; }
-/* Score-age tag (Tier 1.1, 2026-06-09): primary signal, neutral --w2 tone
-   always (off the magnitude palette), stale emphasized by weight only — no
-   color shift, no row dim. See PC .sage for rationale. */
-.mobile-shell .sage { font-family:var(--mono); font-size:13px; line-height:1.1; letter-spacing:.3px; color:var(--w2); margin-top:2px; }
-.mobile-shell .sage.sage-stale { font-weight:700; }
+/* GO box + single-row no-data dim (Tier 2, 2026-06-09). See PC equivalents. */
+.mobile-shell .srow.go { border-color:var(--green); background:var(--green2); }
+.mobile-shell .srow.nodata { opacity:0.5; }
 
 /* mobile metric cards */
 .mobile-shell .mc { display:flex; align-items:center; justify-content:space-between; background:var(--navy3); border:1px solid var(--border); padding:10px 12px; margin-bottom:6px; gap:10px; }

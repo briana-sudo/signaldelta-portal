@@ -27,7 +27,7 @@ import {
   Q_RULES_THIS_WEEK, Q_RULES_FOOT, Q_CLOSEST_COHORT,
   Q_ENGINE_HEARTBEAT,
   Q_TRADE_LIST, Q_NEWS_TICKER,
-  Q_SCANNER_SCORES,
+  Q_SCANNER_LIVE_STATE,
   Q_EQUITY_SNAPSHOT_LATEST,
   Q_ACCOUNT_STATE, Q_ACCOUNT_HEALTH_HISTORY,
 } from '../lib/queries.js';
@@ -53,6 +53,10 @@ const QUERY_SPECS = [
   { key: 'closestCohort',    name: Q_CLOSEST_COHORT,   singleton: true  },
   { key: 'heartbeat',        name: Q_ENGINE_HEARTBEAT, singleton: true  },
   { key: 'newsTicker',       name: Q_NEWS_TICKER,      singleton: false },
+  // Scanner Tier 2 (2026-06-09): live per-bar gate state (replaces the
+  // last-cleared scanner_scores source). No params; proxy enriches each row
+  // with the server-side GO decision.
+  { key: 'scannerLiveState', name: Q_SCANNER_LIVE_STATE, singleton: false },
   { key: 'equitySnapshotLatest', name: Q_EQUITY_SNAPSHOT_LATEST, singleton: true },
   // Portal v1.14 P1.3/P1.4 (2026-05-30): M4 §6 health strip + detail view.
   // Both are non-singleton: account_state returns one row per account_id
@@ -223,14 +227,12 @@ async function callPriceTicker() {
 }
 
 async function pollOnce(monitoredAssets) {
-  // Portal v1.2 scanner-cycle dispatch (2026-05-26):
-  // scanner_scores joins the batch when `monitoredAssets` is populated by
-  // the mount-time fetch. Until then it's skipped (the first tick may run
-  // before mount-fetch completes; the second tick onward picks it up).
-  // The mount-time list is reused every poll — assets are stable for the
-  // session and don't need to be re-fetched on the 60s cadence.
-  const includeScanner = Array.isArray(monitoredAssets) && monitoredAssets.length > 0;
-
+  // Scanner Tier 2 (2026-06-09): the scanner source is now `scanner_live_state`
+  // — a param-less query in QUERY_SPECS (the live ScannerLiveStateNode set,
+  // GO-enriched server-side). The old `scanner_scores` conditional batch member
+  // (which needed an asset_list) is gone; `monitoredAssets` is still threaded
+  // through only to drive the row universe (adaptScanner joins it with the
+  // live-state rows so assets without a node yet render as BUILDING DATA).
   const calls = [
     ...QUERY_SPECS.map((spec) => callProxy(spec.name)),
     callMacroNews(),       // index = QUERY_SPECS.length
@@ -239,10 +241,6 @@ async function pollOnce(monitoredAssets) {
     callReturnsMatrix(),   // index = QUERY_SPECS.length + 3 (v1.17)
     callTradesClosedDay(etDayRange(0)), // index = QUERY_SPECS.length + 4 (Rev 42 — today's ET-day closed feed for DAY W/L)
   ];
-  if (includeScanner) {
-    // index = QUERY_SPECS.length + 5 (after macro + broker + price ticker + returns matrix + closed-day)
-    calls.push(callProxy('scanner_scores', { asset_list: monitoredAssets }));
-  }
   const settled = await Promise.allSettled(calls);
 
   const data = { pollTimestamp: new Date().toISOString(), monitoredAssets: monitoredAssets || [] };
@@ -356,23 +354,8 @@ async function pollOnce(monitoredAssets) {
     data.tradesClosedToday = null;
   }
 
-  // Scanner scores (last entry — conditionally appended); Rev 42: index shifted +4 → +5
-  if (includeScanner) {
-    const scannerResult = settled[QUERY_SPECS.length + 5];
-    if (scannerResult.status === 'fulfilled') {
-      data.scannerScores = scannerResult.value;
-      if (Array.isArray(scannerResult.value) && scannerResult.value.length > 0) anyData = true;
-    } else {
-      // eslint-disable-next-line no-console
-      console.error(`[signaldelta] poll 'scanner_scores' failed:`, scannerResult.reason);
-      errors.scanner_scores = scannerResult.reason instanceof Error
-        ? scannerResult.reason.message
-        : String(scannerResult.reason);
-      data.scannerScores = [];
-    }
-  } else {
-    data.scannerScores = [];
-  }
+  // Scanner Tier 2: data.scannerLiveState is populated by the QUERY_SPECS loop
+  // above (param-less, GO-enriched server-side) — no special handling here.
 
   return { data, errors, hasAnyData: anyData };
 }
