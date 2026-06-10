@@ -112,48 +112,55 @@ body::after {
 .pc-shell .clock-sep { font-size:11px; color:var(--w3); }
 .pc-shell .clock-utc { font-size:9px;  color:var(--w3); letter-spacing:1px; }
 
-/* Portal KPI tiles (2026-06-10): header holds the 6 KPI tiles (left) + the
-   HealthStrip broker bar (right). 2026-06-10 revise: the secondaries moved OUT
-   to their own full-width line below (see .acct-secondary-row) — header is now a
-   single grid row at 52px. */
+/* Portal KPI header (2026-06-10 rev2): 6 split-box KPI tiles (left) + a WALLED
+   two-line block on the right — LINE 1 = account/broker banner (HealthStrip),
+   LINE 2 = the 5 secondaries, both left-aligned at the block's left edge.
+   Header height 56px. */
 .pc-shell .acct {
-  height: 52px; background: var(--navy3); border-bottom: 1px solid var(--border);
+  height: 56px; background: var(--navy3); border-bottom: 1px solid var(--border);
   display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-rows: 1fr;
   padding: 0 12px; flex-shrink: 0; column-gap: 8px;
 }
 .pc-shell .acct-tiles { grid-column: 1; grid-row: 1; display: flex; min-width: 0; align-items: stretch; }
-.pc-shell .acct-health { grid-column: 2; grid-row: 1; display: flex; align-items: center; justify-content: flex-end; min-width: 0; padding-left: 8px; }
+/* WALL: border-left divides the two-line block from the KPI tiles; the block
+   stacks banner (line 1) + secondaries (line 2), both left-aligned. */
+.pc-shell .acct-health { grid-column: 2; grid-row: 1; display: flex; flex-direction: column;
+  justify-content: center; align-items: flex-start; gap: 3px; min-width: 0;
+  border-left: 1px solid var(--border); padding-left: 12px; }
 
-/* Relocated secondaries (2026-06-10): thin full-width line directly under the
-   account/broker (health) bar, above the main grid. Readable value colors
-   restored to pre-build (Base white · Day W/L white/green · Trades/Open cyan);
-   "Ann" stays muted grey — correct no-data 'building' state. No size change. */
-.pc-shell .acct-secondary-row { display: flex; align-items: center; gap: 18px; height: 18px; padding: 0 14px; background: var(--navy2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.pc-shell .asec { font-family: var(--mono); font-size: 8px; letter-spacing: 1px; white-space: nowrap; }
-.pc-shell .asec-l { color: var(--w3); margin-right: 4px; text-transform: uppercase; }
+/* LINE 2 — secondaries, left-aligned inside the walled block. Readable value
+   colors (Base white · Day W/L white/green · Trades/Open cyan); "Ann" stays
+   muted grey (correct no-data 'building' state). Labels bumped w3→w2; size 10px. */
+.pc-shell .acct-sec-line { display: flex; align-items: center; gap: 14px; }
+.pc-shell .asec { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; white-space: nowrap; }
+.pc-shell .asec-l { color: var(--w2); margin-right: 4px; text-transform: uppercase; }
 .pc-shell .asec-v { color: var(--white); }
 .pc-shell .asec-v.c { color: var(--cyan); }
 .pc-shell .asec-v.g { color: var(--green); }
 .pc-shell .asec-v.dim { color: var(--w3); }
 
-/* KPI tile */
+/* KPI tile (rev2b): vertical stack. value+delta live on their OWN full-width row
+   (kpi-mid) so the graph can never squeeze/overlap them. Bottom row (kpi-bot) =
+   context + a wider/taller sparkline band that fills the remaining width.
+   Labels/context on the readable --w2 token (off the --w3 ghost). */
 .pc-shell .kpi-tile { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center;
-  gap: 1px; padding: 3px 10px; border-right: 1px solid var(--border); position: relative; }
+  gap: 2px; padding: 4px 10px; border-right: 1px solid var(--border); position: relative; }
 .pc-shell .kpi-tile:first-child { padding-left: 2px; }
 .pc-shell .kpi-tile:last-child { border-right: none; }
-.pc-shell .kpi-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
-.pc-shell .kpi-label { font-family: var(--mono); font-size: 7px; letter-spacing: 1.5px; color: var(--w3); text-transform: uppercase; white-space: nowrap; }
+.pc-shell .kpi-top { display: flex; align-items: center; gap: 6px; }
+.pc-shell .kpi-label { font-family: var(--mono); font-size: 7px; letter-spacing: 1.5px; color: var(--w2); text-transform: uppercase; white-space: nowrap; }
 .pc-shell .kpi-mid { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
 .pc-shell .kpi-value { font-family: var(--mono); font-size: 15px; letter-spacing: 1px; color: var(--white); white-space: nowrap; }
 .pc-shell .kpi-value.g { color: var(--green); }
 .pc-shell .kpi-value.r { color: var(--red); }
 .pc-shell .kpi-value.c { color: var(--cyan); }
-.pc-shell .kpi-delta { font-family: var(--mono); font-size: 8px; letter-spacing: .5px; color: var(--w2); }
+.pc-shell .kpi-delta { font-family: var(--mono); font-size: 8px; letter-spacing: .5px; color: var(--w2); white-space: nowrap; }
 .pc-shell .kpi-delta.g { color: var(--green); }
 .pc-shell .kpi-delta.r { color: var(--red); }
-.pc-shell .kpi-bot { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
-.pc-shell .kpi-context { font-family: var(--mono); font-size: 6px; letter-spacing: 1px; color: var(--w3); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pc-shell .kpi-spark { flex-shrink: 0; display: block; }
+.pc-shell .kpi-bot { display: flex; align-items: center; gap: 8px; }
+.pc-shell .kpi-context { font-family: var(--mono); font-size: 9px; letter-spacing: .5px; color: var(--w2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; min-width: 0; }
+.pc-shell .kpi-graph { flex: 1 1 auto; min-width: 36px; height: 18px; display: block; }
+.pc-shell .kpi-spark { display: block; width: 100%; height: 100%; }
 .pc-shell .kpi-pending { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; color: var(--w3); padding: 3px 0; }
 
 /* Daily-P&L tier badge (Today's P&L tile) + tier source tooltip line */

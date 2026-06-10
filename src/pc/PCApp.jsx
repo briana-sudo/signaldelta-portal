@@ -95,7 +95,6 @@ export default function PCApp({ data, errors = {}, hasAnyData = false, error, lo
         liveWeeklyWaterfall={adaptWeeklyWaterfall(data)}
         data={data}
       />
-      <SecondaryStrip mode={mode} liveAccountBar={liveAccountBar} data={data} />
       <Main mode={mode} data={data} />
       <Ticker data={data} />
       <TradeOverlay trigger={overlayTrigger} />
@@ -269,20 +268,23 @@ function tierFill(pct, thr) {
 }
 
 // Tiny inline trend sparkline (no axes) from an existing numeric series.
-function Sparkline({ values, color, width = 50, height = 16 }) {
+// Trend sparkline that FILLS its container (kpi-graph half). Fixed 100×30 view
+// space stretched (preserveAspectRatio=none); non-scaling stroke keeps it thin.
+function Sparkline({ values, color }) {
   if (!Array.isArray(values) || values.length < 2) return null;
+  const W = 100, H = 30;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = (max - min) || 1;
   const n = values.length;
   const pts = values.map((v, i) => {
-    const x = (i / (n - 1)) * width;
-    const y = height - ((v - min) / range) * height;
+    const x = (i / (n - 1)) * W;
+    const y = H - ((v - min) / range) * H;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
   return (
-    <svg className="kpi-spark" width={width} height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
+    <svg className="kpi-spark" width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
@@ -291,6 +293,10 @@ function Sparkline({ values, color, width = 50, height = 16 }) {
 // sparkline. `pending` renders the "— pending verify" placeholder (pnl-gated
 // tiles stay numberless until the exit-price fix is verified — §15.5: a number
 // pre-verify is a wrong number). `flash` ('alpha'|'elite') glows value + delta.
+// KPI tile (2026-06-10 rev2b): vertical stack — label, then value+delta on their
+// OWN full-width row (never squeezed/overlapped by the graph), then a bottom row
+// = context + a wider/taller sparkline band filling the remaining width (B1: the
+// graph fills its area WITHOUT touching the text side).
 function KpiTile({ label, value, valueCls, delta, deltaCls, context, badge, spark, sparkColor, flash, pending, title }) {
   return (
     <div className={'kpi-tile' + (flash ? ' kpi-flash kpi-flash-' + flash : '')} title={title}>
@@ -307,8 +313,8 @@ function KpiTile({ label, value, valueCls, delta, deltaCls, context, badge, spar
         </div>
       )}
       <div className="kpi-bot">
-        <span className="kpi-context">{context}</span>
-        {spark && <Sparkline values={spark} color={sparkColor} />}
+        {context && <span className="kpi-context">{context}</span>}
+        {spark && <span className="kpi-graph"><Sparkline values={spark} color={sparkColor} /></span>}
       </div>
     </div>
   );
@@ -433,8 +439,12 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
         />
       </div>
       {void liveWeeklyWaterfall}
+      {/* Walled two-line block: LINE 1 = account/broker banner (HealthStrip),
+          LINE 2 = the 5 secondaries, both left-aligned at the block's left edge
+          (the .acct-health border-left "wall" separates it from the KPI tiles). */}
       <div className="acct-health">
         <HealthStrip data={data} layout="pc" />
+        <SecondaryStrip mode={mode} liveAccountBar={liveAccountBar} data={data} />
       </div>
     </div>
   );
@@ -457,7 +467,7 @@ function SecondaryStrip({ mode, liveAccountBar, data }) {
   const dayTotal = Array.isArray(closedToday) ? closedToday.length : 0;
   const dayPct = dayTotal ? Math.round((dayWins / dayTotal) * 100) : null;
   return (
-    <div className="acct-secondary-row">
+    <div className="acct-sec-line">
       <span className="asec"><span className="asec-l">Base</span><span className="asec-v">${capitalBase.toLocaleString()}</span></span>
       <span className="asec"><span className="asec-l">Ann</span><span className="asec-v dim">{annualBoot ? '—' : annual.display}</span></span>
       <span className="asec"><span className="asec-l">Day W/L</span><span className={'asec-v' + (dayTotal && dayPct >= 50 ? ' g' : '')}>{bootstrap || !Array.isArray(closedToday) ? '—' : `${dayWins}/${dayTotal}${dayTotal ? ` · ${dayPct}%` : ''}`}</span></span>
