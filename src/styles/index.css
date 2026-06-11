@@ -2047,3 +2047,87 @@ body::after {
   border: 1px dashed rgba(255,255,255,0.08);
 }
 .mobile-shell .wf-pct-ahead { color: var(--w3); }
+
+/* ───────────────────────────────────────────────────────────────
+   Strand 4 (2026-06-10) — heatmap / returns-calendar popups (PC desktop).
+   Triggers live on the Equity Curve header; modals reuse the .overlay/.ov-card
+   skin via a body portal (.sd-popup-portal carries .pc-shell so these rules
+   apply to the portal'd content too). Delta-only; no existing rule changed.
+   ─────────────────────────────────────────────────────────────── */
+/* header triggers — sit beside the equity-range toggle */
+.pc-shell .eq-pop { display:inline-flex; align-items:center; margin-left:10px; gap:6px; }
+.pc-shell .eq-pop-btn { font-family:var(--mono); font-size:7px; letter-spacing:1px;
+  color:var(--w2); background:transparent; border:1px solid var(--border);
+  padding:2px 7px; cursor:pointer; text-transform:uppercase; white-space:nowrap; }
+.pc-shell .eq-pop-btn:hover { color:var(--cyan); border-color:var(--cyan); background:var(--cyan2); }
+
+/* the portal wrapper is inert layout-wise; only its fixed .overlay child paints */
+.sd-popup-portal { display:contents; }
+
+/* shared popup card chrome (mirrors trades-expand-card: 0 padding, flex column) */
+.pc-shell .sd-pop-card { width:min(720px, 94vw); max-height:84vh; padding:0; display:flex; flex-direction:column; }
+.pc-shell .sd-heatmap-card { width:min(760px, 94vw); }
+.pc-shell .sd-calendar-card { width:min(560px, 94vw); }
+.pc-shell .sd-pop-head { display:flex; align-items:center; justify-content:space-between;
+  padding:16px 20px; border-bottom:1px solid var(--border); }
+.pc-shell .sd-pop-title { display:flex; align-items:center; gap:10px;
+  font-family:var(--disp); font-weight:900; font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--white); }
+.pc-shell .sd-pop-head-r { display:flex; align-items:center; gap:12px; }
+.pc-shell .sd-pop-sub { font-family:var(--mono); font-size:8px; letter-spacing:1.5px; color:var(--w3); text-transform:uppercase; }
+.pc-shell .sd-pop-close { font-family:var(--mono); font-size:8px; letter-spacing:2px; color:var(--w2);
+  background:transparent; border:1px solid var(--border); padding:2px 8px; cursor:pointer; text-transform:uppercase; }
+.pc-shell .sd-pop-close:hover { color:var(--white); border-color:var(--w2); }
+.pc-shell .sd-pop-body { padding:20px; overflow:auto; }
+.pc-shell .sd-pop-empty { text-align:center; color:var(--w3); padding:40px 12px;
+  font-family:var(--mono); font-size:9px; letter-spacing:1.5px; text-transform:uppercase; }
+
+/* heatmap grid — weekday label column + column-major week grid */
+.pc-shell .sd-hm-wrap { display:flex; gap:8px; align-items:stretch; }
+.pc-shell .sd-hm-wdcol { display:grid; grid-template-rows:repeat(7, 1fr); gap:3px; padding-top:0; }
+.pc-shell .sd-hm-wd { font-family:var(--mono); font-size:7px; color:var(--w3); letter-spacing:.5px;
+  display:flex; align-items:center; height:14px; }
+.pc-shell .sd-hm-grid { flex:1; display:grid; grid-auto-flow:column; grid-template-rows:repeat(7, 1fr); gap:3px; }
+.pc-shell .sd-hm-cell { width:100%; aspect-ratio:1 / 1; min-height:14px; border-radius:2px;
+  background:var(--navy4); border:1px solid var(--border); }
+.pc-shell .sd-hm-cell.sd-hm-nodata { background:repeating-linear-gradient(45deg,
+  rgba(61,96,128,0.10) 0 2px, transparent 2px 4px); border-color:rgba(61,96,128,0.18); }
+.pc-shell .sd-hm-cell.sd-hm-out { background:transparent; border-color:transparent; }
+.pc-shell .sd-hm-foot { display:flex; align-items:center; justify-content:space-between; margin-top:16px; }
+.pc-shell .sd-hm-legend { display:flex; align-items:center; gap:5px; }
+.pc-shell .sd-hm-lgd-lbl { font-family:var(--mono); font-size:8px; color:var(--w3); letter-spacing:1px; }
+.pc-shell .sd-hm-sw { width:13px; height:13px; border-radius:2px; border:1px solid var(--border); display:inline-block; }
+.pc-shell .sd-hm-sw.sd-hm-nodata { background:repeating-linear-gradient(45deg,
+  rgba(61,96,128,0.10) 0 2px, transparent 2px 4px); }
+.pc-shell .sd-hm-tot { font-family:var(--mono); font-size:9px; letter-spacing:1px; color:var(--w2); }
+.pc-shell .sd-hm-tot strong.g, .pc-shell .sd-cal-foot strong.g { color:var(--green); }
+.pc-shell .sd-hm-tot strong.r, .pc-shell .sd-cal-foot strong.r { color:var(--red); }
+
+/* returns calendar — month nav + Sun..Sat grid */
+.pc-shell .sd-cal-nav { display:flex; align-items:center; justify-content:center; gap:18px; margin-bottom:14px; }
+.pc-shell .sd-cal-navbtn { font-family:var(--mono); font-size:14px; line-height:1; color:var(--cyan);
+  background:transparent; border:1px solid var(--border); padding:1px 10px; cursor:pointer; }
+.pc-shell .sd-cal-navbtn:hover:not(:disabled) { background:var(--cyan2); }
+.pc-shell .sd-cal-navbtn:disabled { color:rgba(61,96,128,0.4); cursor:default; }
+.pc-shell .sd-cal-month { font-family:var(--disp); font-weight:900; font-size:13px; letter-spacing:2px;
+  text-transform:uppercase; color:var(--white); min-width:170px; text-align:center; }
+.pc-shell .sd-cal-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; }
+.pc-shell .sd-cal-dow { font-family:var(--mono); font-size:8px; color:var(--w3); letter-spacing:1px;
+  text-align:center; padding-bottom:2px; }
+.pc-shell .sd-cal-cell { aspect-ratio:1 / 1; border:1px solid var(--border); border-radius:2px;
+  padding:3px 4px; display:flex; flex-direction:column; justify-content:flex-start;
+  background:var(--navy3); position:relative; overflow:hidden; }
+.pc-shell .sd-cal-cell.sd-cal-out { background:transparent; border-color:transparent; }
+.pc-shell .sd-cal-cell.sd-cal-nodata { background:repeating-linear-gradient(45deg,
+  rgba(61,96,128,0.08) 0 3px, transparent 3px 6px); }
+.pc-shell .sd-cal-cell.sd-cal-pos { background:rgba(0,230,118,0.10); border-color:rgba(0,230,118,0.30); }
+.pc-shell .sd-cal-cell.sd-cal-neg { background:rgba(255,61,87,0.10); border-color:rgba(255,61,87,0.30); }
+.pc-shell .sd-cal-day { font-family:var(--mono); font-size:8px; color:var(--w3); line-height:1; }
+.pc-shell .sd-cal-out .sd-cal-day { color:rgba(61,96,128,0.35); }
+.pc-shell .sd-cal-pct { font-family:var(--mono); font-size:10px; font-weight:700; margin-top:auto; line-height:1.1; }
+.pc-shell .sd-cal-pos .sd-cal-pct { color:var(--green); }
+.pc-shell .sd-cal-neg .sd-cal-pct { color:var(--red); }
+.pc-shell .sd-cal-usd { font-family:var(--mono); font-size:7px; color:var(--w2); line-height:1.1; }
+.pc-shell .sd-cal-dash { font-family:var(--mono); font-size:10px; color:var(--w3); margin-top:auto; }
+.pc-shell .sd-cal-foot { display:flex; align-items:center; justify-content:space-between; margin-top:14px;
+  padding-top:12px; border-top:1px solid var(--border);
+  font-family:var(--mono); font-size:9px; letter-spacing:1px; color:var(--w2); }

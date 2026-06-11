@@ -43,6 +43,8 @@ import HealthStrip from '../lib/HealthStrip.jsx';
 import RulesEmptyState from '../lib/RulesEmptyState.jsx';
 import TradeOverlay from './TradeOverlay.jsx';
 import TradesExpandModal from './TradesExpandModal.jsx';
+import HeatmapModal from './HeatmapModal.jsx';
+import ReturnsCalendarModal from './ReturnsCalendarModal.jsx';
 
 const MODES = ['live', 'training', 'combined'];
 const DEFAULT_MODE = 'training';
@@ -77,6 +79,31 @@ export default function PCApp({ data, errors = {}, hasAnyData = false, error, lo
   // and the open/close bell (no second clock/poll).
   const marketStatus = useMarketStatus();
 
+  // Strand 4 (2026-06-10): heatmap / returns-calendar popups, opened by the
+  // triggers on the Equity Curve header OR a #heatmap / #calendar deep-link.
+  // The URL hash is the single source of truth: openPopup writes the hash, the
+  // hashchange listener reads it and sets state — so the deep-link and the
+  // triggers share one path. closePopup clears the hash (replaceState, no
+  // history entry / scroll jump) and the state together.
+  const [popup, setPopup] = useState(null); // 'heatmap' | 'calendar' | null
+  useEffect(() => {
+    const apply = () => {
+      const h = (window.location.hash || '').replace(/^#/, '').toLowerCase();
+      setPopup(h === 'heatmap' || h === 'calendar' ? h : null);
+    };
+    apply();
+    window.addEventListener('hashchange', apply);
+    return () => window.removeEventListener('hashchange', apply);
+  }, []);
+  const openPopup = (name) => { window.location.hash = name; };
+  const closePopup = () => {
+    const h = (window.location.hash || '').replace(/^#/, '').toLowerCase();
+    if (h === 'heatmap' || h === 'calendar') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+    setPopup(null);
+  };
+
   return (
     <div className="pc-shell">
       <StatusBanner error={error} errors={errors} hasAnyData={hasAnyData} />
@@ -97,9 +124,11 @@ export default function PCApp({ data, errors = {}, hasAnyData = false, error, lo
         liveWeeklyWaterfall={adaptWeeklyWaterfall(data)}
         data={data}
       />
-      <Main mode={mode} data={data} />
+      <Main mode={mode} data={data} onOpenPopup={openPopup} />
       <Ticker data={data} />
       <TradeOverlay trigger={overlayTrigger} />
+      <HeatmapModal open={popup === 'heatmap'} onClose={closePopup} data={data} />
+      <ReturnsCalendarModal open={popup === 'calendar'} onClose={closePopup} data={data} />
       {/* loading hint: visible while first poll is in flight */}
       {loading && !data && !error && <LoadingBadge />}
     </div>
@@ -547,7 +576,7 @@ function SecondaryStrip({ mode, liveAccountBar, data }) {
 // render bug. The mobile waterfall (MobileApp.jsx) is independent and unchanged;
 // shared adaptWeeklyWaterfall/buildWeekFrame in dataAdapter are still used by it.
 
-function Main({ mode, data }) {
+function Main({ mode, data, onOpenPopup }) {
   return (
     <div className="main">
       <div className="col-scanner">
@@ -555,7 +584,7 @@ function Main({ mode, data }) {
       </div>
       <div className="col-center">
         <TradeListPanel mode={mode} data={data} />
-        <EquityCurvePanel mode={mode} data={data} />
+        <EquityCurvePanel mode={mode} data={data} onOpenPopup={onOpenPopup} />
         <NewsAndStatusPanel mode={mode} data={data} />
       </div>
       <div className="col-metrics">
@@ -949,7 +978,7 @@ function ReturnTip({ active, payload }) {
   );
 }
 
-function EquityCurvePanel({ mode, data }) {
+function EquityCurvePanel({ mode, data, onOpenPopup }) {
   const series = adaptEquityCurve(data);
   const bootstrap = shouldRenderBootstrap(mode) || !series;
   // Time-range toggle (default 1M). A range greys out until the series spans
@@ -1063,6 +1092,13 @@ function EquityCurvePanel({ mode, data }) {
                 onClick={() => { if (enabled[r.key]) setRange(r.key); }}
               >{r.key}</button>
             ))}
+          </span>
+          {/* Strand 4 (2026-06-10): daily-P&L popups — same broker-true daily
+              series as the DAILY RETURN strip below, expanded to a heatmap /
+              returns calendar. Also reachable via #heatmap / #calendar. */}
+          <span className="eq-pop">
+            <button type="button" className="eq-pop-btn" onClick={() => onOpenPopup?.('heatmap')} title="Daily P&L heatmap">▦ HEATMAP</button>
+            <button type="button" className="eq-pop-btn" onClick={() => onOpenPopup?.('calendar')} title="Returns calendar">▤ CALENDAR</button>
           </span>
         </span>
       </div>
@@ -1420,6 +1456,8 @@ function MetricsPanel({ mode, data }) {
             <>
               <div className="mc-value" style={{ color: sharpeBandColor(srDial.band) }}>{(srDial.value ?? 0).toFixed(2)}</div>
               <div className="mc-sub" style={{ color: sharpeBandColor(srDial.band), fontWeight: 700, letterSpacing: '1px' }}>{srDial.band}</div>
+              <div className="mc-sub" style={{ color: 'var(--w3)', fontSize: '8px', letterSpacing: '.3px' }}
+                title="The dial reflects the metric, not Phase-3 live-deploy clearance — which needs ≥200 trades, HIGH confidence, and a mature ≥30-eq-day window.">matures at 30 eq-days · 200 trades</div>
             </>
           )}
         </div>
