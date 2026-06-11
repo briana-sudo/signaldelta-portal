@@ -11,10 +11,11 @@
 import { useMemo } from 'react';
 import { adaptEquityCurve } from '../lib/dataAdapter.js';
 import {
-  buildDailySeries, dailyMap, maxAbsPnl, heatmapCells, pnlColor, fmtUsd, fmtPct,
+  buildDailySeries, dailyMap, maxAbsPnl, heatmapColumns, pnlColor, fmtUsd, fmtPct,
 } from '../lib/dailyPnl.js';
 import PopupModalShell from '../lib/PopupModalShell.jsx';
 
+// Y axis = weekdays Sun→Sat; show M/W/F labels (blank rows between), GitHub-style.
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function HeatmapModal({ open, onClose, data }) {
@@ -22,7 +23,7 @@ export default function HeatmapModal({ open, onClose, data }) {
 
   const { daily, grid, mx } = useMemo(() => {
     const d = buildDailySeries(series || []);
-    return { daily: d, grid: heatmapCells(d, dailyMap(d)), mx: maxAbsPnl(d) };
+    return { daily: d, grid: heatmapColumns(d, dailyMap(d)), mx: maxAbsPnl(d) };
   }, [series]);
 
   const populated = daily.filter((d) => d.hasPnl);
@@ -54,36 +55,48 @@ export default function HeatmapModal({ open, onClose, data }) {
         ) : (
           <>
             <div className="sd-hm-wrap">
-              <div className="sd-hm-wdcol" aria-hidden="true">
-                {WEEKDAYS.map((w, i) => (
-                  <span key={w} className="sd-hm-wd">{i % 2 === 1 ? w : ''}</span>
+              {/* month labels — one slot per week column; label overflows right
+                  from the column that opens a new month (GitHub-style). */}
+              <div className="sd-hm-months" aria-hidden="true">
+                {grid.columns.map((col) => (
+                  <span key={col.key} className="sd-hm-mcol">
+                    {col.monthStart ? <span className="sd-hm-mlbl">{col.monthLabel}</span> : null}
+                  </span>
                 ))}
               </div>
-              <div
-                className="sd-hm-grid"
-                style={{ gridTemplateColumns: `repeat(${grid.weeks}, 1fr)` }}
-              >
-                {grid.cells.map((c) => {
-                  let cls = 'sd-hm-cell';
-                  if (!c.inRange) cls += ' sd-hm-out';
-                  else if (!c.hasPnl) cls += ' sd-hm-nodata';
-                  return (
-                    <div
-                      key={c.date}
-                      className={cls}
-                      style={c.inRange && c.hasPnl ? { background: pnlColor(c.pnl, mx) } : undefined}
-                      title={
-                        c.inRange
-                          ? `${c.date} · ${
-                              c.hasPnl
-                                ? `${fmtUsd(c.pnl)} · ${fmtPct(c.pct)}`
-                                : c.hasData ? 'baseline (no prior day)' : 'no snapshot'
-                            }`
-                          : ''
-                      }
-                    />
-                  );
-                })}
+              <div className="sd-hm-body">
+                <div className="sd-hm-wdcol" aria-hidden="true">
+                  {WEEKDAYS.map((w, i) => (
+                    <span key={w} className="sd-hm-wd">{i % 2 === 1 ? w : ''}</span>
+                  ))}
+                </div>
+                <div className="sd-hm-cols">
+                  {grid.columns.map((col) => (
+                    <div key={col.key} className="sd-hm-col">
+                      {col.cells.map((c) => {
+                        let cls = 'sd-hm-cell';
+                        if (!c.inRange) cls += ' sd-hm-out';
+                        else if (!c.hasPnl) cls += ' sd-hm-nodata';
+                        return (
+                          <div
+                            key={c.date}
+                            className={cls}
+                            style={c.inRange && c.hasPnl ? { background: pnlColor(c.pnl, mx) } : undefined}
+                            title={
+                              c.inRange
+                                ? `${c.date} · ${
+                                    c.hasPnl
+                                      ? `${fmtUsd(c.pnl)} · ${fmtPct(c.pct)}`
+                                      : c.hasData ? 'baseline (no prior day)' : 'no snapshot'
+                                  }`
+                                : ''
+                            }
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 

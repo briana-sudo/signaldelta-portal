@@ -81,33 +81,48 @@ export function pnlColor(pnl, maxAbs) {
   return pnl >= 0 ? `rgba(0,230,118,${alpha})` : `rgba(255,61,87,${alpha})`;
 }
 
-// GitHub-style contribution grid: a flat cell array in COLUMN-MAJOR order (week
-// by week; within a week Sun→Sat), Sunday-anchored, spanning the Sunday on/before
-// the first day to the Saturday on/after the last. Pairs with a CSS grid using
-// `grid-auto-flow:column; grid-template-rows:repeat(7,…)`.
-export function heatmapCells(daily, map) {
-  if (!daily.length) return { cells: [], weeks: 0 };
+// GitHub-style contribution grid as explicit WEEK COLUMNS (X = weeks, Y = the 7
+// weekdays Sun→Sat), Sunday-anchored, spanning the Sunday on/before the first day
+// to the Saturday on/after the last. Each column carries a `monthStart` flag +
+// short `monthLabel` for the month-label row, set when the column's week opens a
+// new calendar month. Fixed-size cells render one column = one week; no flex-fill.
+export function heatmapColumns(daily, map) {
+  if (!daily.length) return { columns: [], weeks: 0 };
   const first = ymd(daily[0].date);
   const last = ymd(daily[daily.length - 1].date);
   const start = addDays(first, -first.getDay());     // back to Sunday
   const end = addDays(last, 6 - last.getDay());       // forward to Saturday
-  const cells = [];
+  const columns = [];
   let cursor = new Date(start);
+  let prevMonth = null;
   while (cursor <= end) {
-    const ds = isoDate(cursor);
-    const cell = map.get(ds) || null;
-    cells.push({
-      date: ds,
-      weekday: cursor.getDay(),
-      inRange: cursor >= first && cursor <= last,
-      hasData: !!cell && cell.hasData,
-      hasPnl: !!cell && cell.hasPnl,
-      pnl: cell ? cell.pnl : null,
-      pct: cell ? cell.pct : null,
+    const weekTop = new Date(cursor);
+    const cells = [];
+    for (let i = 0; i < 7; i++) {
+      const ds = isoDate(cursor);
+      const cell = map.get(ds) || null;
+      cells.push({
+        date: ds,
+        weekday: cursor.getDay(),
+        inRange: cursor >= first && cursor <= last,
+        hasData: !!cell && cell.hasData,
+        hasPnl: !!cell && cell.hasPnl,
+        pnl: cell ? cell.pnl : null,
+        pct: cell ? cell.pct : null,
+      });
+      cursor = addDays(cursor, 1);
+    }
+    const month = weekTop.getMonth();
+    const monthStart = month !== prevMonth;
+    columns.push({
+      key: isoDate(weekTop),
+      monthStart,
+      monthLabel: monthStart ? weekTop.toLocaleDateString('en-US', { month: 'short' }) : '',
+      cells,
     });
-    cursor = addDays(cursor, 1);
+    prevMonth = month;
   }
-  return { cells, weeks: cells.length / 7 };
+  return { columns, weeks: columns.length };
 }
 
 // Distinct 'YYYY-MM' buckets that contain at least one snapshot day (ascending).
