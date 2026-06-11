@@ -2066,7 +2066,7 @@ body::after {
 
 /* shared popup card chrome (mirrors trades-expand-card: 0 padding, flex column) */
 .pc-shell .sd-pop-card { width:min(720px, 94vw); max-height:84vh; padding:0; display:flex; flex-direction:column; }
-.pc-shell .sd-heatmap-card { width:auto; min-width:400px; max-width:94vw; }
+.pc-shell .sd-heatmap-card { width:auto; min-width:640px; max-width:94vw; }
 .pc-shell .sd-calendar-card { width:min(560px, 94vw); }
 .pc-shell .sd-pop-head { display:flex; align-items:center; justify-content:space-between;
   padding:16px 20px; border-bottom:1px solid var(--border); }
@@ -2084,29 +2084,29 @@ body::after {
 /* heatmap grid — GitHub-contribution style: FIXED 13px square cells, 3px gap,
    week columns (X) × weekday rows (Y). Cells never flex to fill; density is the
    point. Scrolls X (not Y) only if the range exceeds the modal width. */
-.pc-shell .sd-hm-wrap { display:flex; flex-direction:column; gap:4px; overflow-x:auto; padding-bottom:4px; }
-.pc-shell .sd-hm-months { display:flex; gap:3px; margin-left:24px; height:9px; }
-.pc-shell .sd-hm-mcol { width:13px; flex:none; position:relative; }
+.pc-shell .sd-hm-wrap { display:flex; flex-direction:column; gap:6px; overflow-x:auto; padding-bottom:6px; }
+.pc-shell .sd-hm-months { display:flex; gap:4px; margin-left:40px; height:16px; }
+.pc-shell .sd-hm-mcol { width:24px; flex:none; position:relative; }
 .pc-shell .sd-hm-mlbl { position:absolute; left:0; top:0; white-space:nowrap;
-  font-family:var(--mono); font-size:7px; color:var(--w3); letter-spacing:.5px; }
-.pc-shell .sd-hm-body { display:flex; gap:6px; align-items:flex-start; }
-.pc-shell .sd-hm-wdcol { display:flex; flex-direction:column; gap:3px; width:18px; flex:none; }
-.pc-shell .sd-hm-wd { height:13px; line-height:13px; font-family:var(--mono); font-size:7px;
+  font-family:var(--mono); font-size:11px; color:var(--w3); letter-spacing:.5px; }
+.pc-shell .sd-hm-body { display:flex; gap:8px; align-items:flex-start; }
+.pc-shell .sd-hm-wdcol { display:flex; flex-direction:column; gap:4px; width:32px; flex:none; }
+.pc-shell .sd-hm-wd { height:24px; line-height:24px; font-family:var(--mono); font-size:11px;
   color:var(--w3); letter-spacing:.3px; }
-.pc-shell .sd-hm-cols { display:flex; gap:3px; }
-.pc-shell .sd-hm-col { display:flex; flex-direction:column; gap:3px; flex:none; }
-.pc-shell .sd-hm-cell { width:13px; height:13px; flex:none; border-radius:2px;
+.pc-shell .sd-hm-cols { display:flex; gap:4px; }
+.pc-shell .sd-hm-col { display:flex; flex-direction:column; gap:4px; flex:none; }
+.pc-shell .sd-hm-cell { width:24px; height:24px; flex:none; border-radius:3px;
   background:var(--navy4); border:1px solid var(--border); box-sizing:border-box; }
 .pc-shell .sd-hm-cell.sd-hm-nodata { background:repeating-linear-gradient(45deg,
   rgba(61,96,128,0.10) 0 2px, transparent 2px 4px); border-color:rgba(61,96,128,0.18); }
 .pc-shell .sd-hm-cell.sd-hm-out { background:transparent; border-color:transparent; }
-.pc-shell .sd-hm-foot { display:flex; align-items:center; justify-content:space-between; margin-top:16px; }
-.pc-shell .sd-hm-legend { display:flex; align-items:center; gap:5px; }
-.pc-shell .sd-hm-lgd-lbl { font-family:var(--mono); font-size:8px; color:var(--w3); letter-spacing:1px; }
-.pc-shell .sd-hm-sw { width:13px; height:13px; border-radius:2px; border:1px solid var(--border); display:inline-block; }
+.pc-shell .sd-hm-foot { display:flex; align-items:center; justify-content:space-between; margin-top:20px; }
+.pc-shell .sd-hm-legend { display:flex; align-items:center; gap:7px; }
+.pc-shell .sd-hm-lgd-lbl { font-family:var(--mono); font-size:12px; color:var(--w3); letter-spacing:1px; }
+.pc-shell .sd-hm-sw { width:18px; height:18px; border-radius:3px; border:1px solid var(--border); display:inline-block; }
 .pc-shell .sd-hm-sw.sd-hm-nodata { background:repeating-linear-gradient(45deg,
   rgba(61,96,128,0.10) 0 2px, transparent 2px 4px); }
-.pc-shell .sd-hm-tot { font-family:var(--mono); font-size:9px; letter-spacing:1px; color:var(--w2); }
+.pc-shell .sd-hm-tot { font-family:var(--mono); font-size:12px; letter-spacing:1px; color:var(--w2); }
 .pc-shell .sd-hm-tot strong.g, .pc-shell .sd-cal-foot strong.g { color:var(--green); }
 .pc-shell .sd-hm-tot strong.r, .pc-shell .sd-cal-foot strong.r { color:var(--red); }
 
