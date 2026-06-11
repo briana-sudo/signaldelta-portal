@@ -2135,6 +2135,8 @@ body::after {
 .pc-shell .sd-cal-pos .sd-cal-pct { color:var(--green); }
 .pc-shell .sd-cal-neg .sd-cal-pct { color:var(--red); }
 .pc-shell .sd-cal-usd { font-family:var(--mono); font-size:10px; color:var(--white); line-height:1.2; margin-top:4px; }
+.pc-shell .sd-cal-pos .sd-cal-usd { color:var(--green); }
+.pc-shell .sd-cal-neg .sd-cal-usd { color:var(--red); }
 .pc-shell .sd-cal-dash { font-family:var(--mono); font-size:10px; color:var(--w3); margin-top:auto; }
 .pc-shell .sd-cal-foot { display:flex; align-items:center; justify-content:space-between; margin-top:14px;
   padding-top:12px; border-top:1px solid var(--border);
