@@ -710,8 +710,29 @@ export function adaptPanelSharpe(data) {
     dailyAvailable: !!s.daily_equity_basis_available,
     dailySharpe: s.daily_sharpe_value == null ? null : Number(s.daily_sharpe_value),
     dailyReturnCount: Number(s.daily_return_count) || 0,
+    // Display basis (settled 06-09): annualized-corpus Sharpe = per-trade ×
+    // √(annual trade frequency). The dial reads this until the daily-return
+    // series reaches ≥30 trading days.
+    annualizedCorpus: s.annualized_corpus_sharpe == null ? null : Number(s.annualized_corpus_sharpe),
+    annualizedCorpusBand: s.annualized_corpus_band || null,
+    corpusFactor: s.corpus_freq_factor == null ? null : Number(s.corpus_freq_factor),
+    corpusSpanDays: s.corpus_span_days == null ? null : Number(s.corpus_span_days),
     insufficientHistory: !!s.insufficient_history,
     equityDays: Number(s.equity_days) || 0,
+  };
+}
+
+// Cumulative-to-date PF + expectancy daily series → arrays for the KPI-tile
+// sparklines (proxy panel_pf_expectancy_series). Null-PF days (no losses yet)
+// are dropped from the PF spark so the line stays meaningful.
+export function adaptPfExpectancySeries(data) {
+  const rows = Array.isArray(data?.panelPfExpSeries) ? data.panelPfExpSeries : null;
+  if (!rows || rows.length === 0) return null;
+  const pf = rows.map((r) => r.profit_factor).filter((v) => v != null).map(Number);
+  const exp = rows.map((r) => r.expectancy_dollar).filter((v) => v != null).map(Number);
+  return {
+    pf: pf.length ? pf : null,
+    expectancy: exp.length ? exp : null,
   };
 }
 

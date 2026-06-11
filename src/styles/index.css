@@ -1923,6 +1923,40 @@ body::after {
 .mobile-shell .rm-row-h { font-size: 10px; }
 .mobile-shell .rm-grid { padding: 10px 12px 12px; }
 
+/* §6.6 mobile Returns-by-Domain consolidated panel (2026-06-10) — $/% toggle +
+   window selector + annualized %; mobile-scoped (desktop .pc-shell .rbd-*
+   untouched). Full-width DATA-tab panel → roomier columns than PC, no overflow. */
+.mobile-shell .rbd-toggle { display: inline-flex; gap: 3px; }
+.mobile-shell .rbd-tab {
+  font-family: var(--mono); font-size: 13px; line-height: 1; padding: 4px 11px;
+  background: var(--navy3); color: var(--w3); border: 1px solid rgba(0,194,255,0.18); letter-spacing: 1px;
+}
+.mobile-shell .rbd-tab.on { color: var(--cyan); border-color: var(--cyan); background: rgba(0,194,255,0.10); }
+.mobile-shell .rbd-winrow { display: flex; gap: 3px; padding: 6px 12px 0; }
+.mobile-shell .rbd-win {
+  flex: 1; font-family: var(--mono); font-size: 11px; line-height: 1; padding: 5px 0;
+  background: var(--navy3); color: var(--w3); border: 1px solid rgba(0,194,255,0.14); letter-spacing: 1px;
+}
+.mobile-shell .rbd-win.on { color: var(--cyan); border-color: var(--cyan); background: rgba(0,194,255,0.10); }
+.mobile-shell .rbd-meta { font-family: var(--mono); font-size: 11px; color: var(--w3); letter-spacing: .5px; padding: 6px 12px 0; }
+.mobile-shell .rbd-flag { color: var(--amber); font-weight: 600; }
+.mobile-shell .rbd-grid {
+  grid-template-columns: minmax(44px, 0.55fr) repeat(4, minmax(50px, 1fr));
+  grid-template-rows: auto 0.85fr 0.85fr 0.85fr 1.4fr;
+  column-gap: 3px;
+}
+.mobile-shell .rbd-grid .rm-cell { padding: 4px 2px; }
+.mobile-shell .rbd-grid .rm-row-h { font-size: 12px; letter-spacing: 0; }
+.mobile-shell .rbd-grid .rbd-total-h { font-size: 12px; font-weight: 700; }
+.mobile-shell .rbd-grid .rm-cell-pct.rbd-fit-l { font-size: 14px; }
+.mobile-shell .rbd-grid .rm-cell-pct.rbd-fit-m { font-size: 12px; }
+.mobile-shell .rbd-grid .rm-cell-pct.rbd-fit-s { font-size: 10px; }
+.mobile-shell .rbd-grid .rm-cell-pct.rbd-fit-xs { font-size: 9px; }
+.mobile-shell .rbd-grid .rbd-total-cell .rm-cell-pct.rbd-fit-l { font-size: 16px; font-weight: 700; }
+.mobile-shell .rbd-grid .rbd-total-cell .rm-cell-pct.rbd-fit-m { font-size: 14px; font-weight: 700; }
+.mobile-shell .rbd-grid .rbd-total-cell .rm-cell-pct.rbd-fit-s { font-size: 12px; font-weight: 700; }
+.mobile-shell .rbd-grid .rbd-total-cell .rm-cell-pct.rbd-fit-xs { font-size: 10px; font-weight: 700; }
+
 /* ─────────────────────────────────────────────────────────────────────
    Portal v1.17.1 (2026-05-30) — PC-scoped layout fix.
    The 200 px .col-extra panel can't fit a nowrap "Large-cap stock"

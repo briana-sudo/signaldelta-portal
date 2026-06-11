@@ -9,6 +9,7 @@ import {
 import {
   adaptAccountBar, adaptWeeklyWaterfall, adaptEvents,
   adaptWinRate, adaptSharpe, adaptConviction,
+  adaptPanelSharpe, adaptPanelAnnReturn, adaptPanelReturnsByDomainPct,
   adaptEquityCurve, adaptEquityHeader,
   adaptRulesThisWeek, adaptRulesFoot, adaptClosestCohort,
   adaptHeartbeat,
@@ -258,8 +259,9 @@ export function MobileAccountBar({ mode, liveAccountBar, data }) {
   // pace badge on the capital-base row, daily-% color on Today P&L. Same
   // client-side reducer, no 2nd fetch.
   const series = adaptEquityCurve(data);
-  const annual = useMemo(() => computeAnnualized(series), [series]);
-  const annualBoot = bootstrap || !series;
+  // §6.6 (2026-06-10): Annualized stat now reads the proxy account-level value
+  // (cum + "30d" hint while equity-days < 30), not the frontend estimate.
+  const mAnn = bootstrap ? null : adaptPanelAnnReturn(data);
   const todayPct = deriveTodayPct(av, ap);
   const pace = useMemo(() => computePaceTier(todayPct), [todayPct]);
 
@@ -276,12 +278,12 @@ export function MobileAccountBar({ mode, liveAccountBar, data }) {
     <div className="acct">
       <div className="aitem"><span className="alabel">Capital Base</span><span className="aval">${capitalBase.toLocaleString()}</span></div>
       <div className="aitem aitem-annualized"><span className="alabel">Annualized</span>
-        {annualBoot
+        {!mAnn
           ? dash
-          : (annual.gated
-              ? <span className="aval aval-building">{annual.display}</span>
-              : <span className={'aval aval-annualized ' + cls(annual.annualizedPct)}>{annual.display}</span>)}
-        {!annualBoot && <PaceBadge pace={pace} />}
+          : (mAnn.insufficientHistory
+              ? <span className={'aval ' + cls(mAnn.cumReturnPct)}>{`${mAnn.cumReturnPct >= 0 ? '+' : ''}${(mAnn.cumReturnPct ?? 0).toFixed(2)}%`}<span style={{ fontSize: '8px', color: 'var(--w3)', marginLeft: '2px' }}>·30d</span></span>
+              : <span className={'aval aval-annualized ' + cls(mAnn.annualizedPct)}>{`${mAnn.annualizedPct >= 0 ? '+' : ''}${mAnn.annualizedPct.toFixed(1)}%`}</span>)}
+        {mAnn && <PaceBadge pace={pace} />}
       </div>
       <div className="aitem"><span className="alabel">Current Value</span>
         {bootstrap || av == null
@@ -780,7 +782,15 @@ function MobileScannerRow({ a, fallback }) {
 function SystemTab({ mode, data, onOpenKernel }) {
   const liveMode = mode === 'live';
   const winRate = adaptWinRate(data);
-  const sharpe = adaptSharpe(data);
+  const sharpe = adaptPanelSharpe(data);
+  // Annualized display (settled 06-09): annualized-corpus now; daily ×√252 once
+  // the daily-return series ≥ 30. Mirror of the PC dial.
+  const useDailyBasisM = !!sharpe && sharpe.dailyReturnCount >= 30 && sharpe.dailySharpe != null;
+  const srDial = sharpe
+    ? (useDailyBasisM
+      ? { value: sharpe.dailySharpe, band: mSharpeBandOf(sharpe.dailySharpe) }
+      : { value: sharpe.annualizedCorpus ?? 0, band: sharpe.annualizedCorpusBand || mSharpeBandOf(sharpe.annualizedCorpus) })
+    : { value: 0, band: 'CRITICAL' };
   const conviction = adaptConviction(data);
   const wrBoot = liveMode || !winRate;
   const srBoot = liveMode || !sharpe;
@@ -831,25 +841,22 @@ function SystemTab({ mode, data, onOpenKernel }) {
             {srBoot ? (
               <>
                 <div className="mc-value dim" style={{ color: 'var(--w3)' }}>—</div>
-                <div className="mc-sub">AWAITING FIRST WEEKLY SR</div>
+                <div className="mc-sub">AWAITING PROXY SHARPE</div>
               </>
             ) : (
               <>
-                <div className="mc-value c">{sharpe.sr.toFixed(2)}</div>
-                <div className="mc-sub">target ≥ 1.0 · phase 3 gate</div>
+                <div className="mc-value" style={{ color: mSharpeColor(srDial.band) }}>{(srDial.value ?? 0).toFixed(2)}</div>
+                <div className="mc-sub" style={{ color: mSharpeColor(srDial.band), fontWeight: 700, letterSpacing: '1px' }}>{srDial.band}</div>
               </>
             )}
           </div>
-          <svg className="mc-arc" width="56" height="34" viewBox="0 0 56 34" overflow="visible">
-            <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" strokeLinecap="round" />
-            {!srBoot && (
-              <>
-                <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="var(--cyan)" strokeWidth="5" strokeLinecap="round"
-                  strokeDasharray="75.4" strokeDashoffset={Math.max(0, (1 - Math.min(sharpe.sr / 3, 1)) * 75.4)} opacity="0.9" />
-                <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="8" fill="var(--cyan)">{sharpe.sr.toFixed(2)}</text>
-              </>
-            )}
-          </svg>
+          {srBoot ? (
+            <svg className="mc-arc" width="56" height="40" viewBox="0 0 56 40" overflow="visible">
+              <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <MSharpeDial value={srDial.value} band={srDial.band} />
+          )}
         </div>
 
         <div className="mc offline">
@@ -920,6 +927,99 @@ function SystemTab({ mode, data, onOpenKernel }) {
   );
 }
 
+// ── §6.6 mobile parity (2026-06-10) — annualized Sharpe dial + consolidated
+// Returns-by-Domain ($/% toggle + window selector + annualized %). Reuses the
+// shared proxy adapters; mobile-scoped render so desktop is untouched. ───────
+function mSharpeColor(b) {
+  return b === 'WELL' ? 'var(--cyan)' : b === 'ACCEPTABLE' ? 'var(--green)'
+    : b === 'WARNING' ? 'var(--amber)' : 'var(--loss)';
+}
+function mSharpeBandOf(v) {
+  if (v == null || !Number.isFinite(v)) return 'CRITICAL';
+  if (v > 2) return 'WELL';
+  if (v >= 1) return 'ACCEPTABLE';
+  if (v >= 0.5) return 'WARNING';
+  return 'CRITICAL';
+}
+function MSharpeDial({ value, band }) {
+  const v = Math.max(0, Math.min(value ?? 0, 3)), L = 75.4, color = mSharpeColor(band);
+  const a = Math.PI * (1 - 1 / 3);
+  const gx1 = 28 + 23 * Math.cos(a), gy1 = 30 - 23 * Math.sin(a);
+  const gx2 = 28 + 31 * Math.cos(a), gy2 = 30 - 31 * Math.sin(a);
+  return (
+    <svg className="mc-arc" width="56" height="40" viewBox="0 0 56 40" overflow="visible">
+      <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" strokeLinecap="round" />
+      <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke={color} strokeWidth="5" strokeLinecap="round" strokeDasharray={L} strokeDashoffset={(1 - v / 3) * L} opacity="0.95" />
+      <line x1={gx1} y1={gy1} x2={gx2} y2={gy2} stroke="var(--w1)" strokeWidth="1.3" opacity="0.85" />
+      <text x={gx2} y={gy2 - 1.5} textAnchor="middle" fontFamily="Share Tech Mono" fontSize="4.5" fill="var(--w2)">1.0</text>
+      <text x="28" y="23" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="10" fill={color}>{(value ?? 0).toFixed(2)}</text>
+    </svg>
+  );
+}
+function mFmtUsd(v) { if (v == null || !Number.isFinite(v)) return '—'; const r = Math.round(v); return (r < 0 ? '-$' : '$') + Math.abs(r); }
+function mFmtPct(v) { if (v == null || !Number.isFinite(v)) return '—'; const a = Math.abs(v), s = v < 0 ? '-' : ''; return a >= 100 ? s + Math.round(a) + '%' : s + a.toFixed(1) + '%'; }
+function mFit(str) { const L = (str || '').length; return L <= 5 ? 'rbd-fit-l' : L <= 7 ? 'rbd-fit-m' : L <= 9 ? 'rbd-fit-s' : 'rbd-fit-xs'; }
+const M_AC_ABBR = { Crypto: 'CRYPTO', 'Large-cap stock': 'LG-CAP', 'Growth stock': 'GROWTH' };
+const M_TRACK_ABBR = { Conservative: 'CONS', Moderate: 'MOD', Aggressive: 'AGG' };
+const M_WINDOWS = [{ k: 'current_month', l: 'MTD' }, { k: 'ytd', l: 'YTD' }, { k: '1y', l: '1Y' }, { k: '5y', l: '5Y' }, { k: 'all', l: 'ALL' }];
+
+function MRbdCell({ metric, view, total }) {
+  const tc = total ? ' rbd-total-cell' : '';
+  if (!metric || !metric.hasData) {
+    return <div className={'rm-cell rm-empty' + tc}><div className="rm-cell-pct">—</div><div className="rm-cell-n">n=0</div></div>;
+  }
+  const raw = view === '%' ? metric.annPct : metric.pnl;
+  const str = view === '%' ? mFmtPct(metric.annPct) : mFmtUsd(metric.pnl);
+  const tone = raw == null ? 'rm-flat' : (raw > 0 ? 'rm-pos' : (raw < 0 ? 'rm-neg' : 'rm-flat'));
+  return <div className={'rm-cell ' + tone + tc}><div className={'rm-cell-pct ' + mFit(str)}>{str}</div><div className="rm-cell-n">n={metric.n}</div></div>;
+}
+function MRbdRow({ assetClass, trackOrder, cell, colSigma, view }) {
+  return (
+    <>
+      <div className="rm-h rm-row-h">{M_AC_ABBR[assetClass] ?? assetClass}</div>
+      {trackOrder.map((tr) => <MRbdCell key={tr} metric={cell[`${assetClass}:${tr}`]} view={view} />)}
+      <MRbdCell metric={colSigma} view={view} />
+    </>
+  );
+}
+function MReturnsByDomain({ mode, data }) {
+  const live = mode === 'live';
+  const [view, setView] = useState('$');
+  const [win, setWin] = useState('all');
+  const rows = live ? null : (data?.panelReturnsByDomainPct?.[win] ?? null);
+  const m = rows ? adaptPanelReturnsByDomainPct(rows) : null;
+  const header = (
+    <>
+      <div className="ptitle">
+        <span><span className="ptitle-bar" />RETURNS BY DOMAIN</span>
+        <span className="rbd-toggle">
+          <button type="button" className={'rbd-tab' + (view === '$' ? ' on' : '')} onClick={() => setView('$')}>$</button>
+          <button type="button" className={'rbd-tab' + (view === '%' ? ' on' : '')} onClick={() => setView('%')}>%</button>
+        </span>
+      </div>
+      <div className="rbd-winrow">{M_WINDOWS.map((w) => <button key={w.k} type="button" className={'rbd-win' + (win === w.k ? ' on' : '')} onClick={() => setWin(w.k)}>{w.l}</button>)}</div>
+    </>
+  );
+  if (!m) return <div className="panel p-returns p-returns-mobile rbd-panel">{header}<div className="rm-bootstrap">— AWAITING LIVE RETURNS MATRIX —</div></div>;
+  const { assetClassOrder, trackOrder, cell, rowSigma, colSigma, corner, insufficient, equityDays } = m;
+  const cornerStr = view === '%' ? mFmtPct(corner.annPct) : mFmtUsd(corner.pnl);
+  return (
+    <div className="panel p-returns p-returns-mobile rbd-panel">
+      {header}
+      <div className="rbd-meta">excl-36 · {cornerStr} · {corner.n} closed{view === '%' && insufficient && <span className="rbd-flag"> · ⚠ {equityDays}d&lt;30</span>}</div>
+      <div className="rm-grid rbd-grid">
+        <div className="rm-h rm-corner-h" aria-hidden="true" />
+        {trackOrder.map((tr) => <div key={tr} className="rm-h rm-col-h">{M_TRACK_ABBR[tr] ?? tr}</div>)}
+        <div className="rm-h rm-col-h rm-sigma-h">Total</div>
+        {assetClassOrder.map((ac) => <MRbdRow key={ac} assetClass={ac} trackOrder={trackOrder} cell={cell} colSigma={colSigma[ac]} view={view} />)}
+        <div className="rm-h rm-row-h rm-sigma-h rbd-total-h">Total</div>
+        {trackOrder.map((tr) => <MRbdCell key={'r' + tr} metric={rowSigma[tr]} view={view} total />)}
+        <MRbdCell metric={corner} view={view} total />
+      </div>
+    </div>
+  );
+}
+
 function DataTab({ mode, data, liveEvents }) {
   const rules = adaptRulesThisWeek(data);
   const foot = adaptRulesFoot(data);
@@ -953,9 +1053,9 @@ function DataTab({ mode, data, liveEvents }) {
         <HealthStrip data={data} layout="mobile-data" />
       </div>
 
-      {/* Portal v1.17 (2026-05-30): inline RETURNS BY DOMAIN stub replaced
-          by shared ReturnsMatrixPanel — same data path as PC. */}
-      <ReturnsMatrixPanel data={data} layout="mobile" />
+      {/* §6.6 D2 (2026-06-10): consolidated Returns-by-Domain — $/% toggle +
+          window selector + annualized % (proxy), replacing the %-mean matrix. */}
+      <MReturnsByDomain mode={mode} data={data} />
 
       <div className="panel">
         <div className="ptitle">

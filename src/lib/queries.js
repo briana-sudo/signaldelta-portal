@@ -56,6 +56,8 @@ export const Q_PANEL_EXPECTANCY = 'panel_expectancy';
 export const Q_PANEL_SHARPE = 'panel_sharpe_excl_corrupt';
 // Account-level annualized return (header ANN field) — same basis + flag as RBD%.
 export const Q_PANEL_ANNUALIZED_RETURN = 'panel_annualized_return';
+// Cumulative-to-date PF + expectancy daily series for the KPI-tile sparklines.
+export const Q_PANEL_PF_EXP_SERIES = 'panel_pf_expectancy_series';
 
 // ── Section D3: Rules Added This Week ──
 export const Q_RULES_THIS_WEEK = 'rules_this_week';

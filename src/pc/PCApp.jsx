@@ -15,6 +15,7 @@ import {
   adaptAccountState,
   adaptPanelProfitFactor, adaptPanelExpectancy,
   adaptPanelReturnsByDomainPct, adaptPanelSharpe, adaptPanelAnnReturn,
+  adaptPfExpectancySeries,
   fmtCloseET,
   assetClassTag,
 } from '../lib/dataAdapter.js';
@@ -321,6 +322,13 @@ function KpiTile({ label, value, valueCls, delta, deltaCls, context, badge, spar
   );
 }
 
+// Previous-render value (for tile deltas "vs prior poll").
+function usePrev(value) {
+  const ref = useRef();
+  useEffect(() => { ref.current = value; });
+  return ref.current;
+}
+
 // §6.6 $-panel formatters — render proxy-served broker-reconciling values
 // verbatim (no recompute).
 function fmtUsdSigned(v) {
@@ -369,6 +377,13 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
   // excluded server-side). Replaces the "— pending verify" §15.5 placeholders.
   const pf = bootstrap ? null : adaptPanelProfitFactor(data);
   const exp = bootstrap ? null : adaptPanelExpectancy(data);
+  // PF/Expectancy sparkline (cumulative-to-date series, proxy) + delta vs prior
+  // poll — to match the other 4 tiles' spark+delta treatment.
+  const pfExp = bootstrap ? null : adaptPfExpectancySeries(data);
+  const prevPf = usePrev(pf?.overall);
+  const prevExp = usePrev(exp?.overall);
+  const pfDelta = (pf?.overall != null && prevPf != null) ? pf.overall - prevPf : null;
+  const expDelta = (exp?.overall != null && prevExp != null) ? exp.overall - prevExp : null;
   const totalPnl = (av != null && Number.isFinite(av)) ? av - capitalBase : null;
   const thr = tierThresholds(data);
   const todayTier = bootstrap ? null : dayTier(todayPct, thr);
@@ -450,15 +465,23 @@ function AccountBar({ mode, liveAccountBar, liveWeeklyWaterfall, data }) {
           label="Profit Factor"
           value={pf && pf.overall != null ? fmtPf(pf.overall) : '—'}
           valueCls={pf && pf.overall != null ? (pf.overall >= 1 ? 'g' : 'r') : ''}
+          delta={pfDelta != null && Math.abs(pfDelta) >= 0.001 ? `${pfDelta >= 0 ? '+' : ''}${pfDelta.toFixed(2)}` : null}
+          deltaCls={pfDelta != null ? (pfDelta >= 0 ? 'g' : 'r') : ''}
           context={pf ? `${pf.n} closed · excl-36` : 'awaiting proxy'}
-          title="§15.5: profit factor = Σ gross profit / |Σ gross loss| on pnl_dollar (broker-reconciling; exit-price fix verified live). Excludes the 36 §6.6 corrupt trigger-copy closes. All-time."
+          spark={pfExp?.pf || null}
+          sparkColor={pf && pf.overall >= 1 ? TIER_COLOR.green : TIER_COLOR.loss}
+          title="§15.5: profit factor = Σ gross profit / |Σ gross loss| on pnl_dollar (broker-reconciling; exit-price fix verified live). Excludes the 36 §6.6 corrupt trigger-copy closes. All-time. Sparkline = cumulative-to-date per exit-day; delta = vs prior poll."
         />
         <KpiTile
           label="Expectancy ($)"
           value={exp ? fmtUsdSigned(exp.overall) : '—'}
           valueCls={exp ? (exp.overall >= 0 ? 'g' : 'r') : ''}
+          delta={expDelta != null && Math.abs(expDelta) >= 0.005 ? `${expDelta >= 0 ? '+' : ''}$${Math.abs(expDelta).toFixed(2)}` : null}
+          deltaCls={expDelta != null ? (expDelta >= 0 ? 'g' : 'r') : ''}
           context={exp ? `avg/trade · ${exp.n} closed` : 'awaiting proxy'}
-          title="§15.5: expectancy = mean pnl_dollar per closed trade (broker-reconciling; exit-price fix verified live). Excludes the 36 §6.6 corrupt closes. All-time."
+          spark={pfExp?.expectancy || null}
+          sparkColor={exp && exp.overall >= 0 ? TIER_COLOR.green : TIER_COLOR.loss}
+          title="§15.5: expectancy = mean pnl_dollar per closed trade (broker-reconciling; exit-price fix verified live). Excludes the 36 §6.6 corrupt closes. All-time. Sparkline = cumulative-to-date per exit-day; delta = vs prior poll."
         />
       </div>
       {void liveWeeklyWaterfall}
@@ -495,12 +518,20 @@ function SecondaryStrip({ mode, liveAccountBar, data }) {
       <span className="asec"><span className="asec-l">Base</span><span className="asec-v">${capitalBase.toLocaleString()}</span></span>
       <span className="asec">
         <span className="asec-l">Ann</span>
-        <span className={'asec-v' + (ann ? (ann.annualizedPct >= 0 ? ' g' : ' r') : ' dim')}>
-          {ann ? `${ann.annualizedPct >= 0 ? '+' : ''}${ann.annualizedPct.toFixed(1)}%` : '—'}
-        </span>
-        {ann && ann.insufficientHistory && (
-          <span className="asec-flag" style={{ color: 'var(--amber)', marginLeft: '2px' }}
-            title={`Annualized from only ${ann.equityDays} equity-days (< 30) — flagged: not a real forward rate.`}>⚠</span>
+        {!ann ? (
+          <span className="asec-v dim">—</span>
+        ) : ann.insufficientHistory ? (
+          <>
+            <span className={'asec-v' + (ann.cumReturnPct >= 0 ? ' g' : ' r')}>
+              {`${ann.cumReturnPct >= 0 ? '+' : ''}${(ann.cumReturnPct ?? 0).toFixed(2)}%`}
+            </span>
+            <span style={{ fontSize: '8px', color: 'var(--w3)', marginLeft: '3px', letterSpacing: '.5px' }}
+              title={`Cumulative return; annualizes once the equity-day series reaches 30 (now ${ann.equityDays}).`}>annualizes at 30d</span>
+          </>
+        ) : (
+          <span className={'asec-v' + (ann.annualizedPct >= 0 ? ' g' : ' r')}>
+            {`${ann.annualizedPct >= 0 ? '+' : ''}${ann.annualizedPct.toFixed(1)}%`}
+          </span>
         )}
       </span>
       <span className="asec"><span className="asec-l">Day W/L</span><span className={'asec-v' + (dayTotal && dayPct >= 50 ? ' g' : '')}>{bootstrap || !Array.isArray(closedToday) ? '—' : `${dayWins}/${dayTotal}${dayTotal ? ` · ${dayPct}%` : ''}`}</span></span>
@@ -1279,12 +1310,59 @@ function ReturnsByDomainPanel({ mode, data }) {
   );
 }
 
+// Sharpe band → color (badge family): CRITICAL red · WARNING amber ·
+// ACCEPTABLE green · WELL teal. Used by the dial + value + band word.
+function sharpeBandColor(band) {
+  if (band === 'WELL') return 'var(--cyan)';
+  if (band === 'ACCEPTABLE') return 'var(--green)';
+  if (band === 'WARNING') return 'var(--amber)';
+  return 'var(--loss)';
+}
+function sharpeBandOf(v) {
+  if (v == null || !Number.isFinite(v)) return 'CRITICAL';
+  if (v > 2.0) return 'WELL';
+  if (v >= 1.0) return 'ACCEPTABLE';
+  if (v >= 0.5) return 'WARNING';
+  return 'CRITICAL';
+}
+
+// Colored Sharpe dial on the ANNUALIZED value: band-colored arc fill (0–3
+// scale), a tick at 1.0 marking the Phase-3 live-capital gate, value in band
+// color.
+function SharpeDial({ value, band }) {
+  const v = Math.max(0, Math.min(value ?? 0, 3));
+  const L = 75.4;
+  const color = sharpeBandColor(band);
+  const a = Math.PI * (1 - 1 / 3);             // 1.0 → 1/3 of the arc
+  const cx = 28, cy = 30;
+  const gx1 = cx + 23 * Math.cos(a), gy1 = cy - 23 * Math.sin(a);
+  const gx2 = cx + 31 * Math.cos(a), gy2 = cy - 31 * Math.sin(a);
+  return (
+    <svg className="mc-arc" width="56" height="40" viewBox="0 0 56 40" overflow="visible">
+      <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" strokeLinecap="round" />
+      <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
+        strokeDasharray={L} strokeDashoffset={(1 - v / 3) * L} opacity="0.95" />
+      <line x1={gx1} y1={gy1} x2={gx2} y2={gy2} stroke="var(--w1)" strokeWidth="1.3" opacity="0.85" />
+      <text x={gx2} y={gy2 - 1.5} textAnchor="middle" fontFamily="Share Tech Mono" fontSize="4.5" fill="var(--w2)">1.0</text>
+      <text x="28" y="23" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="10" fill={color}>{(value ?? 0).toFixed(2)}</text>
+    </svg>
+  );
+}
+
 function MetricsPanel({ mode, data }) {
   const liveMode = mode === 'live';
   const winRate = adaptWinRate(data);
   // §6.6 (2026-06-10): Sharpe now reads the proxy per-trade log-return panel
   // (exact §12, exclude-36) instead of the stale WeeklyContextNode value.
   const sharpe = adaptPanelSharpe(data);
+  // Dial reads the ANNUALIZED display value (settled 06-09): annualized-corpus
+  // now; auto-migrate to daily-equity ×√252 once the daily-return series ≥ 30.
+  const useDailyBasis = !!sharpe && sharpe.dailyReturnCount >= 30 && sharpe.dailySharpe != null;
+  const srDial = sharpe
+    ? (useDailyBasis
+      ? { value: sharpe.dailySharpe, band: sharpeBandOf(sharpe.dailySharpe) }
+      : { value: sharpe.annualizedCorpus ?? 0, band: sharpe.annualizedCorpusBand || sharpeBandOf(sharpe.annualizedCorpus) })
+    : { value: 0, band: 'CRITICAL' };
   const conviction = adaptConviction(data);
   // Lane 2 is always OFFLINE in Phase 1.1 regardless of data; placeholder
   // amber treatment is the correct state per Section A.
@@ -1325,10 +1403,11 @@ function MetricsPanel({ mode, data }) {
         </svg>
       </div>
 
-      {/* SHARPE — per-trade log-return basis (§6.6 exclude-36), proxy-served.
-          Honest display: band/confidence shown verbatim, CRITICAL not dressed
-          up; the annualized (daily-equity) basis is marked UNAVAILABLE while
-          equity-day history is thin (insufficient_history). */}
+      {/* SHARPE — ANNUALIZED display (settled 06-09). Dial reads the annualized-
+          corpus Sharpe (per-trade × √annual-trade-freq), band-colored, with a
+          1.0 Phase-3-gate tick. Auto-migrates to daily-equity ×√252 once the
+          daily-return series ≥ 30 days. Caption stripped per operator: only the
+          annualized value, the band word in band color, and the dial. */}
       <div className="mc">
         <div className="mc-left">
           <div className="mc-label">SHARPE RATIO</div>
@@ -1339,33 +1418,18 @@ function MetricsPanel({ mode, data }) {
             </>
           ) : (
             <>
-              <div className={'mc-value ' + (sharpe.band === 'CRITICAL' ? 'r' : 'c')}>{fmtSharpeVal(sharpe.sr)}</div>
-              <div className="mc-sub">
-                band <span style={{ color: sharpe.band === 'CRITICAL' ? 'var(--loss)' : 'var(--cyan)', fontWeight: 700 }}>{sharpe.band}</span>
-                {' · '}conf {sharpe.confidence}{' · '}n={sharpe.n}
-              </div>
-              <div className="mc-sub" style={{ color: 'var(--w3)' }}>per-trade log-return · excl-36 · broker-reconciling</div>
-              {sharpe.dailyAvailable && sharpe.dailySharpe != null && (
-                <div className="mc-sub">
-                  daily-equity ×√252 <span style={{ color: sharpe.dailySharpe >= 0 ? 'var(--cyan)' : 'var(--loss)', fontWeight: 700 }}>{fmtSharpeVal(sharpe.dailySharpe)}</span>
-                  {sharpe.insufficientHistory && (
-                    <span style={{ color: 'var(--amber)', opacity: 0.85 }}> · ⚠ {sharpe.equityDays} eq-days &lt; 30</span>
-                  )}
-                </div>
-              )}
+              <div className="mc-value" style={{ color: sharpeBandColor(srDial.band) }}>{(srDial.value ?? 0).toFixed(2)}</div>
+              <div className="mc-sub" style={{ color: sharpeBandColor(srDial.band), fontWeight: 700, letterSpacing: '1px' }}>{srDial.band}</div>
             </>
           )}
         </div>
-        <svg className="mc-arc" width="56" height="34" viewBox="0 0 56 34" overflow="visible">
-          <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" strokeLinecap="round" />
-          {!srBoot && (
-            <>
-              <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke={sharpe.band === 'CRITICAL' ? 'var(--loss)' : 'var(--cyan)'} strokeWidth="5" strokeLinecap="round"
-                strokeDasharray="75.4" strokeDashoffset={Math.max(0, (1 - Math.min(Math.max(sharpe.sr, 0) / 3, 1)) * 75.4)} opacity="0.9" />
-              <text x="28" y="22" textAnchor="middle" fontFamily="Share Tech Mono" fontSize="7" fill={sharpe.band === 'CRITICAL' ? 'var(--loss)' : 'var(--cyan)'}>{fmtSharpeVal(sharpe.sr)}</text>
-            </>
-          )}
-        </svg>
+        {srBoot ? (
+          <svg className="mc-arc" width="56" height="40" viewBox="0 0 56 40" overflow="visible">
+            <path d="M4,30 A24,24 0 0,1 52,30" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" strokeLinecap="round" />
+          </svg>
+        ) : (
+          <SharpeDial value={srDial.value} band={srDial.band} />
+        )}
       </div>
 
       {/* LANE 2 OFFLINE — Phase 1.1 invariant */}
