@@ -1568,9 +1568,13 @@ body::after {
    grid retune (1fr 150px 90px → 1fr 214px 90px). */
 
 /* Banner-right health strip slot in the PC .acct row. Flexes the freed
-   space that the MiniWaterfall used to occupy. */
+   space that the MiniWaterfall used to occupy.
+   2026-06-11: justify-content flex-end → center. The block stacks the health
+   box (line 1) + secondaries (line 2); bottom-aligning pushed line 2 past the
+   56px bar bottom (clipped) and left dead space on top. Centering the column
+   on the row fixes both. (Reconciles with the reflow rule above.) */
 .pc-shell .acct-health {
-  flex: 1; display: flex; align-items: center; justify-content: flex-end;
+  flex: 1; display: flex; align-items: center; justify-content: center;
   min-width: 0; padding-left: 8px;
 }
 
