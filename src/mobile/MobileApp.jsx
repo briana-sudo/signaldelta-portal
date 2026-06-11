@@ -847,6 +847,7 @@ function SystemTab({ mode, data, onOpenKernel }) {
               <>
                 <div className="mc-value" style={{ color: mSharpeColor(srDial.band) }}>{(srDial.value ?? 0).toFixed(2)}</div>
                 <div className="mc-sub" style={{ color: mSharpeColor(srDial.band), fontWeight: 700, letterSpacing: '1px' }}>{srDial.band}</div>
+                <div className="mc-sub" style={{ color: 'var(--w3)', fontSize: '8px', letterSpacing: '.3px' }}>matures at 30 eq-days · 200 trades</div>
               </>
             )}
           </div>
