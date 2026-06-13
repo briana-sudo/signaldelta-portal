@@ -2145,3 +2145,86 @@ body::after {
 .pc-shell .sd-cal-foot { display:flex; align-items:center; justify-content:space-between; margin-top:14px;
   padding-top:12px; border-top:1px solid var(--border);
   font-family:var(--mono); font-size:9px; letter-spacing:1px; color:var(--w2); }
+
+/* ───────────────────────────────────────────────────────────────
+   Strand 4 mobile parity (2026-06-11) — heatmap / returns-calendar bottom
+   sheets + the Data-tab P&L VIEWS triggers. MOBILE-scoped only (.mobile-shell);
+   desktop .sd-* untouched. Rendered through ModalPortal (.mobile-shell wrapper).
+   ─────────────────────────────────────────────────────────────── */
+.mobile-shell .m-pnlviews { display:flex; gap:10px; padding:4px 0 2px; }
+.mobile-shell .m-pnlview-btn { flex:1; font-family:var(--mono); font-size:11px; letter-spacing:1px;
+  color:var(--cyan); background:transparent; border:1px solid var(--cyan); border-radius:4px;
+  padding:10px; text-transform:uppercase; }
+.mobile-shell .m-pnlview-btn:active { background:var(--cyan2); }
+
+/* bottom-sheet shell */
+.mobile-shell .m-pnl-sheet { position:fixed; inset:0; z-index:10000; background:rgba(6,13,24,.62);
+  display:flex; align-items:flex-end; }
+.mobile-shell .m-pnl-card { width:100%; max-height:88vh; background:var(--navy2);
+  border-top:1px solid var(--border); border-radius:12px 12px 0 0; display:flex; flex-direction:column; }
+.mobile-shell .m-pnl-head { display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px; border-bottom:1px solid var(--border); }
+.mobile-shell .m-pnl-title { display:flex; align-items:center; gap:8px; font-family:var(--disp);
+  font-weight:900; font-size:14px; letter-spacing:2px; text-transform:uppercase; color:var(--white); }
+.mobile-shell .m-pnl-head-r { display:flex; align-items:center; gap:10px; }
+.mobile-shell .m-pnl-sub { font-family:var(--mono); font-size:9px; color:var(--w3); letter-spacing:1px; text-transform:uppercase; }
+.mobile-shell .m-pnl-close { font-family:var(--mono); font-size:13px; color:var(--w2); background:transparent;
+  border:1px solid var(--border); padding:3px 11px; border-radius:4px; }
+.mobile-shell .m-pnl-body { padding:14px 16px 24px; overflow:auto; }
+.mobile-shell .m-pnl-empty { text-align:center; color:var(--w3); padding:40px 12px;
+  font-family:var(--mono); font-size:10px; letter-spacing:1px; }
+
+/* heatmap (mobile) — fixed 18px cells, week×weekday */
+.mobile-shell .m-hm-detail { font-family:var(--mono); font-size:11px; color:var(--w2); margin-bottom:12px; min-height:14px; }
+.mobile-shell .m-hm-wrap { display:flex; flex-direction:column; gap:5px; overflow-x:auto; padding-bottom:4px; }
+.mobile-shell .m-hm-months { display:flex; gap:4px; margin-left:26px; height:13px; }
+.mobile-shell .m-hm-mcol { width:18px; flex:none; position:relative; }
+.mobile-shell .m-hm-mlbl { position:absolute; left:0; top:0; white-space:nowrap; font-family:var(--mono); font-size:9px; color:var(--w3); }
+.mobile-shell .m-hm-body { display:flex; gap:8px; align-items:flex-start; }
+.mobile-shell .m-hm-wdcol { display:flex; flex-direction:column; gap:4px; width:18px; flex:none; }
+.mobile-shell .m-hm-wd { height:18px; line-height:18px; font-family:var(--mono); font-size:9px; color:var(--w3); }
+.mobile-shell .m-hm-cols { display:flex; gap:4px; }
+.mobile-shell .m-hm-col { display:flex; flex-direction:column; gap:4px; flex:none; }
+.mobile-shell .m-hm-cell { width:18px; height:18px; flex:none; border-radius:3px;
+  background:var(--navy4); border:1px solid var(--border); box-sizing:border-box; }
+.mobile-shell .m-hm-cell.m-hm-nodata { background:repeating-linear-gradient(45deg,
+  rgba(61,96,128,0.10) 0 2px, transparent 2px 4px); border-color:rgba(61,96,128,0.18); }
+.mobile-shell .m-hm-cell.m-hm-out { background:transparent; border-color:transparent; }
+.mobile-shell .m-hm-foot { display:flex; align-items:center; justify-content:space-between; margin-top:18px; }
+.mobile-shell .m-hm-legend { display:flex; align-items:center; gap:6px; }
+.mobile-shell .m-hm-lgd { font-family:var(--mono); font-size:10px; color:var(--w3); }
+.mobile-shell .m-hm-sw { width:16px; height:16px; border-radius:3px; border:1px solid var(--border); display:inline-block; }
+.mobile-shell .m-hm-sw.m-hm-nodata { background:repeating-linear-gradient(45deg,
+  rgba(61,96,128,0.10) 0 2px, transparent 2px 4px); }
+.mobile-shell .m-hm-tot { font-family:var(--mono); font-size:11px; color:var(--w2); }
+.mobile-shell .m-hm-tot strong.g { color:var(--green); }
+.mobile-shell .m-hm-tot strong.r { color:var(--red); }
+
+/* returns calendar (mobile) — month grid */
+.mobile-shell .m-cal-nav { display:flex; align-items:center; justify-content:center; gap:16px; margin-bottom:12px; }
+.mobile-shell .m-cal-navbtn { font-family:var(--mono); font-size:16px; line-height:1; color:var(--cyan);
+  background:transparent; border:1px solid var(--border); padding:2px 13px; border-radius:4px; }
+.mobile-shell .m-cal-navbtn:disabled { color:rgba(61,96,128,0.4); }
+.mobile-shell .m-cal-month { font-family:var(--disp); font-weight:900; font-size:15px; letter-spacing:1px;
+  text-transform:uppercase; color:var(--white); min-width:150px; text-align:center; }
+.mobile-shell .m-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+.mobile-shell .m-cal-dow { font-family:var(--mono); font-size:9px; color:var(--w3); text-align:center; padding-bottom:2px; }
+.mobile-shell .m-cal-cell { aspect-ratio:1/1; border:1px solid var(--border); border-radius:3px; padding:3px 3px;
+  display:flex; flex-direction:column; background:var(--navy3); overflow:hidden; }
+.mobile-shell .m-cal-cell.m-cal-out { background:transparent; border-color:transparent; }
+.mobile-shell .m-cal-cell.m-cal-nodata { background:repeating-linear-gradient(45deg,
+  rgba(61,96,128,0.08) 0 3px, transparent 3px 6px); }
+.mobile-shell .m-cal-cell.m-cal-pos { background:rgba(0,230,118,0.10); border-color:rgba(0,230,118,0.30); }
+.mobile-shell .m-cal-cell.m-cal-neg { background:rgba(255,61,87,0.10); border-color:rgba(255,61,87,0.30); }
+.mobile-shell .m-cal-day { font-family:var(--mono); font-size:9px; color:var(--w3); line-height:1; }
+.mobile-shell .m-cal-out .m-cal-day { color:rgba(61,96,128,0.35); }
+.mobile-shell .m-cal-pct { font-family:var(--mono); font-size:10px; font-weight:700; margin-top:auto; line-height:1.15; }
+.mobile-shell .m-cal-pos .m-cal-pct { color:var(--green); }
+.mobile-shell .m-cal-neg .m-cal-pct { color:var(--red); }
+.mobile-shell .m-cal-usd { font-family:var(--mono); font-size:8px; line-height:1.15; }
+.mobile-shell .m-cal-pos .m-cal-usd { color:var(--green); }
+.mobile-shell .m-cal-neg .m-cal-usd { color:var(--red); }
+.mobile-shell .m-cal-foot { display:flex; align-items:center; justify-content:space-between; margin-top:12px;
+  padding-top:10px; border-top:1px solid var(--border); font-family:var(--mono); font-size:10px; color:var(--w2); }
+.mobile-shell .m-cal-foot strong.g { color:var(--green); }
+.mobile-shell .m-cal-foot strong.r { color:var(--red); }

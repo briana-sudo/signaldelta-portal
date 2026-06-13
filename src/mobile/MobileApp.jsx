@@ -3,20 +3,21 @@ import { useClock, usePollCountdown } from '../lib/useClock.js';
 import { shouldRenderBootstrap } from '../lib/usePhaseFilter.js';
 import { computeOpenLegPnl, computeOpenProgress, openPnlTone } from '../lib/openPnl.js';
 import TradesExpandModal from '../pc/TradesExpandModal.jsx';
+import { MobileHeatmapModal, MobileCalendarModal } from './MobilePnlModals.jsx';
 import {
-  SCANNER_ASSETS, WEEKLY_WATERFALL, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
+  SCANNER_ASSETS, KERNEL_COUNTS, LOGO_SVG, CURRENT_PHASE,
 } from '../lib/placeholders.js';
 import {
-  adaptAccountBar, adaptWeeklyWaterfall, adaptEvents,
+  adaptAccountBar, adaptEvents,
   adaptWinRate, adaptSharpe, adaptConviction,
   adaptPanelSharpe, adaptPanelAnnReturn, adaptPanelReturnsByDomainPct,
+  adaptPanelProfitFactor, adaptPanelExpectancy, adaptPfExpectancySeries,
   adaptEquityCurve, adaptEquityHeader,
   adaptRulesThisWeek, adaptRulesFoot, adaptClosestCohort,
   adaptHeartbeat,
   adaptTradeList, selectVisibleTrades, adaptNewsTicker, adaptMacroNews, adaptRecentEvents,
   adaptScanner, adaptReconciliation,
   adaptAccountState,
-  buildWeekFrame,
   fmtCloseET,
   assetClassTag,
 } from '../lib/dataAdapter.js';
@@ -67,6 +68,29 @@ export default function MobileApp({ data, errors = {}, hasAnyData = false, error
   const [tab, setTab] = useState('desk');
   const [kernelOpen, setKernelOpen] = useState(false);
 
+  // Strand 4 mobile parity (2026-06-11): heatmap / returns-calendar popups.
+  // Hash is the single source of truth → deep-link parity with desktop
+  // (#heatmap / #calendar open the sheet on mobile too); triggers live on the
+  // Data tab. openPopup writes the hash; the hashchange listener sets state.
+  const [popup, setPopup] = useState(null); // 'heatmap' | 'calendar' | null
+  useEffect(() => {
+    const apply = () => {
+      const h = (window.location.hash || '').replace(/^#/, '').toLowerCase();
+      setPopup(h === 'heatmap' || h === 'calendar' ? h : null);
+    };
+    apply();
+    window.addEventListener('hashchange', apply);
+    return () => window.removeEventListener('hashchange', apply);
+  }, []);
+  const openPopup = (name) => { window.location.hash = name; };
+  const closePopup = () => {
+    const h = (window.location.hash || '').replace(/^#/, '').toLowerCase();
+    if (h === 'heatmap' || h === 'calendar') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+    setPopup(null);
+  };
+
   const liveAccountBar = adaptAccountBar(data);
   const currentPhase = liveAccountBar?.currentPhase || CURRENT_PHASE;
   const liveEvents = adaptEvents(data);
@@ -107,11 +131,13 @@ export default function MobileApp({ data, errors = {}, hasAnyData = false, error
           <SystemTab mode={mode} data={data} onOpenKernel={() => setKernelOpen(true)} />
         </div>
         <div className={'tab-content' + (tab === 'data' ? ' active' : '')}>
-          <DataTab mode={mode} data={data} liveEvents={liveEvents} />
+          <DataTab mode={mode} data={data} liveEvents={liveEvents} onOpenPopup={openPopup} />
         </div>
       </div>
       <TabBar tab={tab} setTab={setTab} />
       <KernelOverlay open={kernelOpen} data={data} onClose={() => setKernelOpen(false)} />
+      <MobileHeatmapModal open={popup === 'heatmap'} onClose={closePopup} data={data} />
+      <MobileCalendarModal open={popup === 'calendar'} onClose={closePopup} data={data} />
       {loading && !data && !error && <MobileLoadingBadge />}
     </div>
   );
@@ -643,73 +669,6 @@ function MobileEquity({ mode, data }) {
   );
 }
 
-function MobileWaterfall({ mode, liveWaterfall }) {
-  // Portal v1.15 Item A (2026-05-30): min 5-slot framing via shared
-  // buildWeekFrame — mirrors PC MiniWaterfall. Placeholders render with
-  // the new .wf-bar.ahead muted class.
-  const wrapRef = useRef(null);
-  const series = liveWaterfall;
-  const bootstrap = shouldRenderBootstrap(mode) || !series;
-  const frame = buildWeekFrame(series ?? []);
-  const slots = bootstrap ? buildWeekFrame([]).slots : frame.slots;
-  const [heights, setHeights] = useState(() => slots.map(() => 2));
-  useEffect(() => {
-    if (bootstrap) return;
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const barH = wrap.clientHeight - 22;
-    const maxP = 7;
-    slots.forEach((w, i) => {
-      if (w.ahead) return; // muted placeholders skip the height animation
-      setTimeout(() => {
-        setHeights((prev) => {
-          const next = [...prev];
-          // Portal v1.19 (2026-06-01): log-scale magnitude — mirror of PC.
-          // Mobile geometry stays (wf-wrap=56px, barH=clientHeight-22), so mobile
-          // already had ~24px of bar budget. Log scale just changes how the
-          // magnitude maps to that budget, identical to PC formula.
-          const LOG_MAX = 100;
-          const frac = Math.log10(1 + Math.abs(w.p)) / Math.log10(1 + LOG_MAX);
-          next[i] = Math.min(barH, Math.max(4, frac * barH));
-          return next;
-        });
-      }, 80 + i * 100);
-    });
-  }, [bootstrap, slots]);
-  if (bootstrap) {
-    return (
-      <div className="wf-wrap" ref={wrapRef}>
-        <div className="wf-baseline" />
-        <div style={{ flex: 1, textAlign: 'center', alignSelf: 'center', color: 'var(--w3)', fontFamily: 'var(--mono)', fontSize: '8px', letterSpacing: '1px' }}>
-          — AWAITING LIVE WEEKLY CONTEXTS —
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className="wf-wrap" ref={wrapRef}>
-      <div className="wf-baseline" />
-      {slots.map((w, i) => (
-        <div className="wf-col" key={w.w}>
-          {w.ahead ? (
-            <div className="wf-pct wf-pct-ahead">—</div>
-          ) : (
-            <div
-              className="wf-pct"
-              style={{ color: w.cur ? 'var(--cyan)' : w.pos ? 'var(--green)' : 'var(--red)' }}
-            >{(w.p >= 0 ? '+' : '') + w.p.toFixed(2) + '%'}</div>
-          )}
-          <div
-            className={'wf-bar ' + (w.ahead ? 'ahead' : (w.cur ? 'cur' : w.pos ? 'pos' : 'neg'))}
-            style={{ height: heights[i] + 'px' }}
-          />
-          <div className="wf-lbl">{w.w}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function ScanTab({ mode, data }) {
   // Portal v1.2 scanner-cycle dispatch (2026-05-26): mirror of PC
   // ScannerPanel — full asset list vertical scroll, FIRED pulse on OPEN
@@ -779,6 +738,32 @@ function MobileScannerRow({ a, fallback }) {
   );
 }
 
+// Strand 4 mobile parity (2026-06-11): tiny trend sparkline for the PF /
+// Expectancy metric rows — mirror of the PC KPI-tile Sparkline, sized for the
+// mc-arc slot. Renders nothing usable (empty svg keeps the slot) below 2 points.
+function MobileSparkline({ values, color }) {
+  if (!Array.isArray(values) || values.length < 2) {
+    return <svg className="mc-arc" width="56" height="34" viewBox="0 0 56 34" />;
+  }
+  const W = 56, H = 30;
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = (max - min) || 1, n = values.length;
+  const pts = values.map((v, i) =>
+    `${((i / (n - 1)) * W).toFixed(1)},${(2 + H - ((v - min) / range) * H).toFixed(1)}`).join(' ');
+  return (
+    <svg className="mc-arc" width="56" height="34" viewBox="0 0 56 34" preserveAspectRatio="none">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.4"
+        strokeLinecap="round" strokeLinejoin="round" opacity="0.9" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+// Previous-render value, for the "vs prior poll" delta (mirror of PC usePrev).
+function usePrev(value) {
+  const ref = useRef();
+  useEffect(() => { ref.current = value; });
+  return ref.current;
+}
+
 function SystemTab({ mode, data, onOpenKernel }) {
   const liveMode = mode === 'live';
   const winRate = adaptWinRate(data);
@@ -802,6 +787,19 @@ function SystemTab({ mode, data, onOpenKernel }) {
   // runs this shows 0.
   const sysFoot = adaptRulesFoot(data);
   const sysCyclesCount = sysFoot?.cycle ?? 0;
+
+  // §6.6 mobile parity (2026-06-11): PF + Expectancy with sparkline + delta —
+  // same proxy sources as the PC KPI tiles (panel_profit_factor / _expectancy /
+  // pf_expectancy_series). Delta = vs prior poll (usePrev).
+  const pf = liveMode ? null : adaptPanelProfitFactor(data);
+  const exp = liveMode ? null : adaptPanelExpectancy(data);
+  const pfExp = liveMode ? null : adaptPfExpectancySeries(data);
+  const prevPf = usePrev(pf?.overall);
+  const prevExp = usePrev(exp?.overall);
+  const pfDelta = (pf?.overall != null && prevPf != null) ? pf.overall - prevPf : null;
+  const expDelta = (exp?.overall != null && prevExp != null) ? exp.overall - prevExp : null;
+  const pfBoot = liveMode || !pf || pf.overall == null;
+  const expBoot = liveMode || !exp || exp.overall == null;
 
   return (
     <>
@@ -833,6 +831,56 @@ function SystemTab({ mode, data, onOpenKernel }) {
               </>
             )}
           </svg>
+        </div>
+
+        <div className="mc">
+          <div className="mc-left">
+            <div className="mc-label">PROFIT FACTOR</div>
+            {pfBoot ? (
+              <>
+                <div className="mc-value dim" style={{ color: 'var(--w3)' }}>—</div>
+                <div className="mc-sub">AWAITING PROXY PANELS</div>
+              </>
+            ) : (
+              <>
+                <div className="mc-value" style={{ color: pf.overall >= 1 ? 'var(--green)' : 'var(--red)' }}>
+                  {pf.overall.toFixed(3)}
+                  {pfDelta != null && Math.abs(pfDelta) >= 0.001 && (
+                    <span style={{ fontSize: '10px', marginLeft: '5px', color: pfDelta >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                      {pfDelta >= 0 ? '+' : ''}{pfDelta.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+                <div className="mc-sub">{pf.n} closed · excl-36</div>
+              </>
+            )}
+          </div>
+          <MobileSparkline values={pfExp?.pf} color={!pfBoot && pf.overall >= 1 ? 'var(--green)' : 'var(--red)'} />
+        </div>
+
+        <div className="mc">
+          <div className="mc-left">
+            <div className="mc-label">EXPECTANCY ($)</div>
+            {expBoot ? (
+              <>
+                <div className="mc-value dim" style={{ color: 'var(--w3)' }}>—</div>
+                <div className="mc-sub">AWAITING PROXY PANELS</div>
+              </>
+            ) : (
+              <>
+                <div className="mc-value" style={{ color: exp.overall >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                  {(exp.overall < 0 ? '-$' : '+$') + Math.abs(exp.overall).toFixed(2)}
+                  {expDelta != null && Math.abs(expDelta) >= 0.005 && (
+                    <span style={{ fontSize: '10px', marginLeft: '5px', color: expDelta >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                      {expDelta >= 0 ? '+' : ''}${Math.abs(expDelta).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+                <div className="mc-sub">avg/trade · {exp.n} closed</div>
+              </>
+            )}
+          </div>
+          <MobileSparkline values={pfExp?.expectancy} color={!expBoot && exp.overall >= 0 ? 'var(--green)' : 'var(--red)'} />
         </div>
 
         <div className="mc">
@@ -1021,7 +1069,7 @@ function MReturnsByDomain({ mode, data }) {
   );
 }
 
-function DataTab({ mode, data, liveEvents }) {
+function DataTab({ mode, data, liveEvents, onOpenPopup }) {
   const rules = adaptRulesThisWeek(data);
   const foot = adaptRulesFoot(data);
   const cohort = adaptClosestCohort(data);
@@ -1029,17 +1077,6 @@ function DataTab({ mode, data, liveEvents }) {
   const rulesBoot = bootstrap || (!rules && !foot);
   const eventsBoot = bootstrap || !liveEvents;
   const events = liveEvents ?? [];
-  // Portal v1.14 P3.1 (2026-05-30): weekly waterfall moved here from DeskTab.
-  // Portal v1.15 Item A (2026-05-30): header derived from buildWeekFrame
-  // (min 5-slot framing). Pre-5: "WEEK c OF 5"; else "{n} WEEKS · CUR W{c}".
-  const liveWaterfall = adaptWeeklyWaterfall(data);
-  const wfBoot = bootstrap || !liveWaterfall;
-  const wfFrame = buildWeekFrame(liveWaterfall ?? []);
-  const wfHeader = wfBoot
-    ? 'AWAITING LIVE WEEKLY CONTEXTS'
-    : (wfFrame.realCount < 5
-        ? `WEEK ${Math.max(1, wfFrame.currentIdx)} OF 5`
-        : `${wfFrame.realCount} WEEKS · CUR W${wfFrame.currentIdx}`);
 
   return (
     <>
@@ -1106,16 +1143,19 @@ function DataTab({ mode, data, liveEvents }) {
         })()}
       </div>
 
-      {/* Portal v1.14 P3.1 (2026-05-30): Weekly P&L moved from DeskTab → DataTab.
-          Same 1B color scheme (cur cyan-pulse / pos green / neg red) and 5-13
-          rolling window applies via the proxy LIMIT 13 + flex:1 slot scaling.
-          Header derived from the data length, not hardcoded. */}
-      <div className="panel wf-panel">
+      {/* Strand 4 mobile parity (2026-06-11): P&L VIEWS — heatmap + returns
+          calendar triggers. Occupies the slot the retired Weekly P&L panel left
+          (Item 101 / −60.77% double-×100 surface removed for desktop parity).
+          Opens the mobile bottom-sheet popups; also reachable via #heatmap /
+          #calendar deep-links. */}
+      <div className="panel">
         <div className="ptitle">
-          <span><span className="ptitle-bar" />WEEKLY P&amp;L</span>
-          <span className="ptitle-r">{wfHeader}</span>
+          <span><span className="ptitle-bar" />P&amp;L VIEWS</span>
         </div>
-        <MobileWaterfall mode={mode} liveWaterfall={liveWaterfall} />
+        <div className="m-pnlviews">
+          <button type="button" className="m-pnlview-btn" onClick={() => onOpenPopup?.('heatmap')}>▦ HEATMAP</button>
+          <button type="button" className="m-pnlview-btn" onClick={() => onOpenPopup?.('calendar')}>▤ CALENDAR</button>
+        </div>
       </div>
     </>
   );
