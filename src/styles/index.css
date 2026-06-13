@@ -2228,3 +2228,13 @@ body::after {
   padding-top:10px; border-top:1px solid var(--border); font-family:var(--mono); font-size:10px; color:var(--w2); }
 .mobile-shell .m-cal-foot strong.g { color:var(--green); }
 .mobile-shell .m-cal-foot strong.r { color:var(--red); }
+
+/* DISPATCH I (2026-06-11) — KPI treatment (sparkline + delta) on the mobile
+   banner tiles that lacked it (Total Return / Current Value / Today's P&L).
+   MOBILE-scoped; desktop untouched. */
+.mobile-shell .aval-line { display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; min-width:0; }
+.mobile-shell .aval-delta { font-family:var(--mono); font-size:11px; letter-spacing:.5px; color:var(--w2); }
+.mobile-shell .aval-delta.g { color:var(--green); }
+.mobile-shell .aval-delta.r { color:var(--red); }
+.mobile-shell .aspark { display:block; width:100%; height:22px; margin-top:3px; }
+.mobile-shell .aspark-svg { width:100%; height:22px; display:block; }

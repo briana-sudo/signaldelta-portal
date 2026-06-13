@@ -291,6 +291,22 @@ export function MobileAccountBar({ mode, liveAccountBar, data }) {
   const todayPct = deriveTodayPct(av, ap);
   const pace = useMemo(() => computePaceTier(todayPct), [todayPct]);
 
+  // DISPATCH I (2026-06-11): KPI treatment for the banner tiles that lacked it
+  // (Total Return, Current Value/Equity, Today's P&L) — same series + delta the
+  // matching PC KPI tiles use. eqVals = equity-curve series; dailyPnlVals =
+  // consecutive equity diffs; totalPnl = $ since base. No new fetch.
+  const eqVals = useMemo(() => (series ? series.map((p) => Number(p.equity) || 0) : null), [series]);
+  const dailyPnlVals = useMemo(() => {
+    if (!series || series.length < 2) return null;
+    const out = [];
+    for (let i = 1; i < series.length; i++) out.push((Number(series[i].equity) || 0) - (Number(series[i - 1].equity) || 0));
+    return out;
+  }, [series]);
+  const totalPnl = (av != null && Number.isFinite(av)) ? av - capitalBase : null;
+  // Sparkline stroke uses literal hex (CSS vars are unreliable in SVG stroke
+  // attrs) — mirrors the PC tiles: cyan for up, red for down.
+  const SPK_UP = '#00c2ff', SPK_DN = '#ff3d57';
+
   // Portal Rev 43 (2026-06-04): DAY W/L (ET) — mobile mirror of the PC Rev-42
   // banner cell. Wins/total of trades CLOSED today on the ET calendar boundary
   // (NOT the Alpaca-session TODAY P&L window — hence "(ET)"). `tradesClosedToday`
@@ -309,28 +325,49 @@ export function MobileAccountBar({ mode, liveAccountBar, data }) {
           : (mAnn.insufficientHistory
               ? <span className={'aval ' + cls(mAnn.cumReturnPct)}>{`${mAnn.cumReturnPct >= 0 ? '+' : ''}${(mAnn.cumReturnPct ?? 0).toFixed(2)}%`}<span style={{ fontSize: '8px', color: 'var(--w3)', marginLeft: '2px' }}>·30d</span></span>
               : <span className={'aval aval-annualized ' + cls(mAnn.annualizedPct)}>{`${mAnn.annualizedPct >= 0 ? '+' : ''}${mAnn.annualizedPct.toFixed(1)}%`}</span>)}
-        {mAnn && <PaceBadge pace={pace} />}
       </div>
       <div className="aitem"><span className="alabel">Current Value</span>
         {bootstrap || av == null
           ? dash
-          : <span className={'aval ' + cls(av - capitalBase)}>${valFmt(av)}</span>}
+          : (
+            <>
+              <span className="aval-line">
+                <span className={'aval ' + cls(av - capitalBase)}>${valFmt(av)}</span>
+                {totalPnl != null && <span className={'aval-delta ' + cls(totalPnl)}>{totalPnl >= 0 ? '+' : '-'}${Math.abs(totalPnl).toFixed(0)}</span>}
+              </span>
+              {eqVals && <span className="aspark"><MobileSparkline values={eqVals} color={(totalPnl ?? 0) >= 0 ? SPK_UP : SPK_DN} className="aspark-svg" /></span>}
+            </>
+          )}
       </div>
       <div className="aitem"><span className="alabel">Total Return</span>
         {bootstrap || totalReturnPct == null
           ? dash
-          : <span className={'aval ' + cls(totalReturnPct)}>{sign(totalReturnPct)}{totalReturnPct.toFixed(2)}%</span>}
+          : (
+            <>
+              <span className="aval-line">
+                <span className={'aval ' + cls(totalReturnPct)}>{sign(totalReturnPct)}{totalReturnPct.toFixed(2)}%</span>
+                {totalPnl != null && <span className={'aval-delta ' + cls(totalPnl)}>{totalPnl >= 0 ? '+' : '-'}${Math.abs(totalPnl).toFixed(0)}</span>}
+              </span>
+              {eqVals && <span className="aspark"><MobileSparkline values={eqVals} color={totalReturnPct >= 0 ? SPK_UP : SPK_DN} className="aspark-svg" /></span>}
+            </>
+          )}
       </div>
       <div className="aitem"><span className="alabel">Today P&amp;L</span>
         {bootstrap || ap == null
           ? dash
           : (
             <>
-              <span className={'aval ' + cls(ap)}>{sign(ap)}${Math.abs(ap).toFixed(2)}</span>
-              {/* Rev 33 Feature 2: daily-% colored by sign. */}
-              {todayPct != null && (
-                <span className={'aval-sub ' + cls(todayPct)}>{sign(todayPct)}{todayPct.toFixed(2)}%</span>
-              )}
+              <span className="aval-line">
+                <span className={'aval ' + cls(ap)}>{sign(ap)}${Math.abs(ap).toFixed(2)}</span>
+                {/* Rev 33 Feature 2: daily-% colored by sign. */}
+                {todayPct != null && (
+                  <span className={'aval-sub ' + cls(todayPct)}>{sign(todayPct)}{todayPct.toFixed(2)}%</span>
+                )}
+                {/* DISPATCH I: live pace badge relocated here from Annualized
+                    (matches the PC Today's-P&L tile; pace is a today-pace metric). */}
+                {pace && <PaceBadge pace={pace} />}
+              </span>
+              {dailyPnlVals && <span className="aspark"><MobileSparkline values={dailyPnlVals} color={(ap ?? 0) >= 0 ? SPK_UP : SPK_DN} className="aspark-svg" /></span>}
             </>
           )}
       </div>
@@ -741,9 +778,9 @@ function MobileScannerRow({ a, fallback }) {
 // Strand 4 mobile parity (2026-06-11): tiny trend sparkline for the PF /
 // Expectancy metric rows — mirror of the PC KPI-tile Sparkline, sized for the
 // mc-arc slot. Renders nothing usable (empty svg keeps the slot) below 2 points.
-function MobileSparkline({ values, color }) {
+function MobileSparkline({ values, color, className = 'mc-arc' }) {
   if (!Array.isArray(values) || values.length < 2) {
-    return <svg className="mc-arc" width="56" height="34" viewBox="0 0 56 34" />;
+    return <svg className={className} width="56" height="34" viewBox="0 0 56 34" />;
   }
   const W = 56, H = 30;
   const min = Math.min(...values), max = Math.max(...values);
@@ -751,7 +788,7 @@ function MobileSparkline({ values, color }) {
   const pts = values.map((v, i) =>
     `${((i / (n - 1)) * W).toFixed(1)},${(2 + H - ((v - min) / range) * H).toFixed(1)}`).join(' ');
   return (
-    <svg className="mc-arc" width="56" height="34" viewBox="0 0 56 34" preserveAspectRatio="none">
+    <svg className={className} width="56" height="34" viewBox="0 0 56 34" preserveAspectRatio="none">
       <polyline points={pts} fill="none" stroke={color} strokeWidth="1.4"
         strokeLinecap="round" strokeLinejoin="round" opacity="0.9" vectorEffect="non-scaling-stroke" />
     </svg>
