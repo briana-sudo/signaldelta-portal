@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- full-bleed navy so it looks right under any OS icon mask (maskable) -->
+  <rect width="512" height="512" fill="#0A1628"/>
+  <g transform="translate(256,256) scale(1.05) translate(-200,-140)"
+     fill="none" stroke="#00C2FF" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="80,140 108,140 126,108 142,180 158,118 174,162 190,98 206,182 222,118 238,162 254,140 290,140 320,140"
+              stroke-width="14"/>
+    <polygon points="248,96 290,164 206,164" stroke-width="12" opacity="0.9"/>
+  </g>
+</svg>
