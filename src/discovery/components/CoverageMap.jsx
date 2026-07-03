@@ -1,0 +1,157 @@
+// Phase 3d-iii-b — THE HERO: the coverage map as a real CANVAS instrument.
+// Surfaces sized by discovery-potential (uncrowded frontier large-and-glowing,
+// picked-over ground small-and-dim) and colored by status. Hover → tooltip;
+// click a surface → drill into its candidate cells. Not the static mockup SVG.
+import { useEffect, useRef, useState } from 'react';
+import { statusColor, isHot, layoutSpans, tooltipForSurface, tooltipForCell } from '../coverage.js';
+
+export default function CoverageMap({ grid }) {
+  const canvasRef = useRef(null);
+  const [tip, setTip] = useState(null);           // {x,y,lines}
+  const [drill, setDrill] = useState(null);       // a surface object (drilled)
+  const hitRef = useRef([]);                       // [{x,y,w,h,surface,cell,i}]
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const draw = () => paint(canvas, grid, drill, hitRef);
+    draw();
+    const ro = new ResizeObserver(draw);
+    ro.observe(canvas.parentElement);
+    return () => ro.disconnect();
+  }, [grid, drill]);
+
+  function onMove(e) {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    const hit = hitRef.current.find((h) => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+    if (!hit) { setTip(null); return; }
+    const lines = hit.cell ? tooltipForCell(hit.surface, hit.cell, hit.i) : tooltipForSurface(hit.surface);
+    setTip({ x: x + 14, y: y + 12, lines });
+  }
+  function onClick(e) {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    const hit = hitRef.current.find((h) => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+    if (hit && !drill) setDrill(hit.surface);
+  }
+
+  return (
+    <div className="map" onMouseMove={onMove} onMouseLeave={() => setTip(null)} onClick={onClick}>
+      <canvas ref={canvasRef} role="img" aria-label="Coverage map — surfaces sized by discovery potential, colored by status" />
+      {drill && (
+        <div className="drill">
+          <button onClick={(e) => { e.stopPropagation(); setDrill(null); }}>← all surfaces</button>
+        </div>
+      )}
+      {tip && (
+        <div className="tip" style={{ left: tip.x, top: tip.y }}>
+          {tip.lines.map((l, i) => <div key={i} className={i === 0 ? 't0' : 'tn'}>{l}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- canvas paint (pure-ish; records hit-boxes for hover/click) --------------
+function paint(canvas, grid, drill, hitRef) {
+  const parent = canvas.parentElement;
+  const W = parent.clientWidth - 16, H = parent.clientHeight - 16;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  hitRef.current = [];
+
+  if (drill) { paintDrill(ctx, W, H, drill, hitRef); return; }
+
+  // pack surfaces into rows by span (12-col grid), bigger potential first
+  const spans = layoutSpans(grid, 12);
+  const colW = W / 12, rowH = 118, gap = 10;
+  let col = 0, row = 0;
+  for (const { surface, span } of spans) {
+    if (col + span > 12) { col = 0; row++; }
+    const x = col * colW + gap / 2, y = row * (rowH + gap) + gap / 2;
+    const w = span * colW - gap, h = rowH - gap;
+    paintSurface(ctx, x, y, w, h, surface, hitRef);
+    col += span;
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+function paintSurface(ctx, x, y, w, h, s, hitRef) {
+  const hot = isHot(s);
+  // panel
+  ctx.save();
+  if (hot) { ctx.shadowColor = 'rgba(0,194,255,0.25)'; ctx.shadowBlur = 18; }
+  ctx.fillStyle = '#1A3A5C';
+  roundRect(ctx, x, y, w, h, 6); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = hot ? 'rgba(0,194,255,0.4)' : 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = 1; roundRect(ctx, x, y, w, h, 6); ctx.stroke();
+
+  // name + discovery potential
+  ctx.fillStyle = s.status === 'occupied' ? '#8A9BB0' : '#FFFFFF';
+  ctx.font = '600 12px Inter, sans-serif';
+  ctx.fillText(clip(ctx, s.name, w - 52), x + 11, y + 20);
+  ctx.fillStyle = '#8A9BB0';
+  ctx.font = '500 11px "JetBrains Mono", monospace';
+  ctx.fillText(s.discovery_potential.toFixed(2), x + w - 34, y + 20);
+
+  // status tag
+  const tag = { whitespace: 'WHITESPACE', gated: 'GATED', occupied: s.note?.includes('exhausted') ? 'OWNED · EXHAUSTED' : 'MAPPED' }[s.status] || s.status.toUpperCase();
+  ctx.fillStyle = tagColor(s.status); ctx.font = '500 9px Inter, sans-serif';
+  ctx.fillText(tag, x + 11, y + 36);
+
+  // cells (colored by status; retained glows)
+  const cs = 11, cg = 3;
+  let cx = x + 11, cy = y + h - 11 - cs;
+  const perRow = Math.max(1, Math.floor((w - 22 + cg) / (cs + cg)));
+  s.cells.forEach((cell, i) => {
+    const gx = cx + (i % perRow) * (cs + cg);
+    const gy = cy - Math.floor(i / perRow) * (cs + cg);
+    ctx.save();
+    if (cell.status === 'retained') { ctx.shadowColor = 'rgba(52,211,153,0.6)'; ctx.shadowBlur = 8; }
+    ctx.fillStyle = statusColor(cell.status);
+    roundRect(ctx, gx, gy, cs, cs, 2); ctx.fill();
+    ctx.restore();
+    hitRef.current.push({ x: gx, y: gy, w: cs, h: cs, surface: s, cell, i });
+  });
+  hitRef.current.push({ x, y, w, h, surface: s });  // surface-level hit (behind cells)
+}
+
+function paintDrill(ctx, W, H, s, hitRef) {
+  ctx.fillStyle = '#FFFFFF'; ctx.font = '600 15px Inter, sans-serif';
+  ctx.fillText(`${s.name} — candidate cells`, 14, 28);
+  ctx.fillStyle = '#8A9BB0'; ctx.font = '400 12px Inter, sans-serif';
+  ctx.fillText(`${s.cells.length} cells · potential ${s.discovery_potential.toFixed(2)}`, 14, 48);
+  const cs = 26, cg = 8, x0 = 14, y0 = 66;
+  const perRow = Math.max(1, Math.floor((W - x0 + cg) / (cs + cg)));
+  s.cells.forEach((cell, i) => {
+    const gx = x0 + (i % perRow) * (cs + cg), gy = y0 + Math.floor(i / perRow) * (cs + cg);
+    ctx.save();
+    if (cell.status === 'retained') { ctx.shadowColor = 'rgba(52,211,153,0.6)'; ctx.shadowBlur = 10; }
+    ctx.fillStyle = statusColor(cell.status);
+    roundRect(ctx, gx, gy, cs, cs, 4); ctx.fill();
+    ctx.restore();
+    hitRef.current.push({ x: gx, y: gy, w: cs, h: cs, surface: s, cell, i });
+  });
+}
+
+function tagColor(status) {
+  return { whitespace: '#00C2FF', gated: '#F5B544', occupied: '#8A9BB0' }[status] || '#8A9BB0';
+}
+function clip(ctx, text, maxW) {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length > 4 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+  return t + '…';
+}
