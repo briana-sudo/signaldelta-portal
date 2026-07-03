@@ -41,8 +41,8 @@
 .i-white{background:var(--accent)}.i-gate{background:var(--warning)}.i-ret{background:var(--success)}
 .i-kill{background:rgba(248,113,113,.55)}.i-occ{background:var(--fg-4)}
 
-.map{background:var(--bg-panel);border:1px solid var(--line-1);border-radius:8px;padding:8px;flex:1;min-height:440px;position:relative}
-.map canvas{display:block;width:100%;height:100%;border-radius:6px}
+.map{background:var(--bg-panel);border:1px solid var(--line-1);border-radius:8px;padding:8px;min-height:300px;flex-shrink:0;position:relative}
+.map canvas{display:block;border-radius:6px}
 .map .tip{position:absolute;pointer-events:none;background:var(--bg-raised);border:1px solid var(--line-2);border-radius:6px;padding:8px 10px;font-size:11.5px;color:var(--fg-1);box-shadow:var(--shadow-2);max-width:240px;z-index:5}
 .map .tip .t0{font-weight:600;margin-bottom:3px}
 .map .tip .tn{color:var(--fg-3);font-family:var(--font-mono)}

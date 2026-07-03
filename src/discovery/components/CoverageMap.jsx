@@ -14,9 +14,16 @@ export default function CoverageMap({ grid }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    let lastW = -1;
     const draw = () => paint(canvas, grid, drill, hitRef);
     draw();
-    const ro = new ResizeObserver(draw);
+    lastW = canvas.parentElement.clientWidth;
+    // re-layout only on WIDTH change (the canvas height is derived from content,
+    // so observing height too would feed back on itself)
+    const ro = new ResizeObserver(() => {
+      const w = canvas.parentElement.clientWidth;
+      if (w !== lastW) { lastW = w; draw(); }
+    });
     ro.observe(canvas.parentElement);
     return () => ro.disconnect();
   }, [grid, drill]);
@@ -54,30 +61,62 @@ export default function CoverageMap({ grid }) {
 }
 
 // --- canvas paint (pure-ish; records hit-boxes for hover/click) --------------
+const ROW_H = 118;
+const GAP = 10;
+
+// pack surfaces into rows on a 12-col grid, bigger potential first
+function packSurfaces(grid) {
+  const spans = layoutSpans(grid, 12);
+  const placed = [];
+  let col = 0, row = 0;
+  for (const { surface, span } of spans) {
+    if (col + span > 12) { col = 0; row++; }
+    placed.push({ surface, span, col, row });
+    col += span;
+  }
+  return placed;
+}
+
 function paint(canvas, grid, drill, hitRef) {
   const parent = canvas.parentElement;
-  const W = parent.clientWidth - 16, H = parent.clientHeight - 16;
+  const W = Math.max(320, parent.clientWidth - 16);
   const dpr = window.devicePixelRatio || 1;
+  hitRef.current = [];
+
+  // HEIGHT IS DERIVED FROM CONTENT so no row is ever clipped — the canvas grows
+  // to fit every surface (or every drilled cell) and the stage scrolls if needed.
+  let placed = null;
+  let H;
+  if (drill) {
+    H = drillHeight(W, drill);
+  } else {
+    placed = packSurfaces(grid);
+    const rows = placed.length ? Math.max(...placed.map((p) => p.row)) + 1 : 1;
+    H = rows * (ROW_H + GAP) + GAP;
+  }
+  H = Math.max(H, 300);
+
   canvas.width = W * dpr; canvas.height = H * dpr;
   canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
-  hitRef.current = [];
 
   if (drill) { paintDrill(ctx, W, H, drill, hitRef); return; }
 
-  // pack surfaces into rows by span (12-col grid), bigger potential first
-  const spans = layoutSpans(grid, 12);
-  const colW = W / 12, rowH = 118, gap = 10;
-  let col = 0, row = 0;
-  for (const { surface, span } of spans) {
-    if (col + span > 12) { col = 0; row++; }
-    const x = col * colW + gap / 2, y = row * (rowH + gap) + gap / 2;
-    const w = span * colW - gap, h = rowH - gap;
+  const colW = W / 12;
+  for (const { surface, span, col, row } of placed) {
+    const x = col * colW + GAP / 2, y = row * (ROW_H + GAP) + GAP / 2;
+    const w = span * colW - GAP, h = ROW_H - GAP;
     paintSurface(ctx, x, y, w, h, surface, hitRef);
-    col += span;
   }
+}
+
+function drillHeight(W, s) {
+  const cs = 26, cg = 8, x0 = 14, y0 = 66;
+  const perRow = Math.max(1, Math.floor((W - x0 + cg) / (cs + cg)));
+  const rows = Math.ceil(s.cells.length / perRow);
+  return y0 + rows * (cs + cg) + 16;
 }
 
 function roundRect(ctx, x, y, w, h, r) {
