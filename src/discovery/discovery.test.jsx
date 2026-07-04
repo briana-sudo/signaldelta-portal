@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { statusColor, sizeForPotential, isHot, layoutSpans } from './coverage.js';
-import { makeContract } from './api/contract.js';
+import { makeContract, groundedAnalyst } from './api/contract.js';
 import BoardQueue from './components/BoardQueue.jsx';
 import DataNeeds from './components/DataNeeds.jsx';
 import AnalystDock from './components/AnalystDock.jsx';
@@ -112,13 +112,21 @@ describe('UI firewall', () => {
       expect(src, `${f} must hold no 7687 reference`).not.toMatch(/7687|TradeNode/);
     }
   });
-  it('default mode is real (reads generated read_model.json, falls back to mock)', async () => {
-    const c = makeContract();                       // default → real
-    expect(c.mode).toBe('real');
-    const grid = await c.query('grid');             // fetch of read_model.json fails in jsdom → mock fallback
+  it('default mode is live (reads 7688 via proxy, falls back to file→mock)', async () => {
+    const c = makeContract();                       // default → live
+    expect(c.mode).toBe('live');
+    const grid = await c.query('grid');             // proxy + file fetch both fail in jsdom → mock fallback
     expect(Array.isArray(grid)).toBe(true);
-    expect(typeof c.resolve).toBe('function');      // intent path reused, still no graph write
+    expect(typeof c.resolve).toBe('function');      // intent path, still no graph write
     expect(c.write).toBeUndefined();
+  });
+  it('grounded analyst answers "what is runnable now" from the live board (V-015)', async () => {
+    const board = [{ kind: 'Runnable now', title: 'V-015 payment-cycle / rebalancing flows' },
+                   { kind: 'Needs build', title: 'V-008 neglected-universe event composite' }];
+    const q = async (slice) => (slice === 'board' ? board : []);
+    const r = await groundedAnalyst('what is runnable now?', q);
+    expect(r.kind).toBe('EXPLAIN');
+    expect(r.explanation).toContain('V-015');            // grounded in live state
   });
   it('the contract exposes reads + intent only (no graph-write method)', () => {
     const c = makeContract('mock');

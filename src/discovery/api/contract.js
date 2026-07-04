@@ -9,11 +9,15 @@
 // VITE_SM_PROXY_URL and MODE='live'; until then the MOCK adapter serves
 // representative data matching the read-model slices.
 
-// default 'real': read the engine-generated real state (read_model.json) published
-// alongside the app; falls back to representative mock data if it isn't present.
-// 'live' → the proxy /sm/*; 'mock' → representative data only.
-const MODE = import.meta?.env?.VITE_SM_MODE || 'real';
-const PROXY = import.meta?.env?.VITE_SM_PROXY_URL || '';
+// MODE: 'live' (default) reads the LIVE 7688 graph through the proxy /sm/*, and
+// gracefully falls back to the published read_model.json (real seed state) if the
+// proxy isn't reachable yet (e.g. before its restart) — so the console always shows
+// real state. 'real' = file only; 'mock' = representative data.
+const MODE = import.meta?.env?.VITE_SM_MODE || 'live';
+// the proxy base: the search-master proxy URL, or the trading proxy tunnel (same
+// FastAPI proxy serves /sm/*), or same-origin.
+const PROXY = import.meta?.env?.VITE_SM_PROXY_URL || import.meta?.env?.VITE_PROXY_URL || '';
+const TOKEN = import.meta?.env?.VITE_PROXY_API_TOKEN || '';
 
 // --- representative mock read model (matches 3d-i's 7 slices) ----------------
 // discovery_potential values mirror engine/discovery_grid.py SURFACES.
@@ -83,8 +87,8 @@ function cellStatusFor(status, i, n, extra) {
 // --- the client: read (query/export) + intent (resolve/onboard/analyst) ------
 async function post(path, body) {
   const res = await fetch(`${PROXY}${path}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',                        // Cloudflare Access cookie rides here; NO token in JS
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}) },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${path} → ${res.status}`);
@@ -92,7 +96,7 @@ async function post(path, body) {
 }
 
 async function get(path) {
-  const res = await fetch(`${PROXY}${path}`, { credentials: 'include' });
+  const res = await fetch(`${PROXY}${path}`, { headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {} });
   if (!res.ok) throw new Error(`${path} → ${res.status}`);
   return res.json();
 }
@@ -164,7 +168,7 @@ function realContract() {
     }
     return loadPromise;
   }
-  return {
+  const rc = {
     ...base,
     mode: 'real',
     async query(slice) {
@@ -173,31 +177,57 @@ function realContract() {
     },
     async exportMd(slice) { return `# ${slice}\n\n(real state export — read-only, no secrets)\n`; },
   };
+  rc.analyst = ({ ask }) => groundedAnalyst(ask, rc.query);   // grounded in the real read model
+  return rc;
 }
 
+// LIVE: reads come from the 7688 graph via the proxy /sm/readmodel; intent
+// (resolve/onboard) + engine control go to /sm/*. If the proxy isn't reachable yet
+// (e.g. before its restart), every read/engine call falls back to the file view
+// (real seed) so the console still shows real state — it auto-upgrades to live the
+// moment the proxy serves /sm/*. Same firewall: reads + intent only, no graph write.
 function liveContract() {
-  // the config-swap target: 3d-iii-a `/sm/*`. Same firewall — reads + intent only.
+  const file = realContract();                       // graceful fallback (file → mock)
+  let rmPromise = null;
+  function liveReadModel() {
+    if (!rmPromise) rmPromise = get('/sm/readmodel').catch(() => null);
+    return rmPromise;
+  }
+  const q = async (slice) => {
+    const rm = await liveReadModel();
+    return (rm && rm[slice] != null) ? rm[slice] : file.query(slice);
+  };
   return {
     mode: 'live',
-    async query(slice) { return post('/sm/query', { cypher: sliceCypher(slice), params: {} }); },
-    async exportMd(slice) { return post('/sm/export', { cypher: sliceCypher(slice), params: {} }); },
-    async resolve(payload) { return post('/sm/resolve', payload); },
-    async onboard(payload) { return post('/sm/onboard', payload); },
-    async analyst({ ask }) { return post('/sm/analyst', { ask }); },
-    // ENGINE POWER SWITCH → /sm/engine/* (service control, same auth, not research)
-    async engineStatus() { return get('/sm/engine/status'); },
-    async engineStart() { return post('/sm/engine/start', {}); },
-    async engineStop() { return post('/sm/engine/stop', {}); },
+    async query(slice) { return q(slice); },
+    async exportMd(slice) { return file.exportMd(slice); },
+    async resolve(payload) { return post('/sm/resolve', payload).catch(() => ({ rejected: true, reason: 'proxy unreachable — start it to enable gated writes' })); },
+    async onboard(payload) { return post('/sm/onboard', payload).catch(() => ({ source_id: payload.source_id, configured: false })); },
+    // analyst runs client-side, grounded in the LIVE read model (deterministic; an
+    // LLM analyst is a later server-side swap). "what's runnable now" -> V-015.
+    async analyst({ ask }) { return groundedAnalyst(ask, q); },
+    // ENGINE POWER SWITCH -> /sm/engine/* (falls back to the mock state machine)
+    async engineStatus() { return get('/sm/engine/status').catch(() => file.engineStatus()); },
+    async engineStart() { return post('/sm/engine/start', {}).catch(() => file.engineStart()); },
+    async engineStop() { return post('/sm/engine/stop', {}).catch(() => file.engineStop()); },
   };
 }
 
-// read-shaped Cypher per slice (allowlist-gated at the proxy). Parameterized, never
-// concatenated with operator text.
-function sliceCypher(slice) {
-  const L = { board: 'SMBoardItem', grid: 'SMGridCell', ledger: 'SMComponent',
-              kills: 'SMKill', gated: 'SMGatedSurface', deployed: 'SMDeployedSignal',
-              state: 'SMStateObject' }[slice] || 'SMNode';
-  return `MATCH (n:${L}) WHERE NOT n:KCCNode AND NOT n:KTMNode RETURN n`;
+// analyst grounded in the current read model: answers "what's runnable now" with the
+// runnable-now board item(s) (V-015), else the deterministic classify/route.
+export async function groundedAnalyst(ask, queryFn) {
+  const a = (ask || '').toLowerCase();
+  const has = (...ks) => ks.some((k) => a.includes(k));
+  if (has('runnable', 'run now', 'what can i run', 'what now', 'what next', 'first test', 'priorit', "what's next")) {
+    let board = [];
+    try { board = (await queryFn('board')) || []; } catch { board = []; }
+    const runnable = board.filter((b) => /runnable/i.test(b.kind || ''));
+    if (runnable.length) {
+      return { kind: 'EXPLAIN',
+               explanation: `Runnable now (no new data needed): ${runnable.map((b) => b.title).join('; ')}. That's the engine's first free test. This explains what the state says — it's not a decision; approving it is a gated call on the board.` };
+    }
+  }
+  return mockAnalyst(ask);
 }
 
 // --- deterministic mock analyst (mirrors 3d-ii routing rules) ----------------
