@@ -23,10 +23,12 @@ function StageList({ run }) {
   );
 }
 
-export default function InProgress({ probe }) {
+export default function InProgress({ probe, lessons = [], onBank, onReject }) {
   const running = probe?.running || null;
   const queue = probe?.queue || [];
   const done = probe?.done || [];
+  const proposed = lessons.filter((l) => l.status === 'PROPOSED');
+  const banked = lessons.filter((l) => l.status === 'BANKED');
 
   return (
     <>
@@ -83,6 +85,31 @@ export default function InProgress({ probe }) {
             </tbody>
           </table>
         ) : <div className="hint">No finished runs yet.</div>}
+      </div>
+
+      {/* GATED LEARNING — lessons proposed on run conclusion; only your Bank banks them */}
+      <div className="datastrip">
+        <h3>Lessons <span className="count mono">{proposed.length} proposed · {banked.length} banked</span></h3>
+        <div className="cap">The analyst proposes a lesson; only your <b>Bank</b> writes it (loads into every future ask). Reject discards it.</div>
+        {proposed.length === 0 && banked.length === 0 && <div className="hint">No lessons yet.</div>}
+        {proposed.map((l) => (
+          <div key={l.id} className="lesson proposed">
+            <div className="lesson-head"><span className="lesson-badge proposed">PROPOSED</span>
+              {l.source && <span className="lesson-src mono">{l.source}</span>}</div>
+            <div className="lesson-text">{l.text}</div>
+            <div className="acts">
+              <button className="b b-pri" onClick={() => onBank && onBank(l.id)}>Bank</button>
+              <button className="b b-sec" onClick={() => onReject && onReject(l.id)}>Reject</button>
+            </div>
+          </div>
+        ))}
+        {banked.map((l) => (
+          <div key={l.id} className="lesson banked">
+            <div className="lesson-head"><span className="lesson-badge banked">BANKED</span>
+              {l.source && <span className="lesson-src mono">{l.source}</span>}</div>
+            <div className="lesson-text">{l.text}</div>
+          </div>
+        ))}
       </div>
     </>
   );

@@ -283,3 +283,15 @@
 .comp.comp-running .comp-state{color:var(--accent)}
 .comp.comp-queued .comp-state{color:var(--warning)}
 .comp-summary{font-size:11px;color:var(--fg-3);margin-top:4px;font-style:italic}
+
+/* --- gated-learning lessons (propose → operator Bank) ------------------------ */
+.lesson{background:var(--bg-panel);border:1px solid var(--line-1);border-radius:7px;padding:11px 13px;margin-bottom:9px}
+.lesson.proposed{border-left:3px solid var(--accent)}
+.lesson.banked{border-left:3px solid var(--success)}
+.lesson-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.lesson-badge{font:700 9px/1 var(--font-sans);letter-spacing:.06em;padding:3px 7px;border-radius:20px}
+.lesson-badge.proposed{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
+.lesson-badge.banked{background:color-mix(in srgb,var(--success) 18%,transparent);color:var(--success)}
+.lesson-src{font-size:10px;color:var(--fg-4)}
+.lesson-text{font-size:12px;color:var(--fg-2);line-height:1.55;margin-bottom:8px}
+.lesson .acts{display:flex;gap:8px}

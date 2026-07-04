@@ -549,3 +549,37 @@ describe('probe run states + queue', () => {
     expect(screen.getByText(/Nothing running/)).toBeTruthy();
   });
 });
+
+// --- gated learning: propose ≠ bank; operator Bank/Reject --------------------
+describe('gated learning (lessons)', () => {
+  it('In-progress shows a PROPOSED lesson with Bank/Reject that fire the gate', () => {
+    const onBank = vi.fn(); const onReject = vi.fn();
+    const lessons = [{ id: 'lesson-v015-tom-seed', status: 'PROPOSED', source: 'V-015-TOM',
+      text: 'V-015-TOM turn-of-month: t=0.03, n=1704 — structural, null.' }];
+    render(<InProgress probe={{ running: null, queue: [], done: [] }} lessons={lessons} onBank={onBank} onReject={onReject} />);
+    expect(screen.getByText('PROPOSED')).toBeTruthy();
+    expect(screen.getByText(/t=0.03, n=1704/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Bank' }));
+    expect(onBank).toHaveBeenCalledWith('lesson-v015-tom-seed');
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    expect(onReject).toHaveBeenCalledWith('lesson-v015-tom-seed');
+  });
+
+  it('a BANKED lesson shows without Bank/Reject (already banked)', () => {
+    const lessons = [{ id: 'x', status: 'BANKED', text: 'banked lesson' }];
+    render(<InProgress probe={{ running: null, queue: [], done: [] }} lessons={lessons} />);
+    expect(screen.getByText('BANKED')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Bank' })).toBeNull();
+  });
+
+  it('mock contract: propose ≠ bank (only bankLesson sets BANKED)', async () => {
+    const c = makeContract('mock');
+    const seed = (await c.lessons()).find((l) => l.id === 'lesson-v015-tom-seed');
+    expect(seed.status).toBe('PROPOSED');             // seeded proposed, not banked
+    const p = await c.proposeLesson('new lesson', 'src');
+    expect(p.status).toBe('PROPOSED');                // propose only proposes
+    const b = await c.bankLesson('lesson-v015-tom-seed');
+    expect(b.status).toBe('BANKED');                  // operator Bank promotes
+    expect((await c.lessons()).find((l) => l.id === 'lesson-v015-tom-seed').status).toBe('BANKED');
+  });
+});

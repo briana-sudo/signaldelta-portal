@@ -116,7 +116,7 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
 
     setBusy(true);
     let r;
-    try { r = await contract.analyst({ ask: text, attachment }); }
+    try { r = await contract.analyst({ ask: text, attachment, history: messages }); }
     catch { r = { kind: 'EXPLAIN', explanation: 'The analyst is unavailable right now — try again in a moment.' }; }
     setBusy(false);
     addMsg({ role: 'analyst', text: r.explanation || '(no answer)', route: r.routed_item_type || null, kind: r.kind });

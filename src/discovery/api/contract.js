@@ -138,6 +138,8 @@ function mockContract() {
   const engine = { state: 'stopped', since: 0 };
   const proxy = { state: 'running', since: 0 };   // proxy power-switch (restart-after-deploy)
   const probe = { running: null, queue: [], done: [] };   // mock probe-run simulator
+  const mlessons = [{ id: 'lesson-v015-tom-seed', status: 'PROPOSED', source: 'V-015-TOM (direct measurement)',
+    text: 'V-015-TOM turn-of-month: edge +0.0018%/day, t=0.03, n=1704 (well-powered), 18-mo window ending 2026-07-04, 24-name universe. Mechanism read = structural (T+1 settlement); revival ~ settlement reversal (expect never). DFC prior lowered; TDF prior intact.' }];
   const now = () => (typeof performance !== 'undefined' ? performance.now() : 0);
   const P_STAGES = ['queued', 'validating recipe', 'fetching data', 'building signal', 'computing', 'power-gate', 'result'];
   const pDetail = (s) => ({ 'fetching data': '24 names from sharadar_sep', computing: '1704 turn-of-month vs 7224 rest', 'power-gate': 't=0.03 vs gate 2.0' }[s] || '');
@@ -226,6 +228,11 @@ function mockContract() {
     },
     // INTENT — analyst surfaces + routes, never enacts
     async analyst({ ask, attachment }) { return groundedAnalyst(ask, this.query?.bind(this), { attachment }); },
+    // gated learning (mock): propose ≠ bank; Bank/Reject mutate the local store
+    async lessons() { return structuredClone(mlessons); },
+    async bankLesson(id) { const l = mlessons.find((x) => x.id === id); if (l) l.status = 'BANKED'; return { id, status: l?.status }; },
+    async rejectLesson(id) { const l = mlessons.find((x) => x.id === id); if (l) l.status = 'REJECTED'; return { id, status: l?.status }; },
+    async proposeLesson(text, source) { const id = `lesson-${mlessons.length}`; mlessons.unshift({ id, text, source, status: 'PROPOSED' }); return { id, status: 'PROPOSED' }; },
     _board: board,
   };
 }
@@ -296,7 +303,19 @@ function liveContract() {
     async probeStatus() { return get('/sm/probe/status').catch(() => ({ running: null, queue: [], done: [] })); },
     // analyst runs client-side, grounded in the LIVE read model (deterministic; an
     // LLM analyst is a later server-side swap). "what's runnable now" -> V-015.
-    async analyst({ ask, attachment }) { return groundedAnalyst(ask, q, { attachment }); },
+    // REAL LLM analyst, grounded server-side in live state + corpus + banked lessons.
+    // A chat attachment stays client-side (discussion-only). Honest fallback to the
+    // rule-matcher on API/key error — never an empty shell.
+    async analyst({ ask, attachment, history }) {
+      if (attachment) return groundedAnalyst(ask, q, { attachment });
+      return post('/sm/analyst/ask', { ask, history: (history || []).map((m) => ({ role: m.role, text: m.text })) })
+        .catch(() => groundedAnalyst(ask, q));
+    },
+    // GATED LEARNING — read lessons; Bank/Reject are the operator's gate
+    async lessons() { return get('/sm/lessons').then((r) => r.lessons || []).catch(() => []); },
+    async bankLesson(id) { return post('/sm/lesson/bank', { lesson_id: id }).catch(() => ({ status: 'error' })); },
+    async rejectLesson(id) { return post('/sm/lesson/reject', { lesson_id: id }).catch(() => ({ status: 'error' })); },
+    async proposeLesson(text, source) { return post('/sm/lesson/propose', { text, source }).catch(() => ({ status: 'error' })); },
     // ENGINE POWER SWITCH -> /sm/engine/* (falls back to the mock state machine)
     async engineStatus() { return get('/sm/engine/status').catch(() => file.engineStatus()); },
     async engineStart() { return post('/sm/engine/start', {}).catch(() => file.engineStart()); },

@@ -28,6 +28,7 @@ export default function DiscoveryApp({ contract }) {
   const [costingQ, setCostingQ] = useState(null);    // a costing question handed to the assistant
   const [resolutions, setResolutions] = useState({}); // surface_id -> operator's recorded answer
   const [probe, setProbe] = useState({ running: null, queue: [], done: [] });  // live probe-run state
+  const [lessons, setLessons] = useState([]);        // gated learning (SMLesson)
   const restartingUntil = useRef(0);                 // ms deadline while a restart is in flight
 
   // (re)load the read-model slices — called on mount and again once the proxy
@@ -82,11 +83,16 @@ export default function DiscoveryApp({ contract }) {
     const tick = async () => {
       try { const p = await client.probeStatus(); if (live) setProbe(p || { running: null, queue: [], done: [] }); }
       catch { /* keep last */ }
+      try { const ls = await client.lessons?.(); if (live && ls) setLessons(ls); }
+      catch { /* keep last */ }
     };
     tick();
     const id = setInterval(tick, 2500);
     return () => { live = false; clearInterval(id); };
   }, [client]);
+
+  const onBankLesson = async (id) => { await client.bankLesson?.(id); setLessons(await client.lessons?.() || []); };
+  const onRejectLesson = async (id) => { await client.rejectLesson?.(id); setLessons(await client.lessons?.() || []); };
 
   function onResolved(itemId, newStatus) {
     setBoard((prev) => prev.map((i) => (i.item_id === itemId ? { ...i, status: newStatus } : i)));
@@ -137,7 +143,7 @@ export default function DiscoveryApp({ contract }) {
             <div className="stage-head"><div><h1>Board</h1>
               <div className="sub">Every pending gate, with the engine's recommendation and the priced fork. Approve / reject sends intent — the orchestrator resolves.</div></div></div>
           )}
-          {tab === 'In progress' && <InProgress probe={probe} />}
+          {tab === 'In progress' && <InProgress probe={probe} lessons={lessons} onBank={onBankLesson} onReject={onRejectLesson} />}
           {tab === 'Timeline' && <TimelineView contract={client} />}
           {(tab === 'Coverage' || tab === 'Data needs') && <DataNeeds contract={client} gated={gated} onAskAssistant={askAssistant} resolutions={resolutions} />}
           {tab === 'Board' && (
