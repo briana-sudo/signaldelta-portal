@@ -13,6 +13,7 @@ import BoardQueue from './components/BoardQueue.jsx';
 import DataNeeds from './components/DataNeeds.jsx';
 import AnalystPanel from './components/AnalystPanel.jsx';
 import TimelineView from './components/TimelineView.jsx';
+import InProgress from './components/InProgress.jsx';
 import Topbar from './components/Topbar.jsx';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -479,5 +480,67 @@ describe('assistant panel — costing handoff', () => {
     fireEvent.submit(screen.getByLabelText(/Ask the analyst/i).closest('form'));
     await waitFor(() => expect(onCostingResolved).toHaveBeenCalledWith('rel', 'API tier is fine'));
     expect(screen.getByText(/Recorded for Relational/)).toBeTruthy();
+  });
+});
+
+// --- probe run: Approve→run→result, one-at-a-time queue, Hold, In-progress tab --
+describe('probe run states + queue', () => {
+  const runnable = (id, title, ev) => ({ item_id: id, type: 'new-search-surface', status: 'PENDING',
+    kind: 'Runnable now', ev, age: 'seed', title, meta: [], recommendation: 'r', version: 1, options: ['approve', 'hold'] });
+
+  it('Approve scope enqueues a run (resolve intent) — never runs client-side', async () => {
+    const resolve = vi.fn(async () => ({ resolved: true, new_status: 'QUEUED', enqueued: true, recipe_id: 'V-015' }));
+    const items = [runnable('new-search-surface:V-015', 'V-015 payment-cycle', 0.88)];
+    render(<BoardQueue contract={{ resolve }} items={items} onResolved={() => {}} probe={{ running: null, queue: [], done: [] }} />);
+    fireEvent.click(screen.getByText('Approve scope'));
+    await waitFor(() => expect(resolve).toHaveBeenCalledWith(expect.objectContaining({ gate_item_id: 'new-search-surface:V-015', decision: 'approve' })));
+  });
+
+  it('a RUNNING probe greys the card + shows the live stage; a QUEUED one shows QUEUED', () => {
+    const items = [runnable('new-search-surface:V-015', 'V-015', 0.88), runnable('new-search-surface:V-008', 'V-008', 0.82)];
+    const probe = { running: { item_id: 'new-search-surface:V-015', stage: 'computing', steps: [] },
+                    queue: [{ item_id: 'new-search-surface:V-008' }], done: [] };
+    render(<BoardQueue contract={{}} items={items} onResolved={() => {}} probe={probe} />);
+    expect(screen.getByText('RUNNING')).toBeTruthy();
+    expect(screen.getByText(/computing/)).toBeTruthy();
+    expect(screen.getByText('QUEUED')).toBeTruthy();
+    expect(screen.getByText('Running…').closest('button').disabled).toBe(true);   // one-at-a-time: can't re-approve
+  });
+
+  it('a DONE probe shows the disposition + numbers on the card', () => {
+    const items = [runnable('new-search-surface:V-015', 'V-015', 0.88)];
+    const probe = { running: null, queue: [], done: [{ item_id: 'new-search-surface:V-015',
+      disposition: 'killed (no-edge, as tested)', result: { t: 0.03, n: 1704, gate_pass: false } }] };
+    render(<BoardQueue contract={{}} items={items} onResolved={() => {}} probe={probe} />);
+    expect(screen.getByText('DONE')).toBeTruthy();
+    expect(screen.getByText(/killed \(no-edge/)).toBeTruthy();
+    expect(screen.getByText(/t=0.03 n=1704/)).toBeTruthy();
+  });
+
+  it('Hold parks the item with a visible HELD state (not a dead click)', async () => {
+    const resolve = vi.fn(async () => ({ resolved: true, new_status: 'HELD', held: true }));
+    const items = [runnable('new-search-surface:V-015', 'V-015', 0.88)];
+    render(<BoardQueue contract={{ resolve }} items={items} onResolved={() => {}} probe={{ running: null, queue: [], done: [] }} />);
+    fireEvent.click(screen.getByText('Hold'));
+    await waitFor(() => expect(screen.getByText('HELD')).toBeTruthy());
+  });
+
+  it('In-progress tab shows the running stages, the queue, and finished results', () => {
+    const probe = { running: { item_id: 'x', title: 'V-015', recipe_id: 'V-015', stage: 'computing',
+        steps: [{ stage: 'fetching data', detail: '24 names' }, { stage: 'computing', detail: '1704 vs 7224' }] },
+      queue: [{ item_id: 'y', title: 'V-008', recipe_id: 'V-008' }],
+      done: [{ item_id: 'z', title: 'V-020', recipe_id: 'V-020', disposition: 'killed (no-edge, as tested)',
+               result: { edge_pct_per_day: 0.0018, t: 0.03, n: 1704, gate_pass: false } }] };
+    render(<InProgress probe={probe} />);
+    expect(screen.getByText('Running now')).toBeTruthy();
+    expect(screen.getAllByText(/V-015/).length).toBeGreaterThan(0);
+    expect(screen.getByText('1704 vs 7224')).toBeTruthy();     // live stage detail
+    expect(screen.getByText(/Queue/)).toBeTruthy();
+    expect(screen.getByText('FAIL')).toBeTruthy();             // finished result gate outcome
+  });
+
+  it('idle In-progress says so plainly', () => {
+    render(<InProgress probe={{ running: null, queue: [], done: [] }} />);
+    expect(screen.getByText(/Nothing running/)).toBeTruthy();
   });
 });

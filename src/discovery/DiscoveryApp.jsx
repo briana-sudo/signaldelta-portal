@@ -10,6 +10,7 @@ import CoverageMap from './components/CoverageMap.jsx';
 import BoardQueue from './components/BoardQueue.jsx';
 import DataNeeds from './components/DataNeeds.jsx';
 import TimelineView from './components/TimelineView.jsx';
+import InProgress from './components/InProgress.jsx';
 import AnalystPanel from './components/AnalystPanel.jsx';
 import { downloadMd, renderMd } from './mdExport.js';
 import './discovery.css';
@@ -26,6 +27,7 @@ export default function DiscoveryApp({ contract }) {
   const [proxyHelper, setProxyHelper] = useState(false);  // SM_ProxyHelper up → restarts always work
   const [costingQ, setCostingQ] = useState(null);    // a costing question handed to the assistant
   const [resolutions, setResolutions] = useState({}); // surface_id -> operator's recorded answer
+  const [probe, setProbe] = useState({ running: null, queue: [], done: [] });  // live probe-run state
   const restartingUntil = useRef(0);                 // ms deadline while a restart is in flight
 
   // (re)load the read-model slices — called on mount and again once the proxy
@@ -73,6 +75,18 @@ export default function DiscoveryApp({ contract }) {
     const id = setInterval(tick, 2500);
     return () => { live = false; clearInterval(id); };
   }, [client, reloadData]);
+
+  // poll the live probe-run state so cards + the In-progress tab reflect the engine
+  useEffect(() => {
+    let live = true;
+    const tick = async () => {
+      try { const p = await client.probeStatus(); if (live) setProbe(p || { running: null, queue: [], done: [] }); }
+      catch { /* keep last */ }
+    };
+    tick();
+    const id = setInterval(tick, 2500);
+    return () => { live = false; clearInterval(id); };
+  }, [client]);
 
   function onResolved(itemId, newStatus) {
     setBoard((prev) => prev.map((i) => (i.item_id === itemId ? { ...i, status: newStatus } : i)));
@@ -123,6 +137,7 @@ export default function DiscoveryApp({ contract }) {
             <div className="stage-head"><div><h1>Board</h1>
               <div className="sub">Every pending gate, with the engine's recommendation and the priced fork. Approve / reject sends intent — the orchestrator resolves.</div></div></div>
           )}
+          {tab === 'In progress' && <InProgress probe={probe} />}
           {tab === 'Timeline' && <TimelineView contract={client} />}
           {(tab === 'Coverage' || tab === 'Data needs') && <DataNeeds contract={client} gated={gated} onAskAssistant={askAssistant} resolutions={resolutions} />}
           {tab === 'Board' && (
@@ -138,7 +153,7 @@ export default function DiscoveryApp({ contract }) {
         </div>
 
         <div className="rail">
-          <BoardQueue contract={client} items={board} onResolved={onResolved} />
+          <BoardQueue contract={client} items={board} onResolved={onResolved} probe={probe} />
         </div>
       </div>
       {/* FLOATING analyst — draggable/resizable/minimizable, at app root (not the rail) */}

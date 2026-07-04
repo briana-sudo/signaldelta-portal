@@ -242,3 +242,34 @@
 .dn-qk.setup{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
 .dn-qt{font-size:11.5px;color:var(--fg-2);line-height:1.5;flex:1;min-width:0}
 .dn-q .b{flex-shrink:0}
+
+/* --- board card run states + In-progress view ------------------------------- */
+.item.running{border-color:color-mix(in srgb,var(--accent) 45%,var(--line-1));box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 25%,transparent)}
+.run-badge{font:700 9px/1 var(--font-sans);letter-spacing:.08em;padding:3px 7px;border-radius:20px}
+.run-badge.running{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.run-badge.queued{background:color-mix(in srgb,var(--warning) 16%,transparent);color:var(--warning)}
+.run-badge.done{background:color-mix(in srgb,var(--fg-4) 24%,transparent);color:var(--fg-2)}
+.run-badge.pass{background:color-mix(in srgb,var(--success) 18%,transparent);color:var(--success)}
+.run-badge.held{background:color-mix(in srgb,var(--fg-4) 22%,transparent);color:var(--fg-3)}
+.run-line{font-size:11.5px;margin:2px 0 4px;color:var(--accent)}
+.run-line.done{color:var(--fg-3)}
+.ip-run .ip-head{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+.ip-badge{font:700 9px/1 var(--font-sans);letter-spacing:.06em;padding:3px 7px;border-radius:20px}
+.ip-badge.running{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.ip-badge.queued{background:color-mix(in srgb,var(--warning) 16%,transparent);color:var(--warning)}
+.ip-badge.pass{background:color-mix(in srgb,var(--success) 18%,transparent);color:var(--success)}
+.ip-badge.fail{background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger)}
+.ip-stagenow{margin-left:auto;color:var(--accent);font-size:11px}
+.ip-stages{list-style:none;display:flex;flex-direction:column;gap:0}
+.ip-stage{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12px}
+.ip-stage .ip-dot{width:9px;height:9px;border-radius:50%;background:var(--fg-4);flex-shrink:0}
+.ip-stage.done .ip-dot{background:var(--success)}
+.ip-stage.active .ip-dot{background:var(--accent);box-shadow:0 0 0 0 rgba(0,194,255,.6);animation:pulse 1.6s infinite}
+.ip-stage.todo{color:var(--fg-4)}
+.ip-stage.active{color:var(--fg-1);font-weight:500}
+.ip-sname{min-width:130px}
+.ip-sdetail{color:var(--fg-3);font-size:11px}
+.ip-queue{list-style:none;display:flex;flex-direction:column;gap:6px}
+.ip-queue li{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--fg-2)}
+.ip-qn{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg-elev);border-radius:50%;font-size:10px;color:var(--fg-3)}
+.ip-queue .ip-badge{margin-left:auto}

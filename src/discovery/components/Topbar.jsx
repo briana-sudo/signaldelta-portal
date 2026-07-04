@@ -9,7 +9,7 @@
 // Both control the SERVICE only; the research firewall is unchanged.
 import logoMark from '../assets/logo-mark.svg';
 
-const TABS = ['Coverage', 'Board', 'Timeline', 'Data needs'];
+const TABS = ['Coverage', 'Board', 'In progress', 'Timeline', 'Data needs'];
 
 const LABEL = {
   running: 'Discovery engine running', stopped: 'Discovery engine stopped',

@@ -137,7 +137,10 @@ function mockContract() {
   // engine power-switch state machine (mock): starting → running, stopping → stopped
   const engine = { state: 'stopped', since: 0 };
   const proxy = { state: 'running', since: 0 };   // proxy power-switch (restart-after-deploy)
+  const probe = { running: null, queue: [], done: [] };   // mock probe-run simulator
   const now = () => (typeof performance !== 'undefined' ? performance.now() : 0);
+  const P_STAGES = ['queued', 'validating recipe', 'fetching data', 'building signal', 'computing', 'power-gate', 'result'];
+  const pDetail = (s) => ({ 'fetching data': '24 names from sharadar_sep', computing: '1704 turn-of-month vs 7224 rest', 'power-gate': 't=0.03 vs gate 2.0' }[s] || '');
   return {
     mode: 'mock',
     // READ ONLY
@@ -162,8 +165,36 @@ function mockContract() {
       const it = board.find((b) => b.item_id === gate_item_id);
       if (!it) return { rejected: true, reason: 'unknown gate item' };
       if (it.version !== gate_item_version) return { rejected: true, reason: 'stale version' };
-      it.status = 'CLEARED'; it.version += 1;
+      it.version += 1;
+      if (decision === 'reject') { it.status = 'HELD'; return { resolved: true, new_status: 'HELD', held: true }; }
+      const rid = (gate_item_id.match(/V-0\d\d/) || [])[0];    // runnable candidate → enqueue a run
+      if (rid) {
+        it.status = 'QUEUED';
+        const job = { item_id: gate_item_id, recipe_id: rid, title: rid, stage: 'queued', steps: [], since: now() };
+        if (!probe.running) probe.running = job;
+        else if (probe.running.item_id !== gate_item_id && !probe.queue.some((q) => q.item_id === gate_item_id)) probe.queue.push(job);
+        return { resolved: true, new_status: 'QUEUED', enqueued: true, recipe_id: rid };
+      }
+      it.status = 'CLEARED';
       return { resolved: true, new_status: 'CLEARED', decision };
+    },
+    // live probe run state (mock: advance the running job through the stages)
+    async probeStatus() {
+      const r = probe.running;
+      if (r) {
+        const idx = Math.min(P_STAGES.length - 1, Math.floor((now() - r.since) / 700));
+        r.stage = P_STAGES[idx];
+        r.steps = P_STAGES.slice(1, idx + 1).map((s) => ({ stage: s, detail: pDetail(s) }));
+        if (idx >= P_STAGES.length - 1 && now() - r.since > P_STAGES.length * 700 + 400) {
+          const result = { recipe_id: r.recipe_id, t: 0.03, n: 1704, edge_pct_per_day: 0.0018,
+            gate_pass: false, disposition: 'killed (no-edge, as tested)' };
+          probe.done.unshift({ ...r, status: 'done', result, disposition: result.disposition });
+          probe.done = probe.done.slice(0, 8);
+          probe.running = probe.queue.shift() || null;
+          if (probe.running) probe.running.since = now();
+        }
+      }
+      return structuredClone({ running: probe.running, queue: probe.queue, done: probe.done });
     },
     // INTENT — credential goes to the server-side field, never returned/echoed
     async onboard({ source_id, entitlement, credential, watermark, content_hash }) {
@@ -254,6 +285,8 @@ function liveContract() {
     // INTENT — surfaces a costing/research request (never buys); local ack if the
     // proxy has no /sm/research worker yet (results fill the fields when it runs).
     async research(payload) { return post('/sm/research', payload).catch(() => ({ queued: true, surface_id: payload.surface_id, note: 'surfaced locally — costing worker applies results when it runs' })); },
+    // live probe-run state (the engine writes it to 7688; the proxy reads it back)
+    async probeStatus() { return get('/sm/probe/status').catch(() => ({ running: null, queue: [], done: [] })); },
     // analyst runs client-side, grounded in the LIVE read model (deterministic; an
     // LLM analyst is a later server-side swap). "what's runnable now" -> V-015.
     async analyst({ ask, attachment }) { return groundedAnalyst(ask, q, { attachment }); },
