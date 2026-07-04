@@ -1,11 +1,12 @@
-// Phase 3d-iii-b — topbar: logo mark + SIGNAL/DELTA wordmark + view tabs + the
-// ENGINE POWER SWITCH (the old "Engine running ●" pulse is now a real control).
-//   green pulse = running (click → confirm → stop)
-//   grey dot    = stopped (click → start)
-//   amber       = starting / stopping (in transition, not clickable)
-//   grey "run setup" = not-installed (run Setup Discovery.bat once)
-// Wired to /sm/engine/* — the button controls the SERVICE, not research; the
-// engine's gates still gate.
+// Phase 3d-iii-b — topbar: logo mark + SIGNAL/DELTA wordmark + view tabs + two
+// power switches:
+//   ENGINE  (/sm/engine/*)  — green running (click→confirm→stop), grey stopped
+//                             (click→start), amber in transition.
+//   PROXY   (/sm/proxy/*)   — green proxy live (click→confirm→RESTART), amber
+//                             restarting, grey stopped/unknown. Restart is what's
+//                             needed after a deploy so /sm/readmodel serves live
+//                             7688 data — clickable, no terminal.
+// Both control the SERVICE only; the research firewall is unchanged.
 import logoMark from '../assets/logo-mark.svg';
 
 const TABS = ['Coverage', 'Board', 'Timeline', 'Data needs'];
@@ -16,13 +17,31 @@ const LABEL = {
   unknown: 'Engine — unknown',
 };
 
-export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart, onStop }) {
+const PLABEL = {
+  running: 'Proxy live', restarting: 'Restarting…', starting: 'Restarting…', stopping: 'Restarting…',
+  stopped: 'Proxy stopped', 'not-installed': 'Proxy — not installed',
+  unreachable: 'Proxy — unreachable', unknown: 'Proxy — unknown',
+};
+
+export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart, onStop,
+                                proxyStatus, onProxyRestart }) {
   const st = engineStatus || 'unknown';
   const clickable = st === 'running' || st === 'stopped';
 
   function toggle() {
     if (st === 'stopped') onStart();
     else if (st === 'running') { if (window.confirm('Stop the engine? Research pauses until you start it again.')) onStop(); }
+  }
+
+  const ps = proxyStatus || 'unknown';
+  const pRestarting = ps === 'restarting' || ps === 'starting' || ps === 'stopping';
+  const pClass = pRestarting ? 'restarting' : ps;      // amber while cycling
+
+  function proxyToggle() {
+    if (ps === 'running'
+        && window.confirm('Restart the proxy? The console disconnects for a few seconds while the service cycles, then reconnects with live 7688 data.')) {
+      onProxyRestart();
+    }
   }
 
   return (
@@ -38,6 +57,13 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
         ))}
       </div>
       <div className="spacer" />
+      <button type="button" className={`proxy-switch st-${pClass}`} onClick={proxyToggle}
+              disabled={ps !== 'running'}
+              aria-label={`${PLABEL[ps] || PLABEL.unknown}${ps === 'running' ? ' — click to restart' : ''}`}
+              title={ps === 'running' ? 'Click to restart the proxy' : PLABEL[ps] || PLABEL.unknown}>
+        <span className={`pulse st-${pClass}`} />{PLABEL[ps] || PLABEL.unknown}
+        {ps === 'running' && <span className="sw-act"> · restart</span>}
+      </button>
       <button type="button" className={`engine-switch st-${st}`} onClick={toggle}
               disabled={!clickable} aria-label={`${LABEL[st]} — ${st === 'running' ? 'click to stop' : st === 'stopped' ? 'click to start' : ''}`}
               title={st === 'running' ? 'Click to stop' : st === 'stopped' ? 'Click to start' : LABEL[st]}>

@@ -3,7 +3,7 @@
 // query API (mock adapter until the live proxy is wired — a config swap). It only
 // READS and SENDS INTENT; it never writes the graph, holds a credential, or
 // references the trading engine.
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { makeContract } from './api/contract.js';
 import Topbar from './components/Topbar.jsx';
 import CoverageMap from './components/CoverageMap.jsx';
@@ -22,18 +22,19 @@ export default function DiscoveryApp({ contract }) {
   const [board, setBoard] = useState([]);
   const [state, setState] = useState({ cells_mapped: 0 });
   const [engine, setEngine] = useState('unknown');   // running | starting | stopping | stopped | not-installed
+  const [proxy, setProxy] = useState('unknown');     // running | restarting | stopped | unreachable | unknown
+  const restartingUntil = useRef(0);                 // ms deadline while a restart is in flight
 
-  useEffect(() => {
-    let live = true;
-    (async () => {
-      const [g, ga, b, s] = await Promise.all([
-        client.query('grid'), client.query('gated'), client.query('board'), client.query('state'),
-      ]);
-      if (!live) return;
-      setGrid(g || []); setGated(ga || []); setBoard(b || []); setState(s || { cells_mapped: 0 });
-    })();
-    return () => { live = false; };
+  // (re)load the read-model slices — called on mount and again once the proxy
+  // comes back after a restart, so the board reflects the now-live 7688 data.
+  const reloadData = useCallback(async () => {
+    const [g, ga, b, s] = await Promise.all([
+      client.query('grid'), client.query('gated'), client.query('board'), client.query('state'),
+    ]);
+    setGrid(g || []); setGated(ga || []); setBoard(b || []); setState(s || { cells_mapped: 0 });
   }, [client]);
+
+  useEffect(() => { let live = true; reloadData().catch(() => {}); return () => { live = false; }; }, [reloadData]);
 
   // poll the engine power-switch status so the topbar button reflects the true
   // service state (running/starting/stopping/stopped/not-installed).
@@ -47,16 +48,42 @@ export default function DiscoveryApp({ contract }) {
     return () => { live = false; clearInterval(id); };
   }, [client]);
 
+  // poll the PROXY status. During a restart the whole surface (incl. this poll) is
+  // briefly down → show 'restarting' until it answers 'running' again, then reload.
+  useEffect(() => {
+    let live = true;
+    const tick = async () => {
+      let s = 'unknown';
+      try { s = (await client.proxyStatus()).status; } catch { s = 'unreachable'; }
+      if (!live) return;
+      if (Date.now() < restartingUntil.current) {
+        if (s === 'running') { restartingUntil.current = 0; setProxy('running'); reloadData().catch(() => {}); }
+        else setProxy('restarting');
+      } else {
+        setProxy(s === 'unreachable' ? 'unknown' : s);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 2500);
+    return () => { live = false; clearInterval(id); };
+  }, [client, reloadData]);
+
   function onResolved(itemId, newStatus) {
     setBoard((prev) => prev.map((i) => (i.item_id === itemId ? { ...i, status: newStatus } : i)));
   }
   async function onStart() { const r = await client.engineStart(); setEngine(r.status); }
   async function onStop() { const r = await client.engineStop(); setEngine(r.status); }
+  async function onProxyRestart() {
+    restartingUntil.current = Date.now() + 60000;    // expect it back within ~60s
+    setProxy('restarting');
+    try { await client.proxyRestart(); } catch { /* fire-and-forget; the poll tracks recovery */ }
+  }
 
   return (
     <div className="app">
       <Topbar tab={tab} setTab={setTab} cellsMapped={state.cells_mapped || 0}
-              engineStatus={engine} onStart={onStart} onStop={onStop} />
+              engineStatus={engine} onStart={onStart} onStop={onStop}
+              proxyStatus={proxy} onProxyRestart={onProxyRestart} />
       <div className="main">
         <div className="stage">
           {tab === 'Coverage' && (

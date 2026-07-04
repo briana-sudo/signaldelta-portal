@@ -183,3 +183,14 @@
   background:color-mix(in srgb,var(--success) 8%,var(--bg-elev));border:1px solid color-mix(in srgb,var(--success) 26%,var(--line-1));
   border-left:3px solid var(--success);border-radius:6px}
 .tl-last b{color:var(--fg-1)}
+
+/* --- proxy power switch (mirrors the engine switch) -------------------------- */
+.proxy-switch{display:flex;align-items:center;gap:8px;color:var(--fg-2);font-size:12px;font-family:var(--font-sans);
+  background:var(--bg-panel);border:1px solid var(--line-1);border-radius:999px;padding:6px 13px;cursor:pointer;
+  margin-right:8px;transition:border-color .2s var(--ease),background .2s var(--ease)}
+.proxy-switch:hover:not(:disabled){border-color:var(--line-2);background:var(--bg-raised)}
+.proxy-switch:disabled{cursor:default}
+.proxy-switch .sw-act{color:var(--fg-4)}
+.proxy-switch:hover:not(:disabled) .sw-act{color:var(--accent)}
+.pulse.st-restarting{background:var(--warning);box-shadow:0 0 0 0 rgba(245,181,68,.6);animation:pulse-amber 1.1s infinite}
+.pulse.st-unreachable{background:var(--fg-4);box-shadow:none;animation:none}

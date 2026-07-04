@@ -128,6 +128,7 @@ function mockContract() {
   const board = MOCK.board.map((b) => ({ ...b }));
   // engine power-switch state machine (mock): starting → running, stopping → stopped
   const engine = { state: 'stopped', since: 0 };
+  const proxy = { state: 'running', since: 0 };   // proxy power-switch (restart-after-deploy)
   const now = () => (typeof performance !== 'undefined' ? performance.now() : 0);
   return {
     mode: 'mock',
@@ -141,6 +142,12 @@ function mockContract() {
     },
     async engineStart() { engine.state = 'starting'; engine.since = now(); return { action: 'start', status: engine.state }; },
     async engineStop() { engine.state = 'stopping'; engine.since = now(); return { action: 'stop', status: engine.state }; },
+    // PROXY POWER SWITCH (controls the SignalDeltaProxy service; restart-after-deploy)
+    async proxyStatus() {
+      if (proxy.state === 'restarting' && now() - proxy.since > 1500) proxy.state = 'running';
+      return { status: proxy.state };
+    },
+    async proxyRestart() { proxy.state = 'restarting'; proxy.since = now(); return { action: 'restart', status: proxy.state }; },
     async exportMd(slice) { return `# ${slice}\n\n(mock export — read-only, no secrets)\n`; },
     // INTENT — resolve is the §4.1 gated-write; the frontend NEVER writes the graph
     async resolve({ gate_item_id, decision, gate_item_version }) {
@@ -227,6 +234,10 @@ function liveContract() {
     async engineStatus() { return get('/sm/engine/status').catch(() => file.engineStatus()); },
     async engineStart() { return post('/sm/engine/start', {}).catch(() => file.engineStart()); },
     async engineStop() { return post('/sm/engine/stop', {}).catch(() => file.engineStop()); },
+    // PROXY POWER SWITCH — /sm/proxy/*. During a restart the surface is briefly down,
+    // so an unreachable status reads as 'restarting' (the app polls until 'running').
+    async proxyStatus() { return get('/sm/proxy/status').catch(() => ({ status: 'unreachable' })); },
+    async proxyRestart() { return post('/sm/proxy/restart', {}).catch(() => ({ action: 'restart', status: 'restarting' })); },
   };
 }
 

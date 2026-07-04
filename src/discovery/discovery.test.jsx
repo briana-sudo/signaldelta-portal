@@ -316,3 +316,48 @@ describe('floating analyst panel', () => {
     expect(r.explanation).toMatch(/2026-12|ran|re-scanned|stayed dead/i);   // grounded in real monitor state
   });
 });
+
+// --- proxy power switch (restart the SignalDeltaProxy service from the console) --
+describe('proxy control button', () => {
+  const base = { tab: 'Coverage', setTab: () => {}, cellsMapped: 0,
+                 engineStatus: 'running', onStart: () => {}, onStop: () => {} };
+
+  it('running → confirm-on-restart fires onProxyRestart', () => {
+    const onProxyRestart = vi.fn();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<Topbar {...base} proxyStatus="running" onProxyRestart={onProxyRestart} />);
+    fireEvent.click(screen.getByText(/Proxy live/).closest('button'));
+    expect(window.confirm).toHaveBeenCalled();          // confirm-on-restart (not accidental)
+    expect(onProxyRestart).toHaveBeenCalled();
+    window.confirm.mockRestore();
+  });
+
+  it('confirm cancelled → does NOT restart', () => {
+    const onProxyRestart = vi.fn();
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<Topbar {...base} proxyStatus="running" onProxyRestart={onProxyRestart} />);
+    fireEvent.click(screen.getByText(/Proxy live/).closest('button'));
+    expect(onProxyRestart).not.toHaveBeenCalled();
+    window.confirm.mockRestore();
+  });
+
+  it('restarting → amber label, not clickable', () => {
+    render(<Topbar {...base} proxyStatus="restarting" onProxyRestart={vi.fn()} />);
+    const btn = screen.getByText(/Restarting/).closest('button');
+    expect(btn.disabled).toBe(true);
+  });
+
+  it('mock contract: restart transitions running → restarting', async () => {
+    const c = makeContract('mock');
+    expect((await c.proxyStatus()).status).toBe('running');
+    expect((await c.proxyRestart()).status).toBe('restarting');
+    expect((await c.proxyStatus()).status).toBe('restarting');
+  });
+
+  it('live contract: proxy control degrades gracefully when unreachable', async () => {
+    const c = makeContract('live');                     // fetch fails in jsdom
+    const r = await c.proxyStatus();
+    expect(typeof r.status).toBe('string');              // never throws — 'unreachable' fallback
+    expect((await c.proxyRestart()).status).toBe('restarting');
+  });
+});
