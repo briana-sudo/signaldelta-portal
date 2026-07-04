@@ -118,7 +118,11 @@ function parentStatus(cats) {
 }
 
 const CELL_FOR = { CLEARED: 'killed', RETAINED: 'occupied', OPEN: 'tested-inconclusive' };
+// per-component disposition → dot color (the strip legend: red/violet/green/blue)
+const DOT_FOR = { killed: 'killed', inconclusive: 'tested-inconclusive', retained: 'retained' };
 
+// derive BOTH the header status AND the dot strip from the runs — nothing on the map
+// reads stored cell state. Each concluded component paints one dot; the rest stay blue.
 export function deriveCellStatuses(grid, runs) {
   const bySurface = {};
   for (const r of runs || []) {
@@ -126,12 +130,20 @@ export function deriveCellStatuses(grid, runs) {
     const res = r.result;
     if (!res || res.t == null) continue;
     const surf = surfaceOf(r.parent || r.item_id);
-    (bySurface[surf] || (bySurface[surf] = [])).push(dispositionCat({
-      gate_pass: res.gate_pass, t: res.t, n: res.n, edge: res.edge_pct_per_day, gate: res.gate }));
+    (bySurface[surf] || (bySurface[surf] = [])).push({
+      rid: r.recipe_id || r.item_id,
+      cat: dispositionCat({ gate_pass: res.gate_pass, t: res.t, n: res.n, edge: res.edge_pct_per_day, gate: res.gate }),
+    });
   }
   return (grid || []).map((cell) => {
-    const cats = bySurface[cell.surface];
-    return cats ? { ...cell, status: CELL_FOR[parentStatus(cats)] } : cell;   // derived override, else generator status
+    const comps = bySurface[cell.surface];
+    if (!comps) return cell;                                  // untested surface → generator status/dots
+    const cats = comps.map((c) => c.cat);
+    const ordered = [...comps].sort((a, b) => String(a.rid).localeCompare(String(b.rid)));  // stable strip order
+    const n = Math.max((cell.cells && cell.cells.length) || 0, ordered.length);
+    const cells = [];
+    for (let i = 0; i < n; i++) cells.push({ status: i < ordered.length ? (DOT_FOR[ordered[i].cat] || 'whitespace') : 'whitespace' });
+    return { ...cell, status: CELL_FOR[parentStatus(cats)], cells };   // header + dots, both derived
   });
 }
 

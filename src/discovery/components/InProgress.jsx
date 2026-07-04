@@ -6,6 +6,25 @@ const STAGES = ['queued', 'validating recipe', 'fetching data', 'building signal
 const isReterminus = (run) => run && (run.kind === 'reterminus' || run.recipe_id === 'RETERMINUS'
   || /re-evaluate/i.test(run.title || ''));
 
+// lesson provenance as plain English ("draft 3 · written by the LLM"), not "v3 · llm"
+function lessonProvenance(l) {
+  const by = l.classified_by === 'llm' ? 'the LLM' : l.classified_by === 'heuristic' ? 'the heuristic' : null;
+  if (l.version && by) return `draft ${l.version} · written by ${by}`;
+  const m = String(l.source || '').match(/v(\d+)\s*·\s*(llm|heuristic)/i);
+  if (m) return `draft ${m[1]} · written by the ${m[2].toLowerCase() === 'llm' ? 'LLM' : 'heuristic'}`;
+  return l.source || '';
+}
+
+// one-line verdict for a re-judge (no gate, no edge/t/n) from its stored result
+function rejudgeSummary(r) {
+  const flips = (r.flips || []).length;
+  const parts = [`${flips} flip${flips !== 1 ? 's' : ''}`];
+  if (r.kills_retracted != null) parts.push(`${r.kills_retracted} kill${r.kills_retracted !== 1 ? 's' : ''} retracted`);
+  if (r.derived != null) parts.push(`${r.derived} derived`);
+  parts.push(`${r.reevaluated || 0} component${(r.reevaluated || 0) !== 1 ? 's' : ''} re-judged`);
+  return parts.join(' · ');
+}
+
 // RE-TERMINUS (and any non-probe job) streams its OWN stages — render them straight
 // from the run's steps, in order, with the current stage active.
 function GenericStages({ run }) {
@@ -94,7 +113,7 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
               <span className="src">{running.title || running.recipe_id}</span>
               <span className="ip-badge running">RUNNING</span>
               <span className="mono ip-stagenow">{running.stage}</span>
-              <button className="exp-mini" style={{ marginLeft: 'auto' }} onClick={() => open(running.item_id)}>Open Run Room →</button>
+              <button className="exp-mini" style={{ marginLeft: 'auto' }} onClick={() => open(running.item_id)}>Open run report →</button>
             </div>
             <StageList run={running} />
           </div>
@@ -117,13 +136,24 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
 
       <div className="datastrip">
         <h3>Recent — what the engine did <span className="count mono">{done.length}</span></h3>
-        <div className="cap">Concluded runs, one-line verdicts. Click any to open its Run Room.</div>
+        <div className="cap">Concluded runs, one-line verdicts. Click any to open its run report.</div>
         {done.length ? (
           <table className="dtable">
             <thead><tr><th>Run</th><th>Edge/day</th><th>t</th><th>n</th><th>Gate</th><th>Disposition</th></tr></thead>
             <tbody>
               {done.map((d) => {
                 const r = d.result || {};
+                // a re-judge has NO gate — no edge/t/n, no FAIL badge (that badge would lie)
+                if (d.recipe_id === 'RETERMINUS' || d.kind === 'reterminus') {
+                  const surface = String(r.target || '').split(':').pop() || String(d.title || '').replace(/^Re-?evaluate\s*/i, '');
+                  return (
+                    <tr key={d.item_id} className="rj-row">
+                      <td className="src"><button className="ip-link" onClick={() => open(d.item_id)}>Re-judge · {surface}</button></td>
+                      <td className="hint" colSpan={4}>{rejudgeSummary(r)}</td>
+                      <td><span className="ip-badge rejudge">re-judged</span></td>
+                    </tr>
+                  );
+                }
                 return (
                   <tr key={d.item_id}>
                     <td className="src"><button className="ip-link" onClick={() => open(d.item_id)}>{d.title || d.recipe_id}</button></td>
@@ -149,7 +179,7 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
           <div key={l.id} className="lesson proposed">
             <div className="lesson-head"><span className="lesson-badge proposed">PROPOSED</span>
               {l.provisional && <span className="lesson-badge prov" title="Heuristic draft — Re-evaluate with the LLM to make it bankable">PROVISIONAL</span>}
-              {l.source && <span className="lesson-src mono">{l.source}</span>}</div>
+              {l.source && <span className="lesson-src">{lessonProvenance(l)}</span>}</div>
             <div className="lesson-text">{l.text}</div>
             <div className="acts">
               {/* provisional (heuristic) → NO Bank button at all; only LLM-drafted lessons are bankable */}
@@ -163,7 +193,7 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
         {banked.map((l) => (
           <div key={l.id} className="lesson banked">
             <div className="lesson-head"><span className="lesson-badge banked">BANKED</span>
-              {l.source && <span className="lesson-src mono">{l.source}</span>}</div>
+              {l.source && <span className="lesson-src">{lessonProvenance(l)}</span>}</div>
             <div className="lesson-text">{l.text}</div>
             <div className="acts">
               <button className="b b-sec" title="Retract from the grounding pack (history kept)"
@@ -174,14 +204,14 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
         {superseded.map((l) => (
           <div key={l.id} className="lesson superseded">
             <div className="lesson-head"><span className="lesson-badge superseded">SUPERSEDED</span>
-              {l.source && <span className="lesson-src mono">{l.source}</span>}</div>
+              {l.source && <span className="lesson-src">{lessonProvenance(l)}</span>}</div>
             <div className="lesson-text">{l.text}</div>
           </div>
         ))}
         {retracted.map((l) => (
           <div key={l.id} className="lesson superseded">
             <div className="lesson-head"><span className="lesson-badge superseded">RETRACTED</span>
-              {l.source && <span className="lesson-src mono">{l.source}</span>}</div>
+              {l.source && <span className="lesson-src">{lessonProvenance(l)}</span>}</div>
             <div className="lesson-text">{l.text}</div>
           </div>
         ))}

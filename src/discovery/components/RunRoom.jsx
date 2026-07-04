@@ -12,25 +12,29 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
   const report = composeReport(run, slices || {});
   const steps = run.progress || [];
   const cur = run.stage;
-  const triggered = run.kind === 'reterminus' ? 'Re-evaluate' : 'Approve';
   const res = report.result;
   const c = report.classification;
+  // a re-judge (RETERMINUS) is not a probe — different title, subtitle, and report body
+  const rres = run.result || {};
+  const isRJ = run.recipe_id === 'RETERMINUS' || run.kind === 'reterminus';
+  const rjTarget = String(rres.target || '').split(':').pop() || String(run.title || '').replace(/^Re-?evaluate\s*/i, '');
+  const title = isRJ ? `Re-judge · ${rjTarget}` : (run.recipe_id || run.item_id);
+  const subtitle = isRJ ? 'Re-judge stored results — no data fetched'
+    : `${res.window} · ${res.universe} names · triggered by Approve`;
 
   return (
     <div className="rr-backdrop" onClick={onClose}>
       <div className="rr" onClick={(e) => e.stopPropagation()}>
         <div className="rr-head">
           <div>
-            <div className="rr-title mono">{run.recipe_id || run.item_id}</div>
-            <div className="rr-sub">
-              {res.window} · {res.universe} names · triggered by {triggered}
-            </div>
+            <div className="rr-title mono">{title}</div>
+            <div className="rr-sub">{subtitle}</div>
           </div>
           <span className={`rr-badge ${String(run.status).toLowerCase()}`}>{STATUS(run.status)}</span>
-          {run.parent && onReevaluate && String(run.status).toLowerCase() === 'done' && (
-            <button className="b b-sec" disabled={runBusy}
-                    title={runBusy ? 'a run is active — one at a time' : 'Re-evaluate this surface (deliberate review)'}
-                    onClick={() => onReevaluate(run.parent)}>↻ Re-evaluate</button>
+          {run.parent && onReevaluate && String(run.status).toLowerCase() === 'done' && !isRJ && (
+            <button className="b b-ghost" disabled={runBusy}
+                    title={runBusy ? 'a run is active — one at a time' : 'Re-judge stored results — no data fetched'}
+                    onClick={() => onReevaluate(run.parent)}>↻ Re-judge stored results</button>
           )}
           <button className="rr-x" onClick={onClose} aria-label="close">✕</button>
         </div>
@@ -51,13 +55,38 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
             </ol>
           </div>
 
-          {/* THE TERMINUS REPORT */}
+          {/* THE RUN REPORT */}
           <div className="rr-report">
             <div className="rr-report-head">
-              <h4>Terminus report</h4>
-              <button className="exp-mini" onClick={() => downloadMd(`${(run.recipe_id || 'run')}-report.md`, 'Terminus report', reportToMd(run, report))}>⤓ MD</button>
+              <h4>Run report</h4>
+              <button className="exp-mini" onClick={() => downloadMd(`${(run.recipe_id || 'run')}-report.md`, 'Run report', reportToMd(run, report))}>⤓ MD</button>
             </div>
 
+            {/* RE-JUDGE report (no gate, no edge/t/n — it re-judged stored numbers) */}
+            {isRJ && (
+              <div className="rr-rejudge">
+                <div className="rr-block">
+                  <div className="rr-blabel">What was re-judged</div>
+                  <div className="rr-disp">{rjTarget} · {rres.reevaluated || 0} component{(rres.reevaluated || 0) !== 1 ? 's' : ''} re-applied to the stored numbers — no data fetched.</div>
+                </div>
+                <div className="rr-block">
+                  <div className="rr-blabel">Flips (before → after)</div>
+                  {(rres.flips || []).length === 0
+                    ? <div className="hint">No dispositions changed this pass.</div>
+                    : (rres.flips || []).map((f, i) => (
+                        <div key={i} className="rr-deriv"><span className="rr-dtitle mono">{f.recipe_id}</span>
+                          <span className="mono">{f.from} → <b>{f.to}</b></span></div>))}
+                </div>
+                {rres.kills_retracted != null && (
+                  <div className="rr-block"><div className="rr-blabel">Kills retracted</div>
+                    <div className="rr-disp mono">{rres.kills_retracted}</div></div>
+                )}
+                <div className="rr-block"><div className="rr-blabel">Result</div>
+                  <div className="rr-disp">{rres.note || 'reevaluated'}</div></div>
+              </div>
+            )}
+
+            {!isRJ && (<>
             {/* 1. Result */}
             <div className="rr-block">
               <div className="rr-blabel">1 · Result</div>
@@ -130,20 +159,21 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
                 : <div className="hint">no valid partner</div>}
             </div>
 
-            {/* Version history + diff (re-terminus) */}
+            {/* Version history + diff (correction history) — plain-English tags */}
             {report.versions.length > 1 && (
               <div className="rr-block rr-versions">
                 <div className="rr-blabel">Correction history</div>
                 {report.versions.map((v, i) => (
                   <div key={i} className="rr-ver">
-                    <span className="rr-vtag mono">v{v.version}</span>
-                    <span className={`rr-prov ${v.classified_by === 'llm' ? 'llm' : 'heur'}`}>{v.classified_by}</span>
+                    <span className="rr-vtag">draft {v.version}</span>
+                    <span className={`rr-prov ${v.classified_by === 'llm' ? 'llm' : 'heur'}`}>written by the {v.classified_by === 'llm' ? 'LLM' : 'heuristic'}</span>
                     <span className="mono">{v.classification} · {v.disposition}</span>
                     {i > 0 && <span className="rr-diff">{versionDiff(report.versions[i - 1], v).join(' · ') || 'no change'}</span>}
                   </div>
                 ))}
               </div>
             )}
+            </>)}
           </div>
         </div>
       </div>

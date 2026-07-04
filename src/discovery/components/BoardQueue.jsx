@@ -24,8 +24,11 @@ const TIERS = [
 const RANK = { 'Runnable now': 0, 'Needs data': 1, 'Needs build': 2, 'Needs broker': 3 };
 const evOf = (i) => (typeof i.ev === 'number' ? i.ev : 0);
 
-const CONCLUDED = ['CLEARED', 'RETAINED', 'OPEN'];
+// OPEN = partially tested, awaiting re-tests/decisions; CONCLUDED = fully disposed only
+const OPEN_STATES = ['OPEN'];
+const CONCLUDED_STATES = ['CLEARED', 'RETAINED'];
 const STATUS_CLASS = { CLEARED: 'st-cleared', RETAINED: 'st-retained', OPEN: 'st-open' };
+const STATUS_WORD = { CLEARED: 'killed — all flows null', RETAINED: 'retained — a flow survived', OPEN: 'open — partially tested' };
 
 export default function BoardQueue({ contract, items, onResolved, probe, onOpenRun }) {
   const [busy, setBusy] = useState(null);
@@ -33,7 +36,8 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
   const [held, setHeld] = useState({});             // item_id -> true (Hold visible feedback)
   const [reevaluating, setReevaluating] = useState({});  // item_id -> true (Re-evaluate queued)
   const open = items.filter((i) => i.status === 'PENDING');
-  const concluded = items.filter((i) => CONCLUDED.includes(i.status));
+  const openItems = items.filter((i) => OPEN_STATES.includes(i.status));       // partially tested
+  const concluded = items.filter((i) => CONCLUDED_STATES.includes(i.status));  // fully disposed
   const sorted = [...open].sort((a, b) =>
     (RANK[a.kind] ?? 9) - (RANK[b.kind] ?? 9) || evOf(b) - evOf(a));
   const other = sorted.filter((i) => RANK[i.kind] === undefined);
@@ -98,7 +102,7 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
         {comps.length > 0 ? (
           <div className="comp-states">
             {comps.map((c) => (
-              <div key={c.recipe_id} className={`comp comp-${c.state}`} title={`${c.disposition || c.stage || c.state} — open Run Room`}
+              <div key={c.recipe_id} className={`comp comp-${c.state}`} title={`${c.disposition || c.stage || c.state} — open run report`}
                    role="button" onClick={() => openRun(`${it.item_id}#${c.recipe_id}`)} style={{ cursor: 'pointer' }}>
                 <span className="comp-name">{shortName(c.recipe_id)}</span>
                 <span className="comp-state">
@@ -133,6 +137,38 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
     );
   };
 
+  // OPEN / CONCLUDED card — component chips (→ Run Room) + a de-emphasized (ghost)
+  // Re-evaluate with its reason line (the recommended/primary Re-evaluate lives in the
+  // attention section). Re-evaluate = re-judge stored results — no data fetched.
+  const disposedCard = (it) => (
+    <div key={it.item_id} className="item concluded-item">
+      <div className="row1">
+        <span className={`kind ${STATUS_CLASS[it.status] || ''}`}>{STATUS_WORD[it.status] || it.status}</span>
+        <span className="mono" style={{ color: 'var(--fg-3)', fontSize: 11, marginLeft: 'auto' }}>{it.age}</span>
+      </div>
+      <div className="ttl">{it.title}</div>
+      {it.components && typeof it.components === 'object' && (
+        <div className="comp-states">
+          {Object.entries(it.components).map(([rid, disp]) => (
+            <div key={rid} className="comp comp-done" title={`${disp} — open Run report`}
+                 role="button" onClick={() => openRun(`${it.item_id}#${rid}`)} style={{ cursor: 'pointer' }}>
+              <span className="comp-name">{shortName(rid)}</span>
+              <span className="comp-state">{String(disp).split(' ')[0]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="rec">{it.disposition || '—'}</div>
+      <div className="attn-reason">Re-judge stored results — no data fetched; re-applies the fixed taxonomy + LLM to the numbers already on file.</div>
+      <div className="acts">
+        <button className="b b-ghost" disabled={busy === it.item_id || reevaluating[it.item_id]}
+                title="Re-judge stored results with the fixed taxonomy + LLM — no probe is run, no data fetched."
+                onClick={() => reevaluate(it)}>
+          {reevaluating[it.item_id] ? 'Re-judging…' : '↻ Re-judge stored results'}</button>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <div className="rail-sec">
@@ -161,43 +197,26 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
             {other.map(card)}
           </div>
         )}
-        {concluded.length > 0 && (
+        {openItems.length > 0 && (
           <div className="tier-group">
-            <div className="tier-band tb-concluded">
-              <span className="tb-label">CONCLUDED</span>
-              <span className="tb-note">the engine re-judges its own work</span>
-              <span className="tb-count mono">{concluded.length}</span>
+            <div className="tier-band tb-open">
+              <span className="tb-label">OPEN</span>
+              <span className="tb-note">partially tested — awaiting re-tests / decisions</span>
+              <span className="tb-count mono">{openItems.length}</span>
             </div>
-            {concluded.map((it) => (
-              <div key={it.item_id} className="item concluded-item">
-                <div className="row1">
-                  <span className={`kind ${STATUS_CLASS[it.status] || ''}`}>{it.status}</span>
-                  <span className="mono" style={{ color: 'var(--fg-3)', fontSize: 11, marginLeft: 'auto' }}>{it.age}</span>
-                </div>
-                <div className="ttl">{it.title}</div>
-                {it.components && typeof it.components === 'object' && (
-                  <div className="comp-states">
-                    {Object.entries(it.components).map(([rid, disp]) => (
-                      <div key={rid} className={`comp comp-done`} title={`${disp} — open Run Room`}
-                           role="button" onClick={() => openRun(`${it.item_id}#${rid}`)} style={{ cursor: 'pointer' }}>
-                        <span className="comp-name">{shortName(rid)}</span>
-                        <span className="comp-state">{String(disp).split(' ')[0]}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="rec">{it.disposition || '—'}</div>
-                <div className="attn-reason">Re-judge under the fixed taxonomy + LLM — corrects the disposition, retracts wrong kills, re-drafts lessons</div>
-                <div className="acts">
-                  <button className="b b-sec" disabled={busy === it.item_id || reevaluating[it.item_id]}
-                          title="The engine re-runs terminus on the stored results with the fixed taxonomy + LLM — corrects its own dispositions, retracts wrong kills, re-derives, re-proposes lessons."
-                          onClick={() => reevaluate(it)}>
-                    {reevaluating[it.item_id] ? 'Re-evaluating…' : '↻ Re-evaluate'}</button>
-                </div>
-              </div>
-            ))}
+            {openItems.map(disposedCard)}
           </div>
         )}
+        <div className="tier-group">
+          <div className="tier-band tb-concluded">
+            <span className="tb-label">CONCLUDED</span>
+            <span className="tb-note">fully disposed</span>
+            <span className="tb-count mono">{concluded.length}</span>
+          </div>
+          {concluded.length === 0
+            ? <div className="item" style={{ color: 'var(--fg-3)', fontSize: 12 }}>None fully disposed yet.</div>
+            : concluded.map(disposedCard)}
+        </div>
       </div>
     </>
   );

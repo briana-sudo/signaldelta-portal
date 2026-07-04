@@ -7,9 +7,33 @@
 //                             needed after a deploy so /sm/readmodel serves live
 //                             7688 data — clickable, no terminal.
 // Both control the SERVICE only; the research firewall is unchanged.
+import { useState } from 'react';
 import logoMark from '../assets/logo-mark.svg';
 
 const TABS = ['Coverage', 'Board', 'In progress', 'Timeline', 'Data needs'];
+
+// plain-English glossary — the operator should never need the chat thread to decode
+// his own console.
+const GLOSSARY = [
+  ['Approve', 'runs a test (fetches data, spends compute) — the only button that executes'],
+  ['Re-judge stored results', 're-applies the fixed rules + LLM to numbers already on file — no data fetched'],
+  ['Bank', 'the engine remembers this lesson permanently (loads into every future answer)'],
+  ['Unbank', 'forget a banked lesson (removed from memory; history kept)'],
+];
+const DOTS = [['#B4462E', 'killed'], ['#B07CFF', 'inconclusive — needs a powered re-test'], ['#34D399', 'retained'], ['#00C2FF', 'untested']];
+
+function Glossary({ onClose }) {
+  return (
+    <div className="glossary-pop" onClick={(e) => e.stopPropagation()}>
+      <div className="glossary-head">What the buttons do<button className="rr-x" onClick={onClose}>✕</button></div>
+      {GLOSSARY.map(([k, v]) => (<div key={k} className="glossary-row"><b>{k}</b><span>{v}</span></div>))}
+      <div className="glossary-dots-h">Map dot colors</div>
+      <div className="glossary-dots">
+        {DOTS.map(([c, label]) => (<span key={label}><i style={{ background: c }} />{label}</span>))}
+      </div>
+    </div>
+  );
+}
 
 const LABEL = {
   running: 'Discovery engine running', stopped: 'Discovery engine stopped',
@@ -24,9 +48,10 @@ const PLABEL = {
 };
 
 export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart, onStop,
-                                proxyStatus, proxyHelperBacked, onProxyRestart, proxyCommit, onProxyUpdateRestart }) {
+                                proxyStatus, proxyHelperBacked, onProxyRestart, proxyCommit, onProxyUpdateRestart, bundle }) {
   const st = engineStatus || 'unknown';
   const clickable = st === 'running' || st === 'stopped';
+  const [glossary, setGlossary] = useState(false);
 
   function toggle() {
     if (st === 'stopped') onStart();
@@ -60,6 +85,14 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
         ))}
       </div>
       <div className="spacer" />
+      <button className="glossary-btn" title="What does everything mean?" onClick={() => setGlossary((v) => !v)}>?</button>
+      {glossary && <Glossary onClose={() => setGlossary(false)} />}
+      {bundle?.id && (
+        <span className={`commit-chip${bundle.stale ? ' stale' : ''}`}
+              title={bundle.stale ? `Serving bundle ${bundle.id}; latest deploy is ${bundle.latest} — hard-refresh to update` : `Frontend bundle ${bundle.id} (latest)`}>
+          <span className="dot" />ui {bundle.id}{bundle.stale ? ' · update ⚠' : ''}
+        </span>
+      )}
       {proxyCommit?.running_commit && (
         <span className={`commit-chip${stale ? ' stale' : ''}`}
               title={stale

@@ -389,3 +389,27 @@
 .commit-chip.stale{color:var(--warning);border-color:color-mix(in srgb,var(--warning) 40%,transparent)}
 .commit-chip .dot{width:6px;height:6px;border-radius:50%;background:var(--success)}
 .commit-chip.stale .dot{background:var(--warning)}
+
+/* OPEN section + ghost Re-judge button */
+.tier-band.tb-open{background:color-mix(in srgb,var(--warn,#c8962a) 14%,transparent);color:var(--warn,#c8962a)}
+.b-ghost{background:transparent;color:var(--fg-3);border:1px dashed var(--line-2)}
+.b-ghost:hover:not(:disabled){color:var(--fg-2);border-color:var(--fg-4)}
+/* re-judge row + badge (no gate) */
+.ip-badge.rejudge{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
+.rj-row td.hint{font-style:italic}
+/* re-judge report block */
+.rr-rejudge .rr-block:first-child{border-top:none}
+/* trust: glossary popover + bundle chip */
+.glossary-btn{width:24px;height:24px;border-radius:50%;border:1px solid var(--line-2);background:var(--bg-panel);color:var(--fg-2);cursor:pointer;font-weight:700;font-size:12px}
+.glossary-btn:hover{color:var(--fg-1);border-color:var(--fg-4)}
+.glossary-pop{position:absolute;top:52px;right:16px;z-index:60;width:min(420px,92vw);background:#0F1E33;border:1px solid rgba(0,194,255,.22);border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.5);padding:14px 16px}
+.glossary-head{display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:13px;color:#fff;margin-bottom:10px}
+.glossary-row{display:grid;grid-template-columns:150px 1fr;gap:10px;padding:6px 0;font-size:12px;color:var(--fg-2);border-top:1px solid rgba(255,255,255,.05)}
+.glossary-row b{color:var(--accent);font-weight:600}
+.glossary-dots-h{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--fg-3);margin:10px 0 6px}
+.glossary-dots{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--fg-2)}
+.glossary-dots span{display:flex;align-items:center;gap:6px}
+.glossary-dots i{width:10px;height:10px;border-radius:2px;display:block}
+/* lessons never truncate — full text, wrap long words, scroll if huge */
+.lesson-text,.rr-ltext{white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;max-height:none}
+.lesson-text{max-height:320px;overflow:auto}

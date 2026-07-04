@@ -14,6 +14,7 @@ import InProgress from './components/InProgress.jsx';
 import AnalystPanel from './components/AnalystPanel.jsx';
 import RunRoom from './components/RunRoom.jsx';
 import { mergeRuns, findRun, computeAttention } from './runs.js';
+import { BUILD_ID } from '../buildInfo.js';
 import { downloadMd, renderMd } from './mdExport.js';
 import './discovery.css';
 
@@ -28,6 +29,7 @@ export default function DiscoveryApp({ contract }) {
   const [proxy, setProxy] = useState('unknown');     // running | restarting | stopped | unreachable | unknown
   const [proxyHelper, setProxyHelper] = useState(false);  // SM_ProxyHelper up → restarts always work
   const [proxyCommit, setProxyCommit] = useState({});     // {running_commit, tree_commit, stale}
+  const [bundle, setBundle] = useState({ id: BUILD_ID, stale: false });  // served vs latest Pages deploy
   const [costingQ, setCostingQ] = useState(null);    // a costing question handed to the assistant
   const [resolutions, setResolutions] = useState({}); // surface_id -> operator's recorded answer
   const [probe, setProbe] = useState({ running: null, queue: [], done: [] });  // live probe-run state
@@ -50,6 +52,20 @@ export default function DiscoveryApp({ contract }) {
   }, [client]);
 
   useEffect(() => { let live = true; reloadData().catch(() => {}); return () => { live = false; }; }, [reloadData]);
+
+  // FRONTEND BUNDLE VERSION — compare this (baked) build to version.json (always the
+  // latest Pages deploy, fetched no-cache). Differ → the browser is serving a stale
+  // bundle (a newer deploy exists). Kills "hard-refresh and hope".
+  useEffect(() => {
+    let live = true;
+    const check = () => fetch(new URL('version.json', document.baseURI).href, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v) => { if (live && v && v.build) setBundle({ id: BUILD_ID, latest: v.build, stale: v.build !== BUILD_ID }); })
+      .catch(() => {});
+    check();
+    const id = setInterval(check, 60000);
+    return () => { live = false; clearInterval(id); };
+  }, []);
 
   // poll the engine power-switch status so the topbar button reflects the true
   // service state (running/starting/stopping/stopped/not-installed).
@@ -154,7 +170,7 @@ export default function DiscoveryApp({ contract }) {
       <Topbar tab={tab} setTab={setTab} cellsMapped={state.cells_mapped || 0}
               engineStatus={engine} onStart={onStart} onStop={onStop}
               proxyStatus={proxy} proxyHelperBacked={proxyHelper} onProxyRestart={onProxyRestart}
-              proxyCommit={proxyCommit} onProxyUpdateRestart={onProxyUpdateRestart} />
+              proxyCommit={proxyCommit} onProxyUpdateRestart={onProxyUpdateRestart} bundle={bundle} />
       <div className="main">
         <div className="stage">
           {tab === 'Coverage' && (

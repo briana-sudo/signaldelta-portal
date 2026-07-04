@@ -6,6 +6,7 @@
   "description": "SignalDelta operator portal — Phase 1.1 React build, reads Neo4j on 60s poll, deploys to GitHub Pages",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/gen-version.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run"

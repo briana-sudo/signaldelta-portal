@@ -71,7 +71,7 @@ describe('board decision → resolve API (gated-write intent)', () => {
                      kind: 'Cleared', title: 'V-015 payment-cycle flows', age: 'now',
                      disposition: 'killed (all flows null, as tested)' }];
     render(<BoardQueue contract={{ resolve: vi.fn(), reevaluate }} items={items} onResolved={vi.fn()} />);
-    fireEvent.click(screen.getByText(/Re-evaluate/i));
+    fireEvent.click(screen.getByRole('button', { name: /Re-judge/i }));   // "↻ Re-judge stored results" — no data fetched
     await waitFor(() => expect(reevaluate).toHaveBeenCalledWith('new-search-surface:V-015'));
   });
   it('terminus proposals render provenance badges (derived / combination) and survive missing meta/options', () => {
@@ -417,7 +417,7 @@ describe('decision queue readiness sort', () => {
     items[1].kind = 'Needs build'; items[0].kind = 'Needs broker';
     const { container } = render(<BoardQueue contract={{}} items={items} onResolved={() => {}} />);
     const bands = [...container.querySelectorAll('.tier-band .tb-label')].map((e) => e.textContent);
-    expect(bands).toEqual(['RUNNABLE NOW', 'NEEDS DATA', 'NEEDS BUILD', 'NEEDS BROKER']);
+    expect(bands.slice(0, 4)).toEqual(['RUNNABLE NOW', 'NEEDS DATA', 'NEEDS BUILD', 'NEEDS BROKER']);  // CONCLUDED band follows
     expect(container.querySelector('.item .ttl').textContent).toMatch(/V-015/);   // runnable-now tops the board
   });
 
@@ -654,7 +654,7 @@ describe('Run Room + terminus report', () => {
   it('RunRoom renders the report + version diff, and Bank/Reject are inline', () => {
     const onBank = vi.fn();
     render(<RunRoom run={run} slices={slices} onClose={vi.fn()} onBank={onBank} onReject={vi.fn()} />);
-    expect(screen.getByText('Terminus report')).toBeTruthy();
+    expect(screen.getByText('Run report')).toBeTruthy();
     expect(screen.getByText('underpowered')).toBeTruthy();          // classification block
     expect(screen.getByText(/V-015-TDF-FULL powered re-test/)).toBeTruthy();   // derivation card
     expect(screen.getByText(/Correction history/i)).toBeTruthy();   // versioning
@@ -714,6 +714,43 @@ describe('Run Room + terminus report', () => {
 
   it('empty attention → nothing needs you', () => {
     expect(computeAttention({ runs: [], board: [], lessons: [] })).toHaveLength(0);
+  });
+
+  it('map dots derive from runs (not stored) — V-015 strip = 1 killed + 2 inconclusive + rest blue', () => {
+    const grid = [{ surface: 'V-015', status: 'whitespace', cells: Array(8).fill({ status: 'whitespace' }) }];
+    const runs = [
+      { parent: 'new-search-surface:V-015', recipe_id: 'V-015-TOM', result: { gate_pass: false, t: 0.03, n: 1704, edge_pct_per_day: 0.0018, gate: { min_abs_t: 2.0, direction: 'positive' } } },
+      { parent: 'new-search-surface:V-015', recipe_id: 'V-015-DFC', result: { gate_pass: false, t: 0.95, n: 27, edge_pct_per_day: 0.36, gate: { min_abs_t: 2.0, direction: 'positive' } } },
+      { parent: 'new-search-surface:V-015', recipe_id: 'V-015-TDF', result: { gate_pass: false, t: 1.61, n: 576, edge_pct_per_day: 0.14, gate: { min_abs_t: 2.0, direction: 'positive' } } },
+    ];
+    const cells = deriveCellStatuses(grid, runs)[0].cells;
+    const count = (s) => cells.filter((c) => c.status === s).length;
+    expect(count('killed')).toBe(1);               // TOM red
+    expect(count('tested-inconclusive')).toBe(2);  // DFC + TDF violet
+    expect(count('whitespace')).toBe(5);           // rest blue
+  });
+
+  it('re-judge Recent row: no gate/FAIL badge; a real summary', () => {
+    const probe = { running: null, queue: [], done: [{ item_id: 'RETERMINUS#x', recipe_id: 'RETERMINUS', kind: 'reterminus',
+      title: 'Re-evaluate V-015', result: { target: 'new-search-surface:V-015', flips: [{ recipe_id: 'V-015-TDF', from: 'killed', to: 'inconclusive' }], reevaluated: 3 } }] };
+    render(<InProgress probe={probe} onOpenRun={vi.fn()} />);
+    expect(screen.getByText(/Re-judge · V-015/)).toBeTruthy();
+    expect(screen.getByText(/1 flip · 3 components re-judged/)).toBeTruthy();
+    expect(screen.queryByText('FAIL')).toBeNull();     // a re-judge has no gate — no lying FAIL badge
+    expect(screen.getByText('re-judged')).toBeTruthy();
+  });
+
+  it('section logic: OPEN item is not under CONCLUDED', () => {
+    const items = [{ item_id: 'new-search-surface:V-015', status: 'OPEN', title: 'V-015', disposition: 'open — underpowered flows' }];
+    const { container } = render(<BoardQueue contract={{ resolve: vi.fn(), reevaluate: vi.fn() }} items={items} onResolved={vi.fn()} onOpenRun={vi.fn()} />);
+    const bands = [...container.querySelectorAll('.tier-band .tb-label')].map((e) => e.textContent);
+    expect(bands).toContain('OPEN');
+    expect(bands).toContain('CONCLUDED');
+    // the V-015 card sits inside the OPEN group, not CONCLUDED
+    const openGroup = [...container.querySelectorAll('.tier-group')].find((g) => g.querySelector('.tb-open'));
+    expect(openGroup.textContent).toMatch(/V-015/);
+    const concludedGroup = [...container.querySelectorAll('.tier-group')].find((g) => g.querySelector('.tb-concluded'));
+    expect(concludedGroup.textContent).toMatch(/None fully disposed yet/);
   });
 
   it('deriveCellStatuses reads a surface true-state from run results (cold, not stored)', () => {

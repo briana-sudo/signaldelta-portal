@@ -61,7 +61,7 @@ export default function CoverageMap({ grid, runs = [], onOpenRun }) {
               <div className="drill-runs">
                 <span className="drill-runs-h">runs behind {drill.surface}:</span>
                 {rs.map((r) => (
-                  <button key={r.item_id} className="drill-run mono" title="open Run Room"
+                  <button key={r.item_id} className="drill-run mono" title="open run report"
                           onClick={() => onOpenRun && onOpenRun(r.item_id)}>
                     {r.recipe_id} · {String(r.disposition || r.status || '').split(' ')[0]}
                   </button>
