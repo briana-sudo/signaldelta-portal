@@ -3,7 +3,35 @@
 // via /sm/probe/status), so a refresh survives. Read-only.
 const STAGES = ['queued', 'validating recipe', 'fetching data', 'building signal', 'computing', 'power-gate', 'result'];
 
+const isReterminus = (run) => run && (run.kind === 'reterminus' || run.recipe_id === 'RETERMINUS'
+  || /re-evaluate/i.test(run.title || ''));
+
+// RE-TERMINUS (and any non-probe job) streams its OWN stages — render them straight
+// from the run's steps, in order, with the current stage active.
+function GenericStages({ run }) {
+  const steps = run.steps || [];
+  const cur = run.stage;
+  const seen = steps.map((s) => s.stage);
+  const list = seen.includes(cur) ? seen : [...seen, cur];
+  return (
+    <ol className="ip-stages">
+      {list.filter(Boolean).map((st, i) => {
+        const detail = steps.find((s) => s.stage === st)?.detail || '';
+        const state = st === cur ? 'active' : i < list.indexOf(cur) || cur === 'result' ? 'done' : 'todo';
+        return (
+          <li key={`${st}-${i}`} className={`ip-stage ${state}`}>
+            <span className="ip-dot" />
+            <span className="ip-sname">{st}</span>
+            <span className="ip-sdetail mono">{detail}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function StageList({ run }) {
+  if (isReterminus(run)) return <GenericStages run={run} />;
   const done = new Set((run.steps || []).map((s) => s.stage));
   const detailOf = (st) => (run.steps || []).find((s) => s.stage === st)?.detail || '';
   const curIdx = STAGES.indexOf(run.stage);

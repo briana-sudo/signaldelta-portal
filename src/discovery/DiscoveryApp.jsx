@@ -30,6 +30,7 @@ export default function DiscoveryApp({ contract }) {
   const [probe, setProbe] = useState({ running: null, queue: [], done: [] });  // live probe-run state
   const [lessons, setLessons] = useState([]);        // gated learning (SMLesson)
   const restartingUntil = useRef(0);                 // ms deadline while a restart is in flight
+  const prevDone = useRef(0);                         // probe/re-terminus completions seen (→ map reload)
 
   // (re)load the read-model slices — called on mount and again once the proxy
   // comes back after a restart, so the board reflects the now-live 7688 data.
@@ -81,15 +82,24 @@ export default function DiscoveryApp({ contract }) {
   useEffect(() => {
     let live = true;
     const tick = async () => {
-      try { const p = await client.probeStatus(); if (live) setProbe(p || { running: null, queue: [], done: [] }); }
-      catch { /* keep last */ }
+      try {
+        const p = await client.probeStatus();
+        if (live) {
+          setProbe(p || { running: null, queue: [], done: [] });
+          // a run OR a re-terminus just concluded → reload grid+board so the map
+          // repaints from the new dispositions (map liveness) and the board reflects
+          // corrected dispositions / new derived items.
+          const dc = (p?.done || []).length;
+          if (dc > prevDone.current) { prevDone.current = dc; reloadData().catch(() => {}); }
+        }
+      } catch { /* keep last */ }
       try { const ls = await client.lessons?.(); if (live && ls) setLessons(ls); }
       catch { /* keep last */ }
     };
     tick();
     const id = setInterval(tick, 2500);
     return () => { live = false; clearInterval(id); };
-  }, [client]);
+  }, [client, reloadData]);
 
   const onBankLesson = async (id) => { await client.bankLesson?.(id); setLessons(await client.lessons?.() || []); };
   const onRejectLesson = async (id) => { await client.rejectLesson?.(id); setLessons(await client.lessons?.() || []); };

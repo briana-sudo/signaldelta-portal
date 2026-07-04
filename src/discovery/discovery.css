@@ -300,3 +300,10 @@
 .prov-badge{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:6px;white-space:nowrap}
 .prov-derived{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)}
 .prov-combo{background:color-mix(in srgb,var(--warn,#c8962a) 20%,transparent);color:var(--warn,#c8962a)}
+
+/* CONCLUDED board section — the engine re-judges its own work (Re-evaluate) */
+.tier-band.tb-concluded{background:color-mix(in srgb,var(--fg-4) 14%,transparent);color:var(--fg-2)}
+.concluded-item{opacity:.92}
+.concluded-item .kind.st-cleared{background:color-mix(in srgb,#b4462e 18%,transparent);color:#d9714f}
+.concluded-item .kind.st-retained{background:color-mix(in srgb,var(--success) 18%,transparent);color:var(--success)}
+.concluded-item .kind.st-open{background:color-mix(in srgb,var(--warn,#c8962a) 20%,transparent);color:var(--warn,#c8962a)}

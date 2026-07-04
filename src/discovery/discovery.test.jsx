@@ -63,6 +63,15 @@ describe('board decision → resolve API (gated-write intent)', () => {
     expect(src).not.toMatch(/session|driver|MERGE|CREATE|\.run\(/i);
     expect(src).toMatch(/contract\.resolve/);
   });
+  it('concluded items show Re-evaluate, which calls the deliberate-review intent (not a graph write)', async () => {
+    const reevaluate = vi.fn(async () => ({ state: 'queued' }));
+    const items = [{ item_id: 'new-search-surface:V-015', type: 'new-search-surface', status: 'CLEARED',
+                     kind: 'Cleared', title: 'V-015 payment-cycle flows', age: 'now',
+                     disposition: 'killed (all flows null, as tested)' }];
+    render(<BoardQueue contract={{ resolve: vi.fn(), reevaluate }} items={items} onResolved={vi.fn()} />);
+    fireEvent.click(screen.getByText(/Re-evaluate/i));
+    await waitFor(() => expect(reevaluate).toHaveBeenCalledWith('new-search-surface:V-015'));
+  });
   it('terminus proposals render provenance badges (derived / combination) and survive missing meta/options', () => {
     const items = [
       { item_id: 'D-1', type: 'new-search-surface', status: 'PENDING', kind: 'Needs data',

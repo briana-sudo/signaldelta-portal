@@ -24,10 +24,15 @@ const TIERS = [
 const RANK = { 'Runnable now': 0, 'Needs data': 1, 'Needs build': 2, 'Needs broker': 3 };
 const evOf = (i) => (typeof i.ev === 'number' ? i.ev : 0);
 
+const CONCLUDED = ['CLEARED', 'RETAINED', 'OPEN'];
+const STATUS_CLASS = { CLEARED: 'st-cleared', RETAINED: 'st-retained', OPEN: 'st-open' };
+
 export default function BoardQueue({ contract, items, onResolved, probe }) {
   const [busy, setBusy] = useState(null);
   const [held, setHeld] = useState({});             // item_id -> true (Hold visible feedback)
+  const [reevaluating, setReevaluating] = useState({});  // item_id -> true (Re-evaluate queued)
   const open = items.filter((i) => i.status === 'PENDING');
+  const concluded = items.filter((i) => CONCLUDED.includes(i.status));
   const sorted = [...open].sort((a, b) =>
     (RANK[a.kind] ?? 9) - (RANK[b.kind] ?? 9) || evOf(b) - evOf(a));
   const other = sorted.filter((i) => RANK[i.kind] === undefined);
@@ -53,6 +58,16 @@ export default function BoardQueue({ contract, items, onResolved, probe }) {
     setBusy(null);
     if (res.held) { setHeld((h) => ({ ...h, [item.item_id]: true })); return; }
     if (res.resolved) onResolved(item.item_id, res.new_status);
+  }
+
+  // Re-evaluate = the deliberate-review path: the ENGINE re-runs terminus on the
+  // stored results with the fixed taxonomy + LLM (corrects dispositions, retracts its
+  // own wrong kills, re-derives). Intent only — it streams to the In-progress tab.
+  async function reevaluate(item) {
+    setBusy(item.item_id);
+    await contract.reevaluate?.(item.item_id);
+    setBusy(null);
+    setReevaluating((r) => ({ ...r, [item.item_id]: true }));
   }
 
   const card = (it) => {
@@ -142,6 +157,31 @@ export default function BoardQueue({ contract, items, onResolved, probe }) {
           <div className="tier-group">
             <div className="tier-band tb-x"><span className="tb-label">OTHER</span><span className="tb-count mono">{other.length}</span></div>
             {other.map(card)}
+          </div>
+        )}
+        {concluded.length > 0 && (
+          <div className="tier-group">
+            <div className="tier-band tb-concluded">
+              <span className="tb-label">CONCLUDED</span>
+              <span className="tb-note">the engine re-judges its own work</span>
+              <span className="tb-count mono">{concluded.length}</span>
+            </div>
+            {concluded.map((it) => (
+              <div key={it.item_id} className="item concluded-item">
+                <div className="row1">
+                  <span className={`kind ${STATUS_CLASS[it.status] || ''}`}>{it.status}</span>
+                  <span className="mono" style={{ color: 'var(--fg-3)', fontSize: 11, marginLeft: 'auto' }}>{it.age}</span>
+                </div>
+                <div className="ttl">{it.title}</div>
+                <div className="rec">{it.disposition || '—'}</div>
+                <div className="acts">
+                  <button className="b b-sec" disabled={busy === it.item_id || reevaluating[it.item_id]}
+                          title="The engine re-runs terminus on the stored results with the fixed taxonomy + LLM — corrects its own dispositions, retracts wrong kills, re-derives, re-proposes lessons."
+                          onClick={() => reevaluate(it)}>
+                    {reevaluating[it.item_id] ? 'Re-evaluating…' : '↻ Re-evaluate'}</button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

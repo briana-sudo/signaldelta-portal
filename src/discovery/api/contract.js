@@ -188,6 +188,20 @@ function mockContract() {
     // live probe run state (mock: advance the running job through the stages)
     async probeStatus() {
       const r = probe.running;
+      if (r && r.kind === 'reterminus') {                 // re-terminus streams its own stages
+        const S = r.rt_steps;
+        const idx = Math.min(S.length - 1, Math.floor((now() - r.since) / 700));
+        r.stage = S[idx];
+        r.steps = S.slice(0, idx + 1).map((s) => ({ stage: s, detail: '' }));
+        if (idx >= S.length - 1 && now() - r.since > S.length * 700 + 400) {
+          probe.done.unshift({ ...r, status: 'done', disposition: 'reevaluated',
+            result: { recipe_id: 'RETERMINUS', disposition: 'reevaluated', note: `${r.title} — flows re-judged` } });
+          probe.done = probe.done.slice(0, 8);
+          probe.running = probe.queue.shift() || null;
+          if (probe.running) probe.running.since = now();
+        }
+        return structuredClone({ running: probe.running, queue: probe.queue, done: probe.done });
+      }
       if (r) {
         const idx = Math.min(P_STAGES.length - 1, Math.floor((now() - r.since) / 700));
         r.stage = P_STAGES[idx];
@@ -204,6 +218,19 @@ function mockContract() {
         }
       }
       return structuredClone({ running: probe.running, queue: probe.queue, done: probe.done });
+    },
+    // RE-EVALUATE (mock): stream a re-terminus job through the In-progress tab, then
+    // flip the item's disposition + repaint (demo of the engine correcting itself).
+    async reevaluate(item_id) {
+      const it = board.find((b) => b.item_id === item_id);
+      const surface = String(item_id).split(':').pop();
+      probe.queue.push({ item_id: `RETERMINUS#${item_id}`, recipe_id: 'RETERMINUS', kind: 'reterminus',
+        title: `Re-evaluate ${surface}`, stage: 'queued', steps: [],
+        rt_steps: ['loading stored results', `re-judging ${surface} flows`, 'retracting stale kills',
+          're-deriving (powered re-tests)', 'repainting map', 'result'] });
+      if (!probe.running) { probe.running = probe.queue.shift(); probe.running.since = now(); }
+      if (it) it.status = 'OPEN';   // engine reopens: an underpowered flow needs a powered re-test
+      return { state: 'queued', item_id: `RETERMINUS#${item_id}` };
     },
     // INTENT — credential goes to the server-side field, never returned/echoed
     async onboard({ source_id, entitlement, credential, watermark, content_hash }) {
@@ -295,6 +322,9 @@ function liveContract() {
     async query(slice) { return q(slice); },
     async exportMd(slice) { return file.exportMd(slice); },
     async resolve(payload) { return post('/sm/resolve', payload).catch(() => ({ rejected: true, reason: 'proxy unreachable — start it to enable gated writes' })); },
+    // RE-EVALUATE (deliberate review): the ENGINE re-judges its own concluded work
+    // with the fixed taxonomy + LLM, streaming to In-progress. Intent only — a run-request.
+    async reevaluate(item_id) { return post('/sm/reevaluate', { item_id }).catch(() => ({ error: 'proxy unreachable — start it to re-evaluate' })); },
     async onboard(payload) { return post('/sm/onboard', payload).catch(() => ({ source_id: payload.source_id, configured: false })); },
     // INTENT — surfaces a costing/research request (never buys); local ack if the
     // proxy has no /sm/research worker yet (results fill the fields when it runs).
