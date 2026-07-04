@@ -7,7 +7,7 @@ import { downloadMd } from '../mdExport.js';
 
 const STATUS = (s) => (s || 'unknown').toUpperCase();
 
-export default function RunRoom({ run, slices, onClose, onBank, onReject }) {
+export default function RunRoom({ run, slices, onClose, onBank, onReject, onReevaluate, runBusy }) {
   if (!run) return null;
   const report = composeReport(run, slices || {});
   const steps = run.progress || [];
@@ -27,6 +27,11 @@ export default function RunRoom({ run, slices, onClose, onBank, onReject }) {
             </div>
           </div>
           <span className={`rr-badge ${String(run.status).toLowerCase()}`}>{STATUS(run.status)}</span>
+          {run.parent && onReevaluate && String(run.status).toLowerCase() === 'done' && (
+            <button className="b b-sec" disabled={runBusy}
+                    title={runBusy ? 'a run is active — one at a time' : 'Re-evaluate this surface (deliberate review)'}
+                    onClick={() => onReevaluate(run.parent)}>↻ Re-evaluate</button>
+          )}
           <button className="rr-x" onClick={onClose} aria-label="close">✕</button>
         </div>
 

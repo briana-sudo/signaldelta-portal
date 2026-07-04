@@ -188,7 +188,8 @@ export default function DiscoveryApp({ contract }) {
       {/* THE RUN ROOM — opens for any run from In-progress / board chips / map drill / timeline */}
       {openRunObj && (
         <RunRoom run={openRunObj} slices={{ lessons, board, correlations }}
-                 onClose={() => setOpenRun(null)} onBank={onBankLesson} onReject={onRejectLesson} />
+                 onClose={() => setOpenRun(null)} onBank={onBankLesson} onReject={onRejectLesson}
+                 onReevaluate={(pid) => client.reevaluate?.(pid)} runBusy={!!probe.running} />
       )}
       {/* FLOATING analyst — draggable/resizable/minimizable, at app root (not the rail) */}
       <AnalystPanel contract={client} costingQuestion={costingQ} onCostingResolved={onCostingResolved} />
