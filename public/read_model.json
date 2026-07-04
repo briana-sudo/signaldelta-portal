@@ -68,6 +68,148 @@
    "options": [
     "hold"
    ]
+  },
+  {
+   "item_id": "open:engine-change-needed:small-illiquid-long-term",
+   "type": "engine-change-needed",
+   "status": "PENDING",
+   "kind": "Needs build",
+   "age": "seed",
+   "title": "Small/illiquid long-term-reversal variant",
+   "meta": [
+    "needs-build",
+    "untested-open (\u00a74)"
+   ],
+   "recommendation": "Untested-open surface \u2014 surfaced for a probe (not concluded, not occupied).",
+   "version": 1,
+   "options": [
+    "hold"
+   ]
+  },
+  {
+   "item_id": "open:gated-option:ivol-max-distress-short-",
+   "type": "gated-option",
+   "status": "PENDING",
+   "kind": "Needs data",
+   "age": "seed",
+   "title": "IVOL / MAX / distress short-leg",
+   "meta": [
+    "needs-data",
+    "untested-open (\u00a74)"
+   ],
+   "recommendation": "Untested-open surface \u2014 surfaced for a probe (not concluded, not occupied).",
+   "version": 1,
+   "options": [
+    "hold"
+   ]
+  },
+  {
+   "item_id": "open:new-search-surface:opportunistic-cluster-ex",
+   "type": "new-search-surface",
+   "status": "PENDING",
+   "kind": "Runnable now",
+   "age": "seed",
+   "title": "Opportunistic / cluster / executive insider at large-cap",
+   "meta": [
+    "runnable-now",
+    "untested-open (\u00a74)"
+   ],
+   "recommendation": "Untested-open surface \u2014 surfaced for a probe (not concluded, not occupied).",
+   "version": 1,
+   "options": [
+    "approve",
+    "hold"
+   ]
+  },
+  {
+   "item_id": "open:new-search-surface:sentiment-text-change-no",
+   "type": "new-search-surface",
+   "status": "PENDING",
+   "kind": "Runnable now",
+   "age": "seed",
+   "title": "Sentiment/text change-not-level",
+   "meta": [
+    "runnable-now",
+    "untested-open (\u00a74)"
+   ],
+   "recommendation": "Untested-open surface \u2014 surfaced for a probe (not concluded, not occupied).",
+   "version": 1,
+   "options": [
+    "approve",
+    "hold"
+   ]
+  },
+  {
+   "item_id": "gen:engine-change-needed:relational_graph:cross_sectional",
+   "type": "engine-change-needed",
+   "status": "PENDING",
+   "kind": "Needs build",
+   "age": "seed",
+   "title": "Probe Relational \u00b7 graph \u2014 cross_sectional",
+   "meta": [
+    "needs-build",
+    "score 0.88",
+    "owned-reachable"
+   ],
+   "recommendation": "Engine-enumerated whitespace: discovery 0.82, orthogonality 0.90. free (EDGAR/graph) \u2014 owned",
+   "version": 1,
+   "options": [
+    "hold"
+   ]
+  },
+  {
+   "item_id": "gen:engine-change-needed:llm_events:cross_sectional",
+   "type": "engine-change-needed",
+   "status": "PENDING",
+   "kind": "Needs build",
+   "age": "seed",
+   "title": "Probe LLM \u00b7 events \u2014 cross_sectional",
+   "meta": [
+    "needs-build",
+    "score 0.69",
+    "owned-reachable"
+   ],
+   "recommendation": "Engine-enumerated whitespace: discovery 0.65, orthogonality 0.90. free (EDGAR text) + LLM classify",
+   "version": 1,
+   "options": [
+    "hold"
+   ]
+  },
+  {
+   "item_id": "gen:gated-option:borrow_dynamics:cross_sectional",
+   "type": "gated-option",
+   "status": "PENDING",
+   "kind": "Needs data",
+   "age": "seed",
+   "title": "Probe Borrow \u00b7 dynamics \u2014 cross_sectional",
+   "meta": [
+    "needs-data",
+    "score 0.66",
+    "gated \u00b7 $/mo borrow-fee feed"
+   ],
+   "recommendation": "Engine-enumerated whitespace: discovery 0.58, orthogonality 0.90. $/mo borrow-fee feed",
+   "version": 1,
+   "options": [
+    "hold"
+   ]
+  },
+  {
+   "item_id": "gen:gated-option:options_skew:vol_managed",
+   "type": "gated-option",
+   "status": "PENDING",
+   "kind": "Needs data",
+   "age": "seed",
+   "title": "Probe Options \u00b7 skew \u2014 vol_managed",
+   "meta": [
+    "needs-data",
+    "score 0.63",
+    "gated \u00b7 $/mo options-implied (skew/IV)"
+   ],
+   "recommendation": "Engine-enumerated whitespace: discovery 0.72, orthogonality 0.90. $/mo options-implied (skew/IV)",
+   "version": 1,
+   "options": [
+    "hold"
+   ]
   }
  ],
  "state": {
@@ -76,8 +218,8 @@
   "program_state": "owned-exhausted; working the frontier",
   "retained_partials": 1,
   "window_budget": "sealed",
-  "cells_mapped": 71,
-  "queue": 4,
+  "cells_mapped": 1134,
+  "queue": 12,
   "killed": 20
  },
  "grid": [
@@ -172,6 +314,45 @@
    }
   },
   {
+   "surface": "relational_graph",
+   "name": "relational_graph",
+   "discovery_potential": 0.82,
+   "status": "whitespace",
+   "family": "relational_graph",
+   "note": "engine-enumerated",
+   "cells": [
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    }
+   ],
+   "counts": {
+    "open": 8,
+    "occupied": 0,
+    "killed": 0
+   }
+  },
+  {
    "surface": "V-020",
    "name": "V-020 defined-risk vol premium (XSP put credit",
    "discovery_potential": 0.72,
@@ -211,12 +392,129 @@
    }
   },
   {
+   "surface": "options_skew",
+   "name": "options_skew",
+   "discovery_potential": 0.72,
+   "status": "gated",
+   "family": "options_skew",
+   "note": "engine-enumerated",
+   "cells": [
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    }
+   ],
+   "counts": {
+    "open": 8,
+    "occupied": 0,
+    "killed": 0
+   }
+  },
+  {
+   "surface": "llm_events",
+   "name": "llm_events",
+   "discovery_potential": 0.65,
+   "status": "whitespace",
+   "family": "llm_events",
+   "note": "engine-enumerated",
+   "cells": [
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    }
+   ],
+   "counts": {
+    "open": 8,
+    "occupied": 0,
+    "killed": 0
+   }
+  },
+  {
    "surface": "V-028",
    "name": "V-028 trend regime sleeve (managed-futures ETF",
    "discovery_potential": 0.58,
    "status": "gated",
    "family": "futures",
    "note": "needs-broker",
+   "cells": [
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    }
+   ],
+   "counts": {
+    "open": 8,
+    "occupied": 0,
+    "killed": 0
+   }
+  },
+  {
+   "surface": "borrow_dynamics",
+   "name": "borrow_dynamics",
+   "discovery_potential": 0.58,
+   "status": "gated",
+   "family": "borrow_dynamics",
+   "note": "engine-enumerated",
    "cells": [
     {
      "status": "gated"
@@ -621,5 +919,13 @@
    "name": "Sentiment/text change-not-level",
    "status": "untested-open"
   }
- ]
+ ],
+ "_generator": {
+  "enumerated": 1134,
+  "occupied": 36,
+  "corpus_killed": 243,
+  "promoted_whitespace": 213,
+  "surfaced": 4
+ },
+ "_resurfaced_killed": []
 }
