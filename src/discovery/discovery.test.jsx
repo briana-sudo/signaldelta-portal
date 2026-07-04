@@ -368,3 +368,78 @@ describe('proxy control button', () => {
     expect((await c.proxyRestart()).status).toBe('restarting');
   });
 });
+
+// --- decision queue: sorted by readiness tier, then EV within tier -----------
+describe('decision queue readiness sort', () => {
+  const mk = (id, kind, type, ev, title) => ({ item_id: id, type, status: 'PENDING', kind, ev,
+    age: 'seed', title, meta: [], recommendation: '', version: 1, options: ['hold'] });
+
+  it('tier bands render RUNNABLE-NOW → NEEDS-DATA → NEEDS-BUILD → NEEDS-BROKER', () => {
+    const items = [
+      mk('nk', 'setup-state', 'setup-state', 0.74, 'V-028'),
+      mk('nb', 'engine-change-needed', 'engine-change-needed', 0.82, 'V-008'),
+      mk('rn', 'new-search-surface', 'new-search-surface', 0.88, 'V-015'),
+      mk('nd', 'gated-option', 'gated-option', 0.78, 'V-020'),
+    ];
+    items[2].kind = 'Runnable now'; items[3].kind = 'Needs data';
+    items[1].kind = 'Needs build'; items[0].kind = 'Needs broker';
+    const { container } = render(<BoardQueue contract={{}} items={items} onResolved={() => {}} />);
+    const bands = [...container.querySelectorAll('.tier-band .tb-label')].map((e) => e.textContent);
+    expect(bands).toEqual(['RUNNABLE NOW', 'NEEDS DATA', 'NEEDS BUILD', 'NEEDS BROKER']);
+    expect(container.querySelector('.item .ttl').textContent).toMatch(/V-015/);   // runnable-now tops the board
+  });
+
+  it('within a tier, higher EV leads (V-008 over enumerated whitespace)', () => {
+    const items = [
+      mk('gen', 'engine-change-needed', 'engine-change-needed', 0.70, 'Probe relational'),
+      mk('v8', 'engine-change-needed', 'engine-change-needed', 0.82, 'V-008 event composite'),
+    ];
+    items.forEach((i) => (i.kind = 'Needs build'));
+    const { container } = render(<BoardQueue contract={{}} items={items} onResolved={() => {}} />);
+    const titles = [...container.querySelectorAll('.item .ttl')].map((e) => e.textContent);
+    expect(titles[0]).toMatch(/V-008/);
+  });
+
+  it('the REAL seed sorts V-015 top and V-008 leading needs-build', () => {
+    const RM = JSON.parse(fs.readFileSync(path.join(HERE, '..', '..', 'public', 'read_model.json'), 'utf8'));
+    const { container } = render(<BoardQueue contract={{}} items={RM.board} onResolved={() => {}} />);
+    const titles = [...container.querySelectorAll('.item .ttl')].map((e) => e.textContent);
+    expect(titles[0]).toMatch(/V-015/);
+    const groups = [...container.querySelectorAll('.tier-group')];
+    const nb = groups.find((g) => /NEEDS BUILD/.test(g.querySelector('.tb-label')?.textContent || ''));
+    expect(nb.querySelector('.item .ttl').textContent).toMatch(/V-008/);
+  });
+});
+
+// --- data-needs: richer fields + the Price-it/Research firewall ---------------
+describe('data-needs fields + price-it', () => {
+  const gated = [{ id: 'rel', surface: 'Relational · graph', blocker: 'needs-data', unlocks: '8 cells',
+    cost_yr: 'unpriced — research needed', monthly: 'unpriced — research needed', vendor: 'unpriced — research needed',
+    terms: 'unpriced — research needed', what_you_get: 'supplier/customer linkages',
+    tiers: 'unpriced — research needed', ev: 'unpriced — research needed', likely_death: 'gated-data-cost' }];
+
+  it('shows the priceable fields and "unpriced — research needed" where unknown', () => {
+    render(<DataNeeds contract={{}} gated={gated} />);
+    for (const label of ['Cost / yr', 'Monthly option', 'Vendor', 'Contract terms', 'What you get', 'Tiers']) {
+      expect(screen.getByText(label)).toBeTruthy();
+    }
+    expect(screen.getAllByText(/unpriced — research needed/).length).toBeGreaterThan(0);
+  });
+
+  it('"Price it / Research" surfaces a research request — never onboards or resolves', async () => {
+    const research = vi.fn(async () => ({ queued: true }));
+    const onboard = vi.fn(); const resolve = vi.fn();
+    render(<DataNeeds contract={{ research, onboard, resolve }} gated={gated} />);
+    fireEvent.click(screen.getByText('Price it / Research'));
+    await waitFor(() => expect(research).toHaveBeenCalledWith(expect.objectContaining({ surface_id: 'rel' })));
+    expect(onboard).not.toHaveBeenCalled();          // never buys
+    expect(resolve).not.toHaveBeenCalled();
+    expect(screen.getByText(/Research queued/i)).toBeTruthy();
+  });
+
+  it('mock research() is intent-only (queued, no credential/spend)', async () => {
+    const r = await makeContract('mock').research({ surface_id: 'options_skew' });
+    expect(r.queued).toBe(true);
+    expect(r.credential).toBeUndefined();
+  });
+});

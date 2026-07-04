@@ -53,13 +53,21 @@ const MOCK = {
       version: 1, options: ['approve', 'hold'] },
   ],
   gated: [
-    { id: 'crypto_onchain', surface: 'Crypto · on-chain', vendor: 'Glassnode API', price: '$26,400',
+    { id: 'crypto_onchain', surface: 'Crypto · on-chain', vendor: 'Glassnode API', blocker: 'needs-data',
+      cost_yr: '$26,400', monthly: 'yes · $2,500/mo', terms: 'annual, API, 30-day out',
+      what_you_get: 'on-chain flows, SOPR, exchange balances (BTC/ETH + top-50)', tiers: 'Advanced / Institutional',
       unlocks: '18 cells', ev: '+0.71', likely_death: 'crowding' },
-    { id: 'crypto_funding', surface: 'Funding', vendor: 'Amberdata API', price: '$14,900',
+    { id: 'crypto_funding', surface: 'Funding', vendor: 'Amberdata API', blocker: 'needs-data',
+      cost_yr: '$14,900', monthly: 'yes · $1,490/mo', terms: 'annual, API',
+      what_you_get: 'perp funding + basis across venues', tiers: 'Pro',
       unlocks: '8 cells', ev: '+0.63', likely_death: 'regime' },
-    { id: 'relational_graph', surface: 'Relational · graph', vendor: 'FactSet Revere', price: '$—',
-      unlocks: '8 cells', ev: '+0.55', likely_death: 'gated-data-cost' },
-    { id: 'options_skew', surface: 'Options · skew', vendor: 'ORATS file feed', price: '$9,200',
+    { id: 'relational_graph', surface: 'Relational · graph', vendor: 'unpriced — research needed', blocker: 'needs-data',
+      cost_yr: 'unpriced — research needed', monthly: 'unpriced — research needed', terms: 'unpriced — research needed',
+      what_you_get: 'supplier/customer + ownership linkages', tiers: 'unpriced — research needed',
+      unlocks: '8 cells', ev: 'unpriced — research needed', likely_death: 'gated-data-cost' },
+    { id: 'options_skew', surface: 'Options · skew', vendor: 'ORATS file feed', blocker: 'needs-data',
+      cost_yr: '$9,200', monthly: 'yes · $920/mo', terms: 'annual, flat file, T+1',
+      what_you_get: 'IV surface + skew history, US equities/ETFs', tiers: 'Data / Backtest',
       unlocks: '6 cells', ev: '+0.48', likely_death: 'capacity' },
   ],
   ledger: [
@@ -162,6 +170,12 @@ function mockContract() {
       const configured = credential != null && credential !== '';
       return { source_id, entitlement, configured, watermark, content_hash };  // NEVER the value
     },
+    // INTENT — "Price it / Research" surfaces a costing request; it NEVER buys or
+    // onboards (no credential, no spend) — just queues the task, gated like the rest.
+    async research({ surface_id, kind, surface }) {
+      return { queued: true, surface_id, kind: kind || 'price-research', surface,
+               note: 'costing task surfaced — no purchase, no onboarding' };
+    },
     // INTENT — analyst surfaces + routes, never enacts
     async analyst({ ask, attachment }) { return groundedAnalyst(ask, this.query?.bind(this), { attachment }); },
     _board: board,
@@ -227,6 +241,9 @@ function liveContract() {
     async exportMd(slice) { return file.exportMd(slice); },
     async resolve(payload) { return post('/sm/resolve', payload).catch(() => ({ rejected: true, reason: 'proxy unreachable — start it to enable gated writes' })); },
     async onboard(payload) { return post('/sm/onboard', payload).catch(() => ({ source_id: payload.source_id, configured: false })); },
+    // INTENT — surfaces a costing/research request (never buys); local ack if the
+    // proxy has no /sm/research worker yet (results fill the fields when it runs).
+    async research(payload) { return post('/sm/research', payload).catch(() => ({ queued: true, surface_id: payload.surface_id, note: 'surfaced locally — costing worker applies results when it runs' })); },
     // analyst runs client-side, grounded in the LIVE read model (deterministic; an
     // LLM analyst is a later server-side swap). "what's runnable now" -> V-015.
     async analyst({ ask, attachment }) { return groundedAnalyst(ask, q, { attachment }); },

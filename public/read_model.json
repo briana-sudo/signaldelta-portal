@@ -13,6 +13,8 @@
    ],
    "recommendation": "cheapest; zero new data; needs post-2024 re-verification (settlement + fund-landscape shifted). The engine's first free test.",
    "version": 1,
+   "ev": 0.88,
+   "blocker": "runnable-now",
    "options": [
     "approve",
     "hold"
@@ -31,6 +33,8 @@
    ],
    "recommendation": "descendant of Cell-1 (\u00a72). Needs the EDGAR parser build + the quant question: do two cost-hostile signals clear the cost bar *together* when each failed alone? Data is free; the blocker is engineering + a real test.",
    "version": 1,
+   "ev": 0.82,
+   "blocker": "needs-build",
    "options": [
     "hold"
    ]
@@ -48,6 +52,8 @@
    ],
    "recommendation": "cleanest counterparty story (hedgers pay for insurance); tradeable residual unproven \u2192 a data purchase to test.",
    "version": 1,
+   "ev": 0.78,
+   "blocker": "needs-data",
    "options": [
     "hold"
    ]
@@ -65,6 +71,8 @@
    ],
    "recommendation": "futures \u2260 Alpaca \u2014 needs a different broker/instrument setup. Explicitly a portfolio component (\"the half\"), not an alpha engine; must beat holding less equity.",
    "version": 1,
+   "ev": 0.74,
+   "blocker": "needs-broker",
    "options": [
     "hold"
    ]
@@ -82,6 +90,8 @@
    ],
    "recommendation": "Untested-open surface \u2014 surfaced for a probe (not concluded, not occupied).",
    "version": 1,
+   "ev": 0.4,
+   "blocker": "needs-build",
    "options": [
     "hold"
    ]
@@ -99,6 +109,8 @@
    ],
    "recommendation": "Untested-open surface \u2014 surfaced for a probe (not concluded, not occupied).",
    "version": 1,
+   "ev": 0.4,
+   "blocker": "needs-data",
    "options": [
     "hold"
    ]
@@ -116,6 +128,8 @@
    ],
    "recommendation": "Untested-open surface \u2014 surfaced for a probe (not concluded, not occupied).",
    "version": 1,
+   "ev": 0.4,
+   "blocker": "runnable-now",
    "options": [
     "approve",
     "hold"
@@ -134,6 +148,8 @@
    ],
    "recommendation": "Untested-open surface \u2014 surfaced for a probe (not concluded, not occupied).",
    "version": 1,
+   "ev": 0.4,
+   "blocker": "runnable-now",
    "options": [
     "approve",
     "hold"
@@ -153,6 +169,8 @@
    ],
    "recommendation": "Engine-enumerated whitespace: discovery 0.82, orthogonality 0.90. free (EDGAR/graph) \u2014 owned",
    "version": 1,
+   "ev": 0.7,
+   "blocker": "needs-build",
    "options": [
     "hold"
    ]
@@ -171,6 +189,8 @@
    ],
    "recommendation": "Engine-enumerated whitespace: discovery 0.65, orthogonality 0.90. free (EDGAR text) + LLM classify",
    "version": 1,
+   "ev": 0.65,
+   "blocker": "needs-build",
    "options": [
     "hold"
    ]
@@ -189,6 +209,8 @@
    ],
    "recommendation": "Engine-enumerated whitespace: discovery 0.58, orthogonality 0.90. $/mo borrow-fee feed",
    "version": 1,
+   "ev": 0.58,
+   "blocker": "needs-data",
    "options": [
     "hold"
    ]
@@ -207,6 +229,8 @@
    ],
    "recommendation": "Engine-enumerated whitespace: discovery 0.72, orthogonality 0.90. $/mo options-implied (skew/IV)",
    "version": 1,
+   "ev": 0.7,
+   "blocker": "needs-data",
    "options": [
     "hold"
    ]
@@ -849,47 +873,77 @@
   {
    "id": "V-020",
    "surface": "options-implied",
-   "vendor": "cleanest counterparty story (hedgers pay",
-   "price": "needs-data",
+   "vendor": "unpriced \u2014 research needed",
+   "price": "unpriced \u2014 research needed",
+   "cost_yr": "unpriced \u2014 research needed",
+   "monthly": "unpriced \u2014 research needed",
+   "terms": "unpriced \u2014 research needed",
+   "what_you_get": "cleanest counterparty story (hedgers pay for insurance); tradeable residual unproven \u2192 a data purchase to test.",
+   "tiers": "unpriced \u2014 research needed",
    "unlocks": "test",
-   "ev": "unpriced",
-   "likely_death": "needs test"
+   "ev": "unpriced \u2014 research needed",
+   "likely_death": "needs test",
+   "blocker": "needs-data"
   },
   {
    "id": "V-028",
    "surface": "futures",
-   "vendor": "futures \u2260 Alpaca \u2014 needs a different bro",
-   "price": "needs-broker",
+   "vendor": "unpriced \u2014 research needed",
+   "price": "unpriced \u2014 research needed",
+   "cost_yr": "unpriced \u2014 research needed",
+   "monthly": "unpriced \u2014 research needed",
+   "terms": "unpriced \u2014 research needed",
+   "what_you_get": "futures \u2260 Alpaca \u2014 needs a different broker/instrument setup. Explicitly a portfolio component (\"the half\"), not an alpha engine; must beat holding less equity.",
+   "tiers": "unpriced \u2014 research needed",
    "unlocks": "test",
-   "ev": "unpriced",
-   "likely_death": "needs test"
+   "ev": "unpriced \u2014 research needed",
+   "likely_death": "needs test",
+   "blocker": "needs-broker"
   },
   {
    "id": "dir#1",
    "surface": "Cross-asset futures",
-   "vendor": "NEEDS-DATA + NEEDS-BUILD",
-   "price": "NEEDS-DATA + NEEDS-BUILD",
+   "vendor": "unpriced \u2014 research needed",
+   "price": "unpriced \u2014 research needed",
+   "cost_yr": "unpriced \u2014 research needed",
+   "monthly": "unpriced \u2014 research needed",
+   "terms": "unpriced \u2014 research needed",
+   "what_you_get": "Cross-asset futures",
+   "tiers": "unpriced \u2014 research needed",
    "unlocks": "frontier",
-   "ev": "unpriced",
-   "likely_death": "\u2014"
+   "ev": "unpriced \u2014 research needed",
+   "likely_death": "\u2014",
+   "blocker": "NEEDS-DATA + NEEDS-BUILD"
   },
   {
    "id": "dir#2",
    "surface": "Relational / cross-firm linkage",
-   "vendor": "NEEDS-BUILD",
-   "price": "NEEDS-BUILD",
+   "vendor": "unpriced \u2014 research needed",
+   "price": "unpriced \u2014 research needed",
+   "cost_yr": "unpriced \u2014 research needed",
+   "monthly": "unpriced \u2014 research needed",
+   "terms": "unpriced \u2014 research needed",
+   "what_you_get": "Relational / cross-firm linkage",
+   "tiers": "unpriced \u2014 research needed",
    "unlocks": "frontier",
-   "ev": "unpriced",
-   "likely_death": "\u2014"
+   "ev": "unpriced \u2014 research needed",
+   "likely_death": "\u2014",
+   "blocker": "NEEDS-BUILD"
   },
   {
    "id": "dir#3",
    "surface": "Options-implied",
-   "vendor": "NEEDS-DATA",
-   "price": "NEEDS-DATA",
+   "vendor": "unpriced \u2014 research needed",
+   "price": "unpriced \u2014 research needed",
+   "cost_yr": "unpriced \u2014 research needed",
+   "monthly": "unpriced \u2014 research needed",
+   "terms": "unpriced \u2014 research needed",
+   "what_you_get": "Options-implied",
+   "tiers": "unpriced \u2014 research needed",
    "unlocks": "frontier",
-   "ev": "unpriced",
-   "likely_death": "\u2014"
+   "ev": "unpriced \u2014 research needed",
+   "likely_death": "\u2014",
+   "blocker": "NEEDS-DATA"
   }
  ],
  "deployed": [],
@@ -902,8 +956,7 @@
    "recheck_due": "2026-12",
    "last_checked": "2026-07-04T12:00:00+00:00",
    "status": "ran-no-change",
-   "reason": "gross-brick, orthogonal, but recently-decayed \u2014 \u03b1 +0.43%/mo t3.23, \u03c1 vs B-GP \u22120.14 (orthogonal);",
-   "evidence": "{\"metric\": 0.002132, \"t\": 1.396, \"n\": 83, \"flipped\": true, \"significant\": false, \"powered\": true, \"source\": \"Sharadar SEP (live)\"}"
+   "reason": "gross-brick, orthogonal, but recently-decayed \u2014 \u03b1 +0.43%/mo t3.23, \u03c1 vs B-GP \u22120.14 (orthogonal);"
   },
   {
    "id": "B-PEAD",
@@ -963,8 +1016,7 @@
    "recheck_due": "on data advance",
    "last_checked": "2026-07-04T12:00:00+00:00",
    "status": "ran-no-change",
-   "reason": "BAB-in-costume (corr +0.87), decayed S3",
-   "evidence": "{\"metric\": 0.002132, \"t\": 1.396, \"n\": 83, \"flipped\": true, \"significant\": false, \"powered\": true, \"source\": \"Sharadar SEP (live)\"}"
+   "reason": "BAB-in-costume (corr +0.87), decayed S3"
   },
   {
    "id": "B1xsin",
@@ -974,8 +1026,7 @@
    "recheck_due": "on data advance",
    "last_checked": "2026-07-04T12:00:00+00:00",
    "status": "ran-no-change",
-   "reason": "recently-decayed S3 -0.25",
-   "evidence": "{\"metric\": 0.002132, \"t\": 1.396, \"n\": 83, \"flipped\": true, \"significant\": false, \"powered\": true, \"source\": \"Sharadar SEP (live)\"}"
+   "reason": "recently-decayed S3 -0.25"
   }
  ],
  "watch_notes": [
@@ -992,14 +1043,13 @@
   {
    "scan_id": "scan-2026-07-04T12:00:00+00:00",
    "at": "2026-07-04T12:00:00+00:00",
-   "kind": "revival + data-availability (LIVE)",
+   "kind": "revival + data-availability",
    "evaluated": 8,
    "rechecked": 3,
    "revived": 0,
    "resurfaced": [],
-   "data_source": "Sharadar SEP (Nasdaq Data Link)",
-   "note": "LIVE scan on real prices (Sharadar SEP (Nasdaq Data Link)): recent-window edge 0.213%/day t=1.40 n=83 over 24 names; 0 REVIVED; nothing from the killed set re-surfaced",
-   "provenance": "{\"source\": \"Sharadar SEP (Nasdaq Data Link)\", \"universe\": 24, \"recent_window\": [\"2026-03-04\", \"2026-07-04\"], \"obs\": 83, \"sample_closes\": [\"AAPL 2026-07-02 308.63\", \"MSFT 2026-07-02 390.49\", \"AMZN 2026-07-02 242.67\"], \"longs\": [\"CAT\", \"GE\", \"GOOGL\", \"INTC\", \"JNJ\", \"VZ\", \"WMT\", \"XOM\"], \"shorts\": [\"AAPL\", \"AMZN\", \"DIS\", \"HD\", \"META\", \"MSFT\", \"PFE\", \"PG\"]}"
+   "data_source": "static",
+   "note": "static scan (no live feed): 3 re-scanned, 5 awaiting trigger; 0 revived; nothing from the killed set re-surfaced"
   }
  ],
  "open": [
