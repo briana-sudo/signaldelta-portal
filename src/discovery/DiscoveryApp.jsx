@@ -9,7 +9,9 @@ import Topbar from './components/Topbar.jsx';
 import CoverageMap from './components/CoverageMap.jsx';
 import BoardQueue from './components/BoardQueue.jsx';
 import DataNeeds from './components/DataNeeds.jsx';
-import AnalystDock from './components/AnalystDock.jsx';
+import TimelineView from './components/TimelineView.jsx';
+import AnalystPanel from './components/AnalystPanel.jsx';
+import { downloadMd, renderMd } from './mdExport.js';
 import './discovery.css';
 
 export default function DiscoveryApp({ contract }) {
@@ -70,6 +72,8 @@ export default function DiscoveryApp({ contract }) {
                   <span><i className="i-ret" />Retained</span>
                   <span><i className="i-kill" />Killed</span>
                   <span><i className="i-occ" />Occupied</span>
+                  <button className="exp-mini" title="Export the coverage map to MD"
+                          onClick={() => downloadMd('coverage-map.md', 'SignalDelta — Coverage map', renderMd(grid))}>⤓ Export map</button>
                 </div>
               </div>
               <CoverageMap grid={grid} />
@@ -79,6 +83,7 @@ export default function DiscoveryApp({ contract }) {
             <div className="stage-head"><div><h1>Board</h1>
               <div className="sub">Every pending gate, with the engine's recommendation and the priced fork. Approve / reject sends intent — the orchestrator resolves.</div></div></div>
           )}
+          {tab === 'Timeline' && <TimelineView contract={client} />}
           {(tab === 'Coverage' || tab === 'Data needs') && <DataNeeds contract={client} gated={gated} />}
           {tab === 'Board' && (
             <div className="datastrip"><div className="queue">
@@ -94,9 +99,10 @@ export default function DiscoveryApp({ contract }) {
 
         <div className="rail">
           <BoardQueue contract={client} items={board} onResolved={onResolved} />
-          <AnalystDock contract={client} />
         </div>
       </div>
+      {/* FLOATING analyst — draggable/resizable/minimizable, at app root (not the rail) */}
+      <AnalystPanel contract={client} />
       <div className="watermark">SIGNALDELTA DISCOVERY · {{ real: 'REAL STATE · generated read model', mock: 'MOCK · representative data', live: 'LIVE' }[client.mode] || client.mode} · read-only + gated-write</div>
     </div>
   );

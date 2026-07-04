@@ -220,7 +220,8 @@
   "window_budget": "sealed",
   "cells_mapped": 1134,
   "queue": 12,
-  "killed": 20
+  "killed": 20,
+  "last_scan": "2026-07-04T12:00:00+00:00"
  },
  "grid": [
   {
@@ -894,12 +895,111 @@
  "deployed": [],
  "watches": [
   {
+   "id": "B-AG",
+   "force_named": "asset growth (CMA)",
+   "disposition": "fast-scan",
+   "trigger": "data-advance",
+   "recheck_due": "2026-12",
+   "last_checked": "2026-07-04T12:00:00+00:00",
+   "status": "ran-no-change",
+   "reason": "gross-brick, orthogonal, but recently-decayed \u2014 \u03b1 +0.43%/mo t3.23, \u03c1 vs B-GP \u22120.14 (orthogonal);",
+   "evidence": "{\"metric\": 0.002132, \"t\": 1.396, \"n\": 83, \"flipped\": true, \"significant\": false, \"powered\": true, \"source\": \"Sharadar SEP (live)\"}"
+  },
+  {
+   "id": "B-PEAD",
+   "force_named": "PEAD ported up-cap",
+   "disposition": "deliberate-review",
+   "trigger": "review cadence",
+   "recheck_due": "2027-01-04",
+   "last_checked": "2026-07-04T12:00:00+00:00",
+   "status": "waiting",
+   "reason": "KILLED \u2014 doesn't-port-up (ratio 0.13 vs Cell-1 tail); char-neutral negative"
+  },
+  {
+   "id": "B-LP",
+   "force_named": "Lazy-Prices ported up-cap",
+   "disposition": "deliberate-review",
+   "trigger": "review cadence",
+   "recheck_due": "2027-01-04",
+   "last_checked": "2026-07-04T12:00:00+00:00",
+   "status": "waiting",
+   "reason": "KILLED \u2014 doesn't-port-up; well-powered true null"
+  },
+  {
+   "id": "B-NI",
+   "force_named": "net issuance",
+   "disposition": "deliberate-review",
+   "trigger": "review cadence",
+   "recheck_due": "2027-01-04",
+   "last_checked": "2026-07-04T12:00:00+00:00",
+   "status": "waiting",
+   "reason": "KILLED \u2014 B-AG-in-costume (\u03c1 +0.73; char-neutral null t0.89)"
+  },
+  {
+   "id": "B-Q5",
+   "force_named": "HXZ expected growth",
+   "disposition": "deliberate-review",
+   "trigger": "review cadence",
+   "recheck_due": "2027-01-04",
+   "last_checked": "2026-07-04T12:00:00+00:00",
+   "status": "waiting",
+   "reason": "KILLED \u2014 wrong-signed / didn't port to mid-cap (true null)"
+  },
+  {
+   "id": "B-INS",
+   "force_named": "insider (SF2)",
+   "disposition": "setup-state",
+   "trigger": "setup-state change",
+   "recheck_due": "on setup-state change",
+   "last_checked": "2026-07-04T12:00:00+00:00",
+   "status": "waiting",
+   "reason": "KILLED \u2014 well-powered true null; band-skew (insider names skew larger/liquid); SF2 cancelled"
+  },
+  {
+   "id": "B1xlow-vol",
+   "force_named": "BAB-in-costume (corr +0.87), decayed S3",
+   "disposition": "fast-scan",
+   "trigger": "data-advance",
+   "recheck_due": "on data advance",
+   "last_checked": "2026-07-04T12:00:00+00:00",
+   "status": "ran-no-change",
+   "reason": "BAB-in-costume (corr +0.87), decayed S3",
+   "evidence": "{\"metric\": 0.002132, \"t\": 1.396, \"n\": 83, \"flipped\": true, \"significant\": false, \"powered\": true, \"source\": \"Sharadar SEP (live)\"}"
+  },
+  {
+   "id": "B1xsin",
+   "force_named": "recently-decayed S3 -0.25",
+   "disposition": "fast-scan",
+   "trigger": "data-advance",
+   "recheck_due": "on data advance",
+   "last_checked": "2026-07-04T12:00:00+00:00",
+   "status": "ran-no-change",
+   "reason": "recently-decayed S3 -0.25",
+   "evidence": "{\"metric\": 0.002132, \"t\": 1.396, \"n\": 83, \"flipped\": true, \"significant\": false, \"powered\": true, \"source\": \"Sharadar SEP (live)\"}"
+  }
+ ],
+ "watch_notes": [
+  {
    "watch": "KR-recent-decay-owned-classic-factors",
    "detail": "owned single-name classic factors real 1999\u20132007 but non-positive in the recent third (2016-11..2026) are KILLED as standalone AND as recently-durable partners (B-AG, sin, low-vol). Exclusions: does NOT kill B1; does NOT kill the small/illiquid reversal; surface-scoped to owned equity (NOT futures); regime-scoped (not \"never worked\") \u2192 revives on regime reversion."
   },
   {
    "watch": "Revival watch",
    "detail": "B-AG recheck_due ~Dec 2026 (fast-scan; recent-third edge returns \u2192 revives). The recent-decay kills (B-AG, low-vol, sin) are the \"recheck low-vol / regime reverted\" board items \u2014 real, watched, not permanently dead."
+  }
+ ],
+ "scan_history": [
+  {
+   "scan_id": "scan-2026-07-04T12:00:00+00:00",
+   "at": "2026-07-04T12:00:00+00:00",
+   "kind": "revival + data-availability (LIVE)",
+   "evaluated": 8,
+   "rechecked": 3,
+   "revived": 0,
+   "resurfaced": [],
+   "data_source": "Sharadar SEP (Nasdaq Data Link)",
+   "note": "LIVE scan on real prices (Sharadar SEP (Nasdaq Data Link)): recent-window edge 0.213%/day t=1.40 n=83 over 24 names; 0 REVIVED; nothing from the killed set re-surfaced",
+   "provenance": "{\"source\": \"Sharadar SEP (Nasdaq Data Link)\", \"universe\": 24, \"recent_window\": [\"2026-03-04\", \"2026-07-04\"], \"obs\": 83, \"sample_closes\": [\"AAPL 2026-07-02 308.63\", \"MSFT 2026-07-02 390.49\", \"AMZN 2026-07-02 242.67\"], \"longs\": [\"CAT\", \"GE\", \"GOOGL\", \"INTC\", \"JNJ\", \"VZ\", \"WMT\", \"XOM\"], \"shorts\": [\"AAPL\", \"AMZN\", \"DIS\", \"HD\", \"META\", \"MSFT\", \"PFE\", \"PG\"]}"
   }
  ],
  "open": [

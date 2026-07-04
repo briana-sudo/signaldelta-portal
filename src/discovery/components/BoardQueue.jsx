@@ -3,6 +3,7 @@
 // it sends intent and the orchestrator resolves. Shows the priced fork + the
 // engine's recommendation per item.
 import { useState } from 'react';
+import { downloadMd, renderMd } from '../mdExport.js';
 
 const KIND_CLASS = { 'gated-option': 'k-gate', 'revalidation-due': 'k-reval', 'new-search-surface': 'k-new' };
 const PRIMARY_LABEL = {
@@ -34,7 +35,9 @@ export default function BoardQueue({ contract, items, onResolved }) {
           <div key={it.item_id} className="item slidein">
             <div className="row1">
               <span className={`kind ${KIND_CLASS[it.type] || 'k-reval'}`}>{it.kind}</span>
-              <span className="mono" style={{ color: 'var(--fg-3)', fontSize: 11 }}>{it.age}</span>
+              <span className="mono" style={{ color: 'var(--fg-3)', fontSize: 11, marginLeft: 'auto' }}>{it.age}</span>
+              <button className="exp-mini" title="Export this item to MD"
+                      onClick={() => downloadMd(`${it.item_id.replace(/[^a-z0-9]+/gi, '-')}.md`, it.title, renderMd(it))}>⤓ MD</button>
             </div>
             <div className="ttl">{it.title}</div>
             <div className="meta">{it.meta.map((m, i) => <span key={i} className={/\$|\d/.test(m) ? 'mono' : ''}>{m}</span>)}</div>

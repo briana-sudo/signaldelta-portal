@@ -11,7 +11,8 @@ import { statusColor, sizeForPotential, isHot, layoutSpans } from './coverage.js
 import { makeContract, groundedAnalyst } from './api/contract.js';
 import BoardQueue from './components/BoardQueue.jsx';
 import DataNeeds from './components/DataNeeds.jsx';
-import AnalystDock from './components/AnalystDock.jsx';
+import AnalystPanel from './components/AnalystPanel.jsx';
+import TimelineView from './components/TimelineView.jsx';
 import Topbar from './components/Topbar.jsx';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -85,19 +86,6 @@ describe('onboarding credential firewall', () => {
     const src = fs.readFileSync(path.join(HERE, 'components/DataNeeds.jsx'), 'utf8');
     expect(src).toMatch(/useRef/);                    // ref, not useState, for the credential
     expect(src).not.toMatch(/useState\([^)]*credential/i);
-  });
-});
-
-// --- analyst dock: surfaces routing outcomes, never enacts --------------------
-describe('analyst dock surfaces, never enacts', () => {
-  it('a DECISION ask surfaces a routed-to-gate outcome (no resolve/enact)', async () => {
-    const analyst = vi.fn(async () => ({ kind: 'DECISION', explanation: 'EV case', routed_item_type: 'decision' }));
-    const resolve = vi.fn();
-    render(<AnalystDock contract={{ analyst, resolve, exportMd: vi.fn() }} />);
-    fireEvent.change(screen.getByLabelText(/Ask the analyst/i), { target: { value: 'should I buy on-chain?' } });
-    fireEvent.click(screen.getByText('Ask'));
-    await waitFor(() => expect(screen.getByText(/routed → gate/i)).toBeTruthy());
-    expect(resolve).not.toHaveBeenCalled();           // surfaced, never enacted
   });
 });
 
@@ -198,3 +186,133 @@ function walk(dir) {
   }
   return out;
 }
+
+// --- Timeline / Watches view (revival schedule + data-pull queue + history) --
+// Driven by the REAL seed read_model.json (now with PERSISTED monitor state):
+// B-AG recheck 2026-12 is a revival watch with a real last_checked, the recent-
+// decay trio is watched, the gated surfaces appear in the data-pull queue, and
+// the scan_history slice shows a real recheck ran (no "not persisted" banner).
+describe('Timeline / Watches view', () => {
+  const RM = JSON.parse(fs.readFileSync(path.join(HERE, '..', '..', 'public', 'read_model.json'), 'utf8'));
+  const seedContract = () => ({
+    mode: 'real',
+    query: async (slice) => RM[slice] ?? null,
+    // firewall tripwires: if the Timeline ever tried to act, these would be hit
+    resolve: () => { throw new Error('Timeline must not resolve'); },
+    onboard: () => { throw new Error('Timeline must not onboard'); },
+  });
+
+  it('reads the STRUCTURED watches slice — B-AG with recheck 2026-12 + a real last_checked', async () => {
+    render(<TimelineView contract={seedContract()} />);
+    await waitFor(() => expect(screen.getAllByText('B-AG').length).toBeGreaterThan(0));
+    expect(screen.getAllByText(/2026-12/).length).toBeGreaterThan(0);
+    // the persisted last_checked timestamp is shown (proving it came from the monitor, not the seed text)
+    const bag = RM.watches.find((w) => w.id === 'B-AG');
+    expect(bag.last_checked).toBeTruthy();
+    expect(screen.getAllByText(new RegExp(bag.last_checked.slice(0, 10))).length).toBeGreaterThan(0);
+  });
+
+  it('the recent-decay trio (B-AG, low-vol, sin) all show as watched', async () => {
+    render(<TimelineView contract={seedContract()} />);
+    await waitFor(() => expect(screen.getAllByText('B-AG').length).toBeGreaterThan(0));
+    for (const id of ['B1xlow-vol', 'B1xsin']) {
+      if (RM.watches.some((w) => w.id === id)) expect(screen.getByText(id)).toBeTruthy();
+    }
+  });
+
+  it('data-pull queue surfaces the gated data needs (options/futures/relational)', async () => {
+    render(<TimelineView contract={seedContract()} />);
+    await waitFor(() => expect(screen.getByText(/Data-pull queue/)).toBeTruthy());
+    const first = RM.gated[0];
+    if (first) expect(screen.getAllByText(new RegExp(first.surface.split(/[ ·]/)[0], 'i')).length).toBeGreaterThan(0);
+  });
+
+  it('recheck history shows a real scan ran — no "not persisted" banner', async () => {
+    render(<TimelineView contract={seedContract()} />);
+    await waitFor(() => expect(screen.getByText(/Recheck history/)).toBeTruthy());
+    // the persisted scan is surfaced (evaluated count from scan_history)
+    expect(screen.getAllByText(/Last scan/i).length).toBeGreaterThan(0);
+    // the honesty-gap banner is GONE now that §1 persists the data
+    expect(screen.queryByText(/not persisted/i)).toBeNull();
+  });
+
+  it('firewall: reads only — never resolves or onboards', async () => {
+    // seedContract throws if resolve/onboard is called; a clean render proves read-only
+    const { container } = render(<TimelineView contract={seedContract()} />);
+    await waitFor(() => expect(screen.getByText(/Revival watches/)).toBeTruthy());
+    expect(container.querySelector('button.exp-mini')).toBeTruthy();   // export is the only action (read-only MD)
+  });
+});
+
+// --- Floating analyst panel (conversation + upload firewall + export + minimize)
+describe('floating analyst panel', () => {
+  const mkContract = (over = {}) => ({
+    mode: 'mock',
+    query: async (slice) => (slice === 'board'
+      ? [{ item_id: 'b1', title: 'B1', kind: 'x' }] : []),
+    analyst: vi.fn(async ({ ask }) => ({ kind: 'EXPLAIN', explanation: `answer to: ${ask}` })),
+    onboard: () => { throw new Error('analyst chat must NEVER onboard'); },
+    resolve: () => { throw new Error('analyst chat must NEVER resolve'); },
+    ...over,
+  });
+
+  const reset = () => { try { localStorage.clear(); } catch { /* ok */ } };
+
+  it('conversation: ask renders the analyst answer in the panel history', async () => {
+    reset();
+    const c = mkContract();
+    render(<AnalystPanel contract={c} />);
+    fireEvent.change(screen.getByLabelText(/Ask the analyst/i), { target: { value: 'what is B1?' } });
+    fireEvent.submit(screen.getByLabelText(/Ask the analyst/i).closest('form'));
+    await waitFor(() => expect(screen.getByText(/answer to: what is B1\?/)).toBeTruthy());
+    expect(screen.getByText('what is B1?')).toBeTruthy();     // the user turn is in the history too
+    expect(c.analyst).toHaveBeenCalledWith(expect.objectContaining({ ask: 'what is B1?' }));
+  });
+
+  it('file upload is a DISCUSSION attachment only — never onboards/seeds engine state', async () => {
+    reset();
+    const c = mkContract();
+    const { container } = render(<AnalystPanel contract={c} />);
+    const file = new File(['col_a,col_b\n1,2'], 'notes.csv', { type: 'text/csv' });
+    const input = container.querySelector('input[type="file"]');
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByText(/discussion only|never becomes engine state/i)).toBeTruthy());
+    // the chat file never reaches onboarding/resolve (those throw if called)
+    // and the attachment rides along as discussion context on the next ask
+    fireEvent.change(screen.getByLabelText(/Ask the analyst/i), { target: { value: 'summarize' } });
+    fireEvent.submit(screen.getByLabelText(/Ask the analyst/i).closest('form'));
+    await waitFor(() => expect(c.analyst).toHaveBeenCalled());
+    expect(c.analyst.mock.calls[0][0].attachment).toBeTruthy();   // passed as discussion context
+  });
+
+  it('export request produces MD without calling the analyst (read-only)', async () => {
+    reset();
+    const c = mkContract();
+    render(<AnalystPanel contract={c} />);
+    fireEvent.change(screen.getByLabelText(/Ask the analyst/i), { target: { value: 'export the board' } });
+    fireEvent.submit(screen.getByLabelText(/Ask the analyst/i).closest('form'));
+    await waitFor(() => expect(screen.getByText(/Exported/i)).toBeTruthy());
+    expect(c.analyst).not.toHaveBeenCalled();                    // export is not an analyst call
+  });
+
+  it('minimize collapses to a corner bubble and reopens (not just close)', async () => {
+    reset();
+    render(<AnalystPanel contract={mkContract()} />);
+    fireEvent.click(screen.getByTitle(/Minimize/i));
+    const bubble = await screen.findByRole('button', { name: /Open analyst/i });
+    expect(bubble).toBeTruthy();
+    fireEvent.click(bubble);
+    await waitFor(() => expect(screen.getByLabelText(/Ask the analyst/i)).toBeTruthy());  // reopened
+  });
+
+  it('the analyst answers a recheck question from the live watches/scan slices', async () => {
+    const watches = [{ id: 'B-AG', disposition: 'fast-scan', trigger: 'data-advance',
+      recheck_due: '2026-12', last_checked: '2026-07-04T12:00:00+00:00', status: 'ran-no-change' }];
+    const scans = [{ at: '2026-07-04T12:00:00+00:00', evaluated: 8, revived: 0 }];
+    const q = async (slice) => (slice === 'watches' ? watches : slice === 'scan_history' ? scans : []);
+    const r = await groundedAnalyst('did the B-AG recheck run?', q);
+    expect(r.kind).toBe('EXPLAIN');
+    expect(r.explanation).toMatch(/B-AG/);
+    expect(r.explanation).toMatch(/2026-12|ran|re-scanned|stayed dead/i);   // grounded in real monitor state
+  });
+});

@@ -70,6 +70,23 @@ const MOCK = {
     { id: 'A35', force_named: 'short-constraint', disposition: 'setup-state', reason: 'short-leg behind borrow wall' },
   ],
   deployed: [],   // zero deployed signals today
+  // structured revival watches — the monitor state the 3b/2d monitors persist
+  watches: [
+    { id: 'B-AG', force_named: 'recent-decay', disposition: 'fast-scan', trigger: 'data-advance',
+      recheck_due: '2026-12', last_checked: '2026-07-04T12:00:00+00:00', status: 'ran-no-change',
+      reason: 'gross-brick, orthogonal, but recently-decayed S3' },
+    { id: 'B-INS', force_named: 'band-skew', disposition: 'setup-state', trigger: 'setup-state change',
+      recheck_due: 'on setup-state change', last_checked: '2026-07-04T12:00:00+00:00', status: 'waiting',
+      reason: 'behind the trade band' },
+    { id: 'B-LP', force_named: 'factor-in-costume', disposition: 'deliberate-review', trigger: 'review cadence',
+      recheck_due: '2027-01-04', last_checked: '2026-07-04T12:00:00+00:00', status: 'waiting',
+      reason: 'char-neutral null — revisit on cadence' },
+  ],
+  scan_history: [
+    { scan_id: 'scan-2026-07-04T12:00:00+00:00', at: '2026-07-04T12:00:00+00:00',
+      kind: 'revival + data-availability', evaluated: 3, rechecked: 1, revived: 0, resurfaced: [],
+      note: 'evaluated 3 revival watches (1 data/regime re-scanned, 2 awaiting their trigger); 0 revived — no source-watermark advance or setup-state change since the seed; nothing from the killed set re-surfaced' },
+  ],
 };
 
 function surface(id, name, dp, status, nCells, family, note, extra = {}) {
@@ -139,7 +156,7 @@ function mockContract() {
       return { source_id, entitlement, configured, watermark, content_hash };  // NEVER the value
     },
     // INTENT — analyst surfaces + routes, never enacts
-    async analyst({ ask }) { return mockAnalyst(ask); },
+    async analyst({ ask, attachment }) { return groundedAnalyst(ask, this.query?.bind(this), { attachment }); },
     _board: board,
   };
 }
@@ -177,7 +194,7 @@ function realContract() {
     },
     async exportMd(slice) { return `# ${slice}\n\n(real state export — read-only, no secrets)\n`; },
   };
-  rc.analyst = ({ ask }) => groundedAnalyst(ask, rc.query);   // grounded in the real read model
+  rc.analyst = ({ ask, attachment }) => groundedAnalyst(ask, rc.query, { attachment });  // grounded + attachment
   return rc;
 }
 
@@ -205,7 +222,7 @@ function liveContract() {
     async onboard(payload) { return post('/sm/onboard', payload).catch(() => ({ source_id: payload.source_id, configured: false })); },
     // analyst runs client-side, grounded in the LIVE read model (deterministic; an
     // LLM analyst is a later server-side swap). "what's runnable now" -> V-015.
-    async analyst({ ask }) { return groundedAnalyst(ask, q); },
+    async analyst({ ask, attachment }) { return groundedAnalyst(ask, q, { attachment }); },
     // ENGINE POWER SWITCH -> /sm/engine/* (falls back to the mock state machine)
     async engineStatus() { return get('/sm/engine/status').catch(() => file.engineStatus()); },
     async engineStart() { return post('/sm/engine/start', {}).catch(() => file.engineStart()); },
@@ -215,9 +232,46 @@ function liveContract() {
 
 // analyst grounded in the current read model: answers "what's runnable now" with the
 // runnable-now board item(s) (V-015), else the deterministic classify/route.
-export async function groundedAnalyst(ask, queryFn) {
+export async function groundedAnalyst(ask, queryFn, opts = {}) {
   const a = (ask || '').toLowerCase();
   const has = (...ks) => ks.some((k) => a.includes(k));
+  // a chat attachment is DISCUSSION ONLY — reasoned over here, never engine state
+  const att = opts.attachment;
+  if (att) {
+    const head = (att.text || '').split('\n').find((l) => l.trim()) || '';
+    const kind = /[,;]\s*\S+[,;]/.test(head) ? 'a delimited dataset'
+      : /^[#*\-]/.test(head) ? 'a markdown/notes document' : 'a text document';
+    const q = ask.trim() ? ` On your question — ${ask.trim()} — I'll reason from what the file says together with the live state.` : '';
+    return { kind: 'EXPLAIN',
+      explanation: `I've read "${att.name}" (${att.size} bytes) — looks like ${kind}. First line: “${head.slice(0, 80)}”.${q} `
+        + `This stays a discussion attachment: I reason over it here, but it never becomes engine state or seeds the graph.` };
+  }
+  // recheck / revival / watch questions — grounded in the LIVE watches + scan_history
+  if (has('recheck', 'revive', 'revival', 'watch', 'scan', 'due', 'last checked', 'ran')) {
+    let watches = [], scans = [];
+    try { watches = (await queryFn('watches')) || []; } catch { watches = []; }
+    try { scans = (await queryFn('scan_history')) || []; } catch { scans = []; }
+    // a named watch (e.g. "did the B-AG recheck run")
+    const named = watches.find((w) => a.includes(String(w.id).toLowerCase()));
+    if (named) {
+      return { kind: 'EXPLAIN',
+        explanation: `${named.id}: ${named.disposition} watch, trigger = ${named.trigger}. Recheck due ${named.recheck_due}; `
+          + `last checked ${named.last_checked || 'never'} → status ${named.status}. `
+          + (named.status === 'REVIVED' ? 'It revived — it is now a candidate on the board (a gated call).'
+            : named.status === 'ran-no-change' ? 'The monitor re-scanned it and it stayed dead (no regime/data reversion).'
+              : 'It has not fired yet — waiting for its trigger.')
+          + ' This reads the live monitor state; a re-probe is a gated search decision.' };
+    }
+    if (watches.length) {
+      const last = scans[0];
+      const due = watches.filter((w) => w.status === 'waiting').map((w) => `${w.id} (${w.recheck_due})`);
+      return { kind: 'EXPLAIN',
+        explanation: `${watches.length} revival watches are live. `
+          + (last ? `Last scan ${last.at}: evaluated ${last.evaluated}, ${last.revived || 0} revived. ` : '')
+          + (due.length ? `Awaiting their trigger: ${due.slice(0, 6).join('; ')}.` : 'All were re-scanned this cycle.')
+          + ' Read-only over the monitor state — reviving a kill is a gated call.' };
+    }
+  }
   if (has('runnable', 'run now', 'what can i run', 'what now', 'what next', 'first test', 'priorit', "what's next")) {
     let board = [];
     try { board = (await queryFn('board')) || []; } catch { board = []; }

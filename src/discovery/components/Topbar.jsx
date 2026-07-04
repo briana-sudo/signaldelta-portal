@@ -8,7 +8,7 @@
 // engine's gates still gate.
 import logoMark from '../assets/logo-mark.svg';
 
-const TABS = ['Coverage', 'Board', 'Data needs'];
+const TABS = ['Coverage', 'Board', 'Timeline', 'Data needs'];
 
 const LABEL = {
   running: 'Engine running', stopped: 'Engine stopped',
