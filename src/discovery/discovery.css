@@ -363,3 +363,10 @@
 .drill-run:hover{background:rgba(0,194,255,.16)}
 .drill-empty{font-size:11px;color:var(--fg-4)}
 .legend .i-tested{background:#B07CFF}
+
+/* lesson hygiene: provisional (heuristic, not bankable) + superseded (dimmed) */
+.lesson-badge.prov{background:color-mix(in srgb,var(--warn,#c8962a) 20%,transparent);color:var(--warn,#c8962a)}
+.lesson-badge.superseded{background:color-mix(in srgb,var(--fg-4) 22%,transparent);color:var(--fg-3)}
+.lesson.superseded{opacity:.5}
+.lesson.superseded .lesson-text{text-decoration:line-through;text-decoration-color:var(--fg-4)}
+.b:disabled{opacity:.4;cursor:not-allowed}

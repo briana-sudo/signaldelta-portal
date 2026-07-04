@@ -86,10 +86,13 @@ export default function RunRoom({ run, slices, onClose, onBank, onReject, onReev
               {report.lessons.map((l) => (
                 <div key={l.id} className={`rr-lesson ${String(l.status).toLowerCase()}`}>
                   <span className={`lesson-badge ${String(l.status).toLowerCase()}`}>{l.status}</span>
+                  {l.provisional && <span className="lesson-badge prov">PROVISIONAL</span>}
                   <span className="rr-ltext">{l.text}</span>
                   {l.status === 'PROPOSED' && (
                     <span className="rr-lacts">
-                      <button className="b b-pri" onClick={() => onBank && onBank(l.id)}>Bank</button>
+                      <button className="b b-pri" disabled={l.provisional}
+                              title={l.provisional ? 'Heuristic draft — Re-evaluate with the LLM to enable Bank' : 'Bank this lesson'}
+                              onClick={() => !l.provisional && onBank && onBank(l.id)}>Bank</button>
                       <button className="b b-sec" onClick={() => onReject && onReject(l.id)}>Reject</button>
                     </span>
                   )}

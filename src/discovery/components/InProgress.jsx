@@ -58,6 +58,10 @@ export default function InProgress({ probe, lessons = [], onBank, onReject, onOp
   const open = (id) => onOpenRun && onOpenRun(id);
   const proposed = lessons.filter((l) => l.status === 'PROPOSED');
   const banked = lessons.filter((l) => l.status === 'BANKED');
+  const superseded = lessons.filter((l) => l.status === 'SUPERSEDED');
+  // only LLM-drafted (non-provisional) lessons are bankable; heuristic drafts are
+  // provisional and Bank is disabled until a Re-evaluate re-drafts them with the LLM.
+  const bankable = (l) => !l.provisional;
 
   return (
     <>
@@ -128,12 +132,22 @@ export default function InProgress({ probe, lessons = [], onBank, onReject, onOp
         {proposed.map((l) => (
           <div key={l.id} className="lesson proposed">
             <div className="lesson-head"><span className="lesson-badge proposed">PROPOSED</span>
+              {l.provisional && <span className="lesson-badge prov">PROVISIONAL</span>}
               {l.source && <span className="lesson-src mono">{l.source}</span>}</div>
             <div className="lesson-text">{l.text}</div>
             <div className="acts">
-              <button className="b b-pri" onClick={() => onBank && onBank(l.id)}>Bank</button>
+              <button className="b b-pri" disabled={!bankable(l)}
+                      title={bankable(l) ? 'Bank this lesson (loads into every future ask)' : 'Heuristic draft — Re-evaluate with the LLM to enable Bank'}
+                      onClick={() => bankable(l) && onBank && onBank(l.id)}>Bank</button>
               <button className="b b-sec" onClick={() => onReject && onReject(l.id)}>Reject</button>
             </div>
+          </div>
+        ))}
+        {superseded.map((l) => (
+          <div key={l.id} className="lesson superseded">
+            <div className="lesson-head"><span className="lesson-badge superseded">SUPERSEDED</span>
+              {l.source && <span className="lesson-src mono">{l.source}</span>}</div>
+            <div className="lesson-text">{l.text}</div>
           </div>
         ))}
         {banked.map((l) => (

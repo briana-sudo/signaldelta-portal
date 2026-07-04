@@ -670,6 +670,21 @@ describe('Run Room + terminus report', () => {
     expect(onOpenRun).toHaveBeenCalledWith('new-search-surface:V-015#V-015-TDF');
   });
 
+  it('provisional (heuristic) lessons are NOT bankable; superseded shown dimmed', () => {
+    const onBank = vi.fn();
+    const lessons = [
+      { id: 'L-prov', status: 'PROPOSED', provisional: true, text: 'heuristic draft', source: 'terminus:V-015-TDF · v1 · heuristic' },
+      { id: 'L-llm', status: 'PROPOSED', provisional: false, text: 'llm draft', source: 'terminus:V-015-TDF · v2 · llm' },
+      { id: 'L-old', status: 'SUPERSEDED', text: 'old dup', source: 'terminus:V-015-TDF · v1' },
+    ];
+    render(<InProgress probe={{ running: null, queue: [], done: [] }} lessons={lessons} onBank={onBank} onReject={vi.fn()} />);
+    const bankButtons = screen.getAllByRole('button', { name: 'Bank' });
+    // provisional lesson's Bank is disabled; the LLM one's is enabled
+    expect(bankButtons.some((b) => b.disabled)).toBe(true);
+    expect(bankButtons.some((b) => !b.disabled)).toBe(true);
+    expect(screen.getByText('SUPERSEDED')).toBeTruthy();       // the dup is collapsed, shown superseded
+  });
+
   it('In-progress Recent row opens the Run Room', () => {
     const onOpenRun = vi.fn();
     const probe = { running: null, queue: [], done: [{ item_id: 'r1', recipe_id: 'V-015-TOM', disposition: 'killed', result: { t: 0.03, n: 1704 } }] };

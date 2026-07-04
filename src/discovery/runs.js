@@ -58,7 +58,10 @@ export function composeReport(run, { lessons = [], board = [], correlations = []
   const rid = run?.recipe_id;
   const versions = reportVersions(run);
   const latest = versions[versions.length - 1] || {};
-  const relatedLessons = (lessons || []).filter((l) => String(l.source || '').includes(rid));
+  // one lesson per component (the current PROPOSED/BANKED); superseded history lives
+  // in the version diff + the In-progress audit list, not stacked here.
+  const relatedLessons = (lessons || []).filter((l) =>
+    (l.component === rid || String(l.source || '').includes(rid)) && l.status !== 'SUPERSEDED');
   const derivations = (board || []).filter((b) => b.provenance === 'derived' && b.derived_from === rid);
   const combos = (board || []).filter((b) => b.provenance === 'combination'
     && JSON.stringify(b.legs || []).includes(rid));
