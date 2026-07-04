@@ -426,20 +426,58 @@ describe('data-needs fields + price-it', () => {
     expect(screen.getAllByText(/unpriced — research needed/).length).toBeGreaterThan(0);
   });
 
-  it('"Price it / Research" surfaces a research request — never onboards or resolves', async () => {
-    const research = vi.fn(async () => ({ queued: true }));
+  it('"Price it / Research" runs the worker + fills fields — never onboards/resolves', async () => {
+    const research = vi.fn(async () => ({ researched: true, surface_id: 'rel',
+      fields: { vendor: 'FactSet Revere', cost_yr: 'quote required', monthly: 'quote required',
+                terms: 'enterprise', tiers: 'Enterprise', what_you_get: 'linkages' },
+      questions: [], note: 'researched cost — no purchase' }));
     const onboard = vi.fn(); const resolve = vi.fn();
     render(<DataNeeds contract={{ research, onboard, resolve }} gated={gated} />);
     fireEvent.click(screen.getByText('Price it / Research'));
     await waitFor(() => expect(research).toHaveBeenCalledWith(expect.objectContaining({ surface_id: 'rel' })));
     expect(onboard).not.toHaveBeenCalled();          // never buys
     expect(resolve).not.toHaveBeenCalled();
-    expect(screen.getByText(/Research queued/i)).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('FactSet Revere')).toBeTruthy());  // field populated
+    expect(screen.getByText('priced ✓')).toBeTruthy();
   });
 
-  it('mock research() is intent-only (queued, no credential/spend)', async () => {
-    const r = await makeContract('mock').research({ surface_id: 'options_skew' });
-    expect(r.queued).toBe(true);
+  it('worker questions hand off to the assistant (Part C)', async () => {
+    const research = vi.fn(async () => ({ researched: true, surface_id: 'rel', fields: {},
+      questions: [{ kind: 'tier', q: 'Which tier fits?' }], note: '' }));
+    const onAskAssistant = vi.fn();
+    render(<DataNeeds contract={{ research }} gated={gated} onAskAssistant={onAskAssistant} resolutions={{}} />);
+    fireEvent.click(screen.getByText('Price it / Research'));
+    await waitFor(() => expect(screen.getByText(/Which tier fits/)).toBeTruthy());
+    fireEvent.click(screen.getByText('Ask the assistant'));
+    expect(onAskAssistant).toHaveBeenCalledWith('rel', 'Relational · graph', 'Which tier fits?');
+  });
+
+  it('a recorded resolution shows on the card', () => {
+    render(<DataNeeds contract={{}} gated={gated} resolutions={{ rel: 'API tier, no intraday' }} />);
+    expect(screen.getByText(/Resolved with the assistant/)).toBeTruthy();
+    expect(screen.getByText(/API tier, no intraday/)).toBeTruthy();
+  });
+
+  it('mock research() is intent-only (fills fields, no credential/spend)', async () => {
+    const r = await makeContract('mock').research({ surface_id: 'options_skew', surface: 'Options · skew' });
+    expect(r.researched).toBe(true);
+    expect(r.fields.vendor).toMatch(/ORATS/);
     expect(r.credential).toBeUndefined();
+  });
+});
+
+// --- Part C: the assistant panel poses the worker question + records the answer -
+describe('assistant panel — costing handoff', () => {
+  it('poses a costing question and records the operator answer (no spend)', async () => {
+    const analyst = vi.fn(async () => ({ kind: 'EXPLAIN', explanation: 'The API tier gives the IV surface.' }));
+    const onCostingResolved = vi.fn();
+    const cq = { surface_id: 'rel', surface: 'Relational · graph', question: 'Which tier fits?' };
+    render(<AnalystPanel contract={{ analyst, query: async () => [] }}
+                         costingQuestion={cq} onCostingResolved={onCostingResolved} />);
+    await waitFor(() => expect(screen.getByText(/Which tier fits/)).toBeTruthy());   // question posed
+    fireEvent.change(screen.getByLabelText(/Ask the analyst/i), { target: { value: 'API tier is fine' } });
+    fireEvent.submit(screen.getByLabelText(/Ask the analyst/i).closest('form'));
+    await waitFor(() => expect(onCostingResolved).toHaveBeenCalledWith('rel', 'API tier is fine'));
+    expect(screen.getByText(/Recorded for Relational/)).toBeTruthy();
   });
 });

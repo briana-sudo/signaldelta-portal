@@ -20,7 +20,7 @@ function persist(box) {
   try { localStorage.setItem(KEY, JSON.stringify(box)); } catch { /* ignore */ }
 }
 
-export default function AnalystPanel({ contract }) {
+export default function AnalystPanel({ contract, costingQuestion, onCostingResolved }) {
   const [box, setBox] = useState(loadBox);
   const [messages, setMessages] = useState([]);
   const [ask, setAsk] = useState('');
@@ -29,6 +29,7 @@ export default function AnalystPanel({ contract }) {
   const [dragOver, setDragOver] = useState(false);
   const bodyRef = useRef(null);
   const drag = useRef(null);
+  const pendingCosting = useRef(null);                   // Part C: a costing Q awaiting the operator's answer
 
   // default to a sensible corner if we have no remembered position
   useEffect(() => {
@@ -74,6 +75,16 @@ export default function AnalystPanel({ contract }) {
 
   const addMsg = (m) => setMessages((prev) => [...prev, m]);
 
+  // Part C — a costing question handed from the worker: open the panel + pose it;
+  // the operator's NEXT message is captured as the recorded resolution. No spend.
+  useEffect(() => {
+    if (!costingQuestion) return;
+    pendingCosting.current = costingQuestion;
+    setBox((b) => ({ ...b, min: false }));
+    setMessages((prev) => [...prev, { role: 'analyst',
+      text: `Costing — ${costingQuestion.surface}: ${costingQuestion.question}\n\nAnswer here and I'll record it and explain — nothing is purchased.` }]);
+  }, [costingQuestion]);
+
   async function onFiles(fileList) {
     const f = fileList && fileList[0]; if (!f) return;
     let text = '';
@@ -99,12 +110,22 @@ export default function AnalystPanel({ contract }) {
       return;
     }
 
+    // Part C — if a costing question is pending, THIS answer resolves it (recorded
+    // back to the card). The assistant still explains; it never buys or onboards.
+    const pc = pendingCosting.current;
+
     setBusy(true);
     let r;
     try { r = await contract.analyst({ ask: text, attachment }); }
     catch { r = { kind: 'EXPLAIN', explanation: 'The analyst is unavailable right now — try again in a moment.' }; }
     setBusy(false);
     addMsg({ role: 'analyst', text: r.explanation || '(no answer)', route: r.routed_item_type || null, kind: r.kind });
+    if (pc) {
+      pendingCosting.current = null;
+      onCostingResolved && onCostingResolved(pc.surface_id, text);
+      addMsg({ role: 'analyst',
+        text: `Recorded for ${pc.surface} — the worker can finish the card. Nothing was purchased; buying stays your Approve.` });
+    }
     if (attachment) setAttachment(null);
   }
 

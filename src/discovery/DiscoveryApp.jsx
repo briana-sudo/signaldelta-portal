@@ -24,6 +24,8 @@ export default function DiscoveryApp({ contract }) {
   const [engine, setEngine] = useState('unknown');   // running | starting | stopping | stopped | not-installed
   const [proxy, setProxy] = useState('unknown');     // running | restarting | stopped | unreachable | unknown
   const [proxyHelper, setProxyHelper] = useState(false);  // SM_ProxyHelper up → restarts always work
+  const [costingQ, setCostingQ] = useState(null);    // a costing question handed to the assistant
+  const [resolutions, setResolutions] = useState({}); // surface_id -> operator's recorded answer
   const restartingUntil = useRef(0);                 // ms deadline while a restart is in flight
 
   // (re)load the read-model slices — called on mount and again once the proxy
@@ -77,6 +79,13 @@ export default function DiscoveryApp({ contract }) {
   }
   async function onStart() { const r = await client.engineStart(); setEngine(r.status); }
   async function onStop() { const r = await client.engineStop(); setEngine(r.status); }
+  // Part C — the worker hands a judgment call to the assistant panel; the operator's
+  // answer is recorded back to the card. No spend at any point.
+  const askAssistant = (surface_id, surface, question) => setCostingQ({ surface_id, surface, question });
+  const onCostingResolved = (surface_id, answer) => {
+    setResolutions((r) => ({ ...r, [surface_id]: answer }));
+    setCostingQ(null);
+  };
   async function onProxyRestart() {
     restartingUntil.current = Date.now() + 60000;    // expect it back within ~60s
     setProxy('restarting');
@@ -115,7 +124,7 @@ export default function DiscoveryApp({ contract }) {
               <div className="sub">Every pending gate, with the engine's recommendation and the priced fork. Approve / reject sends intent — the orchestrator resolves.</div></div></div>
           )}
           {tab === 'Timeline' && <TimelineView contract={client} />}
-          {(tab === 'Coverage' || tab === 'Data needs') && <DataNeeds contract={client} gated={gated} />}
+          {(tab === 'Coverage' || tab === 'Data needs') && <DataNeeds contract={client} gated={gated} onAskAssistant={askAssistant} resolutions={resolutions} />}
           {tab === 'Board' && (
             <div className="datastrip"><div className="queue">
               {board.filter((i) => i.status === 'PENDING').map((it) => (
@@ -133,7 +142,7 @@ export default function DiscoveryApp({ contract }) {
         </div>
       </div>
       {/* FLOATING analyst — draggable/resizable/minimizable, at app root (not the rail) */}
-      <AnalystPanel contract={client} />
+      <AnalystPanel contract={client} costingQuestion={costingQ} onCostingResolved={onCostingResolved} />
       <div className="watermark">SIGNALDELTA DISCOVERY · {{ real: 'REAL STATE · generated read model', mock: 'MOCK · representative data', live: 'LIVE' }[client.mode] || client.mode} · read-only + gated-write</div>
     </div>
   );

@@ -226,3 +226,19 @@
 .dn-field .dn-v.unpriced{color:var(--warning);font-style:italic;font-size:11px}
 .dn-card .acts{display:flex;gap:8px;flex-wrap:wrap}
 .dn-note{margin-top:9px}
+
+/* --- data-needs: priced state + costing worker questions --------------------- */
+.dn-priced{font-size:10px;color:var(--success);background:color-mix(in srgb,var(--success) 14%,transparent);
+  border-radius:20px;padding:2px 8px}
+.dn-field .dn-v.priced{color:var(--fg-1);font-weight:500}
+.dn-questions{margin:2px 0 12px;padding:11px 13px;border-radius:6px;
+  background:color-mix(in srgb,var(--accent) 7%,var(--bg-elev));border:1px solid color-mix(in srgb,var(--accent) 22%,var(--line-1))}
+.dn-qh{font-size:11px;color:var(--fg-2);font-weight:600;margin-bottom:8px}
+.dn-q{display:flex;align-items:flex-start;gap:9px;padding:7px 0;border-top:1px solid var(--line-1)}
+.dn-q:first-of-type{border-top:none}
+.dn-qk{font-size:9px;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:20px;flex-shrink:0;margin-top:1px;
+  background:color-mix(in srgb,var(--warning) 16%,transparent);color:var(--warning)}
+.dn-qk.discount{background:color-mix(in srgb,var(--success) 16%,transparent);color:var(--success)}
+.dn-qk.setup{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
+.dn-qt{font-size:11.5px;color:var(--fg-2);line-height:1.5;flex:1;min-width:0}
+.dn-q .b{flex-shrink:0}

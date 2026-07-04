@@ -170,11 +170,21 @@ function mockContract() {
       const configured = credential != null && credential !== '';
       return { source_id, entitlement, configured, watermark, content_hash };  // NEVER the value
     },
-    // INTENT — "Price it / Research" surfaces a costing request; it NEVER buys or
-    // onboards (no credential, no spend) — just queues the task, gated like the rest.
-    async research({ surface_id, kind, surface }) {
-      return { queued: true, surface_id, kind: kind || 'price-research', surface,
-               note: 'costing task surfaced — no purchase, no onboarding' };
+    // INTENT — "Price it / Research" runs the costing worker; it NEVER buys or
+    // onboards (no credential, no spend) — it fills fields + surfaces questions.
+    async research({ surface_id, surface }) {
+      const blob = `${surface_id} ${surface || ''}`.toLowerCase();
+      const opt = /option|skew|implied|vol/.test(blob);
+      const fields = opt
+        ? { vendor: 'ORATS (representative)', cost_yr: '$1,188–$3,588/yr + $2,000 one-time',
+            monthly: 'yes · $99–$299/mo', terms: 'monthly API or annual', tiers: 'DataShop / API / Intraday',
+            what_you_get: 'IV surface, skew history + greeks (US equities/ETFs)' }
+        : { vendor: 'quote required', cost_yr: 'quote required', monthly: 'quote required',
+            terms: 'quote required', tiers: 'quote required', what_you_get: surface || surface_id };
+      return { queued: true, researched: true, surface_id, fields,
+               questions: opt ? [{ kind: 'tier', q: 'Which ORATS tier fits — API (~$199/mo) or add 1-min intraday?' }]
+                              : [{ kind: 'setup', q: 'This surface is quote-only — scaffold the vendor-contact request?' }],
+               note: 'researched cost — no purchase, no onboarding' };
     },
     // INTENT — analyst surfaces + routes, never enacts
     async analyst({ ask, attachment }) { return groundedAnalyst(ask, this.query?.bind(this), { attachment }); },
