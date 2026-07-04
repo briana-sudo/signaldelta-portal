@@ -135,6 +135,52 @@ export function deriveCellStatuses(grid, runs) {
   });
 }
 
+// ── NEEDS YOUR ATTENTION: every recommended action WITH its reason, from live state ──
+function catOf(disp) {
+  const d = String(disp || '').toLowerCase();
+  if (d.startsWith('retained')) return 'retained';
+  if (d.startsWith('inconclusive')) return 'inconclusive';
+  if (d.startsWith('killed')) return 'killed';
+  return '';
+}
+
+export function computeAttention({ runs = [], board = [], lessons = [] } = {}) {
+  const items = [];
+  // 1. RE-EVALUATE recommended — a concluded surface whose stored disposition the
+  //    fixed taxonomy has SUPERSEDED, or that was judged by a provisional heuristic.
+  const bySurface = {};
+  for (const r of runs) {
+    if (r.kind === 'reterminus' || !r.result || r.result.t == null) continue;
+    (bySurface[surfaceOf(r.parent || r.item_id)] || (bySurface[surfaceOf(r.parent || r.item_id)] = [])).push(r);
+  }
+  for (const [surface, sruns] of Object.entries(bySurface)) {
+    const staleTax = sruns.some((r) => {
+      const rd = dispositionCat({ gate_pass: r.result.gate_pass, t: r.result.t, n: r.result.n, edge: r.result.edge_pct_per_day, gate: r.result.gate });
+      const stored = catOf(r.disposition);
+      return stored && rd && stored !== rd;
+    });
+    const prov = sruns.some((r) => r.provisional || r.classified_by === 'heuristic' || r.classified_by == null);
+    if (staleTax || prov) {
+      const reason = `judged by ${prov ? 'provisional heuristic' : 'a prior run'}${staleTax ? ' under superseded taxonomy' : ''} — Re-evaluate recommended`;
+      items.push({ kind: 'reevaluate', title: surface, target: sruns[0].parent, action: 'Re-evaluate', reason });
+    }
+  }
+  // 2. APPROVE recommended — a runnable derived re-test awaiting the operator.
+  for (const b of board) {
+    if (b.provenance === 'derived' && b.blocker === 'runnable-now' && b.status === 'PENDING') {
+      items.push({ kind: 'approve', title: b.recipe_id || b.title, target: b.item_id, version: b.version,
+        action: 'Approve', reason: 'derived powered re-test, runnable on owned data — awaiting your Approve' });
+    }
+  }
+  // 3. Provisional-lesson notice — heuristic drafts that a Re-evaluate will replace.
+  const provL = lessons.filter((l) => l.status === 'PROPOSED' && l.provisional);
+  if (provL.length) {
+    items.push({ kind: 'note', title: `${provL.length} provisional lesson${provL.length > 1 ? 's' : ''}`,
+      reason: 'heuristic-drafted — will supersede with LLM drafts on Re-evaluate' });
+  }
+  return items;
+}
+
 export function reportToMd(run, report) {
   const r = report.result;
   const c = report.classification;

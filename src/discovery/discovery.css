@@ -373,3 +373,19 @@
 
 .lesson-note{font-size:10.5px;color:var(--fg-4);font-style:italic}
 .rr-lesson .lesson-note{margin-left:2px}
+
+/* NEEDS YOUR ATTENTION — recommendations with reasons (In-progress top) */
+.datastrip.attention{border-color:color-mix(in srgb,var(--accent) 30%,var(--line-1))}
+.attn-empty{color:var(--success);font-size:13px;font-weight:600;padding:6px 0}
+.attn{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line-1)}
+.attn:first-of-type{border-top:none}
+.attn-main{flex:1;min-width:0}
+.attn-title{display:block;font-size:13px;font-weight:600;color:var(--fg-1)}
+.attn-reason{display:block;font-size:11px;color:var(--fg-3);margin-top:2px;line-height:1.4}
+.attn .b{flex:none}
+.attn-note .attn-title{font-weight:500;color:var(--fg-2)}
+/* running-commit + stale indicator (topbar) */
+.commit-chip{display:inline-flex;align-items:center;gap:5px;font:500 10px/1 var(--font-mono);color:var(--fg-3);background:var(--bg-panel);border:1px solid var(--line-1);border-radius:5px;padding:4px 7px}
+.commit-chip.stale{color:var(--warning);border-color:color-mix(in srgb,var(--warning) 40%,transparent)}
+.commit-chip .dot{width:6px;height:6px;border-radius:50%;background:var(--success)}
+.commit-chip.stale .dot{background:var(--warning)}

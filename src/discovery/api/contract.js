@@ -136,7 +136,7 @@ function mockContract() {
   const board = MOCK.board.map((b) => ({ ...b }));
   // engine power-switch state machine (mock): starting → running, stopping → stopped
   const engine = { state: 'stopped', since: 0 };
-  const proxy = { state: 'running', since: 0 };   // proxy power-switch (restart-after-deploy)
+  const proxy = { state: 'running', since: 0, commit: 'abc1234', tree: 'def5678' };   // proxy power-switch; commit≠tree → stale until update&restart
   const probe = { running: null, queue: [], done: [] };   // mock probe-run simulator
   const mlessons = [{ id: 'lesson-v015-tom-seed', status: 'PROPOSED', source: 'V-015-TOM (direct measurement)',
     text: 'V-015-TOM turn-of-month: edge +0.0018%/day, t=0.03, n=1704 (well-powered), 18-mo window ending 2026-07-04, 24-name universe. Mechanism read = structural (T+1 settlement); revival ~ settlement reversal (expect never). DFC prior lowered; TDF prior intact.' }];
@@ -157,10 +157,11 @@ function mockContract() {
     async engineStop() { engine.state = 'stopping'; engine.since = now(); return { action: 'stop', status: engine.state }; },
     // PROXY POWER SWITCH (controls the SignalDeltaProxy service; restart-after-deploy)
     async proxyStatus() {
-      if (proxy.state === 'restarting' && now() - proxy.since > 1500) proxy.state = 'running';
-      return { status: proxy.state, helper_backed: true };
+      if (proxy.state === 'restarting' && now() - proxy.since > 1500) { proxy.state = 'running'; proxy.commit = proxy.tree; }
+      return { status: proxy.state, helper_backed: true, running_commit: proxy.commit, tree_commit: proxy.tree, stale: proxy.commit !== proxy.tree };
     },
     async proxyRestart() { proxy.state = 'restarting'; proxy.since = now(); return { action: 'restart', status: proxy.state }; },
+    async proxyUpdateRestart() { proxy.state = 'restarting'; proxy.since = now(); return { action: 'update-restart', status: proxy.state }; },
     async exportMd(slice) { return `# ${slice}\n\n(mock export — read-only, no secrets)\n`; },
     // INTENT — resolve is the §4.1 gated-write; the frontend NEVER writes the graph
     async resolve({ gate_item_id, decision, gate_item_version }) {
@@ -356,6 +357,13 @@ function liveContract() {
     // so an unreachable status reads as 'restarting' (the app polls until 'running').
     async proxyStatus() { return get('/sm/proxy/status').catch(() => ({ status: 'unreachable' })); },
     async proxyRestart() { return post('/sm/proxy/restart', {}).catch(() => ({ action: 'restart', status: 'restarting' })); },
+    // Update & restart; if the running proxy predates this endpoint (404), fall back
+    // to a plain restart — which still picks up the committed local tree, after which
+    // update-restart exists. Either way the running_commit reflects the new code.
+    async proxyUpdateRestart() {
+      const r = await post('/sm/proxy/update-restart', {}).catch(() => null);
+      return r || post('/sm/proxy/restart', {}).catch(() => ({ action: 'restart', status: 'restarting' }));
+    },
   };
 }
 

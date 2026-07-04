@@ -187,6 +187,7 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
                   </div>
                 )}
                 <div className="rec">{it.disposition || '—'}</div>
+                <div className="attn-reason">Re-judge under the fixed taxonomy + LLM — corrects the disposition, retracts wrong kills, re-drafts lessons</div>
                 <div className="acts">
                   <button className="b b-sec" disabled={busy === it.item_id || reevaluating[it.item_id]}
                           title="The engine re-runs terminus on the stored results with the fixed taxonomy + LLM — corrects its own dispositions, retracts wrong kills, re-derives, re-proposes lessons."

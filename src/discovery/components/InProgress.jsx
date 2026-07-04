@@ -51,7 +51,7 @@ function StageList({ run }) {
   );
 }
 
-export default function InProgress({ probe, lessons = [], onBank, onUnbank, onReject, onOpenRun }) {
+export default function InProgress({ probe, lessons = [], onBank, onUnbank, onReject, onOpenRun, attention = [], onAttentionAction }) {
   const running = probe?.running || null;
   const queue = probe?.queue || [];
   const done = probe?.done || [];
@@ -69,6 +69,21 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
       <div className="stage-head">
         <div><h1>In progress</h1>
           <div className="sub">Approved probes run here, one at a time — live stages, the queue, and finished results.</div></div>
+      </div>
+
+      {/* NEEDS YOUR ATTENTION — every recommended action WITH its reason from live state */}
+      <div className="datastrip attention">
+        <h3>Needs your attention <span className="count mono">{attention.filter((a) => a.action).length}</span></h3>
+        {attention.length === 0 && <div className="attn-empty">Nothing needs you.</div>}
+        {attention.map((a, i) => (
+          <div key={i} className={`attn attn-${a.kind}`}>
+            <div className="attn-main">
+              <span className="attn-title">{a.title}</span>
+              <span className="attn-reason">{a.reason}</span>
+            </div>
+            {a.action && <button className="b b-pri" onClick={() => onAttentionAction && onAttentionAction(a)}>{a.action}</button>}
+          </div>
+        ))}
       </div>
 
       <div className="datastrip">

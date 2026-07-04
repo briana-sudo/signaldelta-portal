@@ -16,7 +16,7 @@ import TimelineView from './components/TimelineView.jsx';
 import InProgress from './components/InProgress.jsx';
 import Topbar from './components/Topbar.jsx';
 import RunRoom from './components/RunRoom.jsx';
-import { composeReport, mergeRuns, runsForSurface, versionDiff, surfaceOf, deriveCellStatuses } from './runs.js';
+import { composeReport, mergeRuns, runsForSurface, versionDiff, surfaceOf, deriveCellStatuses, computeAttention } from './runs.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -365,11 +365,19 @@ describe('proxy control button', () => {
     window.confirm.mockRestore();
   });
 
-  it('helper-backed → tooltip reflects the reliable restart', () => {
-    const { rerender } = render(<Topbar {...base} proxyStatus="running" proxyHelperBacked={true} onProxyRestart={vi.fn()} />);
-    expect(screen.getByText(/Proxy live/).closest('button').title).toMatch(/helper-backed/i);
-    rerender(<Topbar {...base} proxyStatus="running" proxyHelperBacked={false} onProxyRestart={vi.fn()} />);
-    expect(screen.getByText(/Proxy live/).closest('button').title).not.toMatch(/helper-backed/i);
+  it('proxy button is Update & restart; a stale commit shows the stale chip', () => {
+    const onUpd = vi.fn();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { container } = render(<Topbar {...base} proxyStatus="running"
+      proxyCommit={{ running_commit: 'aaa1111', tree_commit: 'bbb2222', stale: true }}
+      onProxyUpdateRestart={onUpd} onProxyRestart={vi.fn()} />);
+    // running-commit visibility: stale chip shows running→tree
+    expect(container.querySelector('.commit-chip.stale')).toBeTruthy();
+    expect(screen.getByText(/aaa1111→bbb2222/)).toBeTruthy();
+    // the action updates then restarts (not a bare restart)
+    fireEvent.click(screen.getByText(/Proxy live/).closest('button'));
+    expect(onUpd).toHaveBeenCalled();
+    window.confirm.mockRestore();
   });
 
   it('restarting → amber label, not clickable', () => {
@@ -688,6 +696,24 @@ describe('Run Room + terminus report', () => {
     expect(onUnbank).toHaveBeenCalledWith('L-bank');
     expect(screen.getByText('SUPERSEDED')).toBeTruthy();
     expect(screen.getByText('RETRACTED')).toBeTruthy();
+  });
+
+  it('computeAttention surfaces re-evaluate + approve + provisional-lesson, each with a reason', () => {
+    const runs = [{ parent: 'new-search-surface:V-015', recipe_id: 'V-015-TDF', disposition: 'killed (no-edge, as tested)',
+      classified_by: 'heuristic', provisional: true, result: { gate_pass: false, t: 1.61, n: 576, edge_pct_per_day: 0.14, gate: { min_abs_t: 2.0, direction: 'positive' } } }];
+    const board = [{ item_id: 'D:V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL', provenance: 'derived', blocker: 'runnable-now', status: 'PENDING', title: 're-test' }];
+    const lessons = [{ status: 'PROPOSED', provisional: true, text: 'x' }];
+    const a = computeAttention({ runs, board, lessons });
+    const kinds = a.map((x) => x.kind);
+    expect(kinds).toContain('reevaluate');
+    expect(kinds).toContain('approve');
+    expect(kinds).toContain('note');
+    expect(a.find((x) => x.kind === 'reevaluate').reason).toMatch(/superseded taxonomy|provisional heuristic/);
+    expect(a.every((x) => x.reason)).toBe(true);              // NO bare recommendation
+  });
+
+  it('empty attention → nothing needs you', () => {
+    expect(computeAttention({ runs: [], board: [], lessons: [] })).toHaveLength(0);
   });
 
   it('deriveCellStatuses reads a surface true-state from run results (cold, not stored)', () => {

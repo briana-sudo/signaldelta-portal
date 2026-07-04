@@ -13,7 +13,7 @@ import TimelineView from './components/TimelineView.jsx';
 import InProgress from './components/InProgress.jsx';
 import AnalystPanel from './components/AnalystPanel.jsx';
 import RunRoom from './components/RunRoom.jsx';
-import { mergeRuns, findRun } from './runs.js';
+import { mergeRuns, findRun, computeAttention } from './runs.js';
 import { downloadMd, renderMd } from './mdExport.js';
 import './discovery.css';
 
@@ -27,6 +27,7 @@ export default function DiscoveryApp({ contract }) {
   const [engine, setEngine] = useState('unknown');   // running | starting | stopping | stopped | not-installed
   const [proxy, setProxy] = useState('unknown');     // running | restarting | stopped | unreachable | unknown
   const [proxyHelper, setProxyHelper] = useState(false);  // SM_ProxyHelper up → restarts always work
+  const [proxyCommit, setProxyCommit] = useState({});     // {running_commit, tree_commit, stale}
   const [costingQ, setCostingQ] = useState(null);    // a costing question handed to the assistant
   const [resolutions, setResolutions] = useState({}); // surface_id -> operator's recorded answer
   const [probe, setProbe] = useState({ running: null, queue: [], done: [] });  // live probe-run state
@@ -70,7 +71,8 @@ export default function DiscoveryApp({ contract }) {
       let s = 'unknown';
       try {
         const r = await client.proxyStatus();
-        s = r.status; if (live) setProxyHelper(!!r.helper_backed);
+        s = r.status;
+        if (live) { setProxyHelper(!!r.helper_backed); setProxyCommit({ running_commit: r.running_commit, tree_commit: r.tree_commit, stale: r.stale }); }
       } catch { s = 'unreachable'; }
       if (!live) return;
       if (Date.now() < restartingUntil.current) {
@@ -117,6 +119,13 @@ export default function DiscoveryApp({ contract }) {
   const onOpenRun = useCallback((id) => setOpenRun(id), []);
   const openRunObj = openRun ? findRun(allRuns, openRun) : null;
 
+  // NEEDS YOUR ATTENTION — recommended actions with reasons, from live state
+  const attention = useMemo(() => computeAttention({ runs: allRuns, board, lessons }), [allRuns, board, lessons]);
+  const onAttentionAction = useCallback(async (a) => {
+    if (a.kind === 'reevaluate') await client.reevaluate?.(a.target);
+    else if (a.kind === 'approve') await client.resolve?.({ gate_item_id: a.target, decision: 'approve', gate_item_version: a.version || 0 });
+  }, [client]);
+
   function onResolved(itemId, newStatus) {
     setBoard((prev) => prev.map((i) => (i.item_id === itemId ? { ...i, status: newStatus } : i)));
   }
@@ -134,12 +143,18 @@ export default function DiscoveryApp({ contract }) {
     setProxy('restarting');
     try { await client.proxyRestart(); } catch { /* fire-and-forget; the poll tracks recovery */ }
   }
+  async function onProxyUpdateRestart() {
+    restartingUntil.current = Date.now() + 90000;    // ff + restart — a bit longer
+    setProxy('restarting');
+    try { await client.proxyUpdateRestart(); } catch { /* fire-and-forget; the poll tracks recovery */ }
+  }
 
   return (
     <div className="app">
       <Topbar tab={tab} setTab={setTab} cellsMapped={state.cells_mapped || 0}
               engineStatus={engine} onStart={onStart} onStop={onStop}
-              proxyStatus={proxy} proxyHelperBacked={proxyHelper} onProxyRestart={onProxyRestart} />
+              proxyStatus={proxy} proxyHelperBacked={proxyHelper} onProxyRestart={onProxyRestart}
+              proxyCommit={proxyCommit} onProxyUpdateRestart={onProxyUpdateRestart} />
       <div className="main">
         <div className="stage">
           {tab === 'Coverage' && (
@@ -167,7 +182,7 @@ export default function DiscoveryApp({ contract }) {
             <div className="stage-head"><div><h1>Board</h1>
               <div className="sub">Every pending gate, with the engine's recommendation and the priced fork. Approve / reject sends intent — the orchestrator resolves.</div></div></div>
           )}
-          {tab === 'In progress' && <InProgress probe={probe} lessons={lessons} onBank={onBankLesson} onUnbank={onUnbankLesson} onReject={onRejectLesson} onOpenRun={onOpenRun} />}
+          {tab === 'In progress' && <InProgress probe={probe} lessons={lessons} onBank={onBankLesson} onUnbank={onUnbankLesson} onReject={onRejectLesson} onOpenRun={onOpenRun} attention={attention} onAttentionAction={onAttentionAction} />}
           {tab === 'Timeline' && <TimelineView contract={client} onOpenRun={onOpenRun} />}
           {(tab === 'Coverage' || tab === 'Data needs') && <DataNeeds contract={client} gated={gated} onAskAssistant={askAssistant} resolutions={resolutions} />}
           {tab === 'Board' && (

@@ -24,7 +24,7 @@ const PLABEL = {
 };
 
 export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart, onStop,
-                                proxyStatus, proxyHelperBacked, onProxyRestart }) {
+                                proxyStatus, proxyHelperBacked, onProxyRestart, proxyCommit, onProxyUpdateRestart }) {
   const st = engineStatus || 'unknown';
   const clickable = st === 'running' || st === 'stopped';
 
@@ -37,10 +37,13 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
   const pRestarting = ps === 'restarting' || ps === 'starting' || ps === 'stopping';
   const pClass = pRestarting ? 'restarting' : ps;      // amber while cycling
 
+  const stale = !!proxyCommit?.stale;
   function proxyToggle() {
-    if (ps === 'running'
-        && window.confirm('Restart the proxy? The console disconnects for a few seconds while the service cycles, then reconnects with live 7688 data.')) {
-      onProxyRestart();
+    if (ps !== 'running') return;
+    // Update & restart: fast-forwards the service tree to the deploy branch FIRST,
+    // then restarts — so the running code actually updates (restart != deploy fix).
+    if (window.confirm('Update & restart the proxy? It fast-forwards the service to the latest deploy branch, then cycles (a few seconds), and comes back on the new commit.')) {
+      (onProxyUpdateRestart || onProxyRestart)();
     }
   }
 
@@ -57,16 +60,22 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
         ))}
       </div>
       <div className="spacer" />
+      {proxyCommit?.running_commit && (
+        <span className={`commit-chip${stale ? ' stale' : ''}`}
+              title={stale
+                ? `Running ${proxyCommit.running_commit}, disk has ${proxyCommit.tree_commit} — click Update & restart to go live`
+                : `Proxy running the latest commit (${proxyCommit.running_commit})`}>
+          <span className="dot" />{stale ? `stale · ${proxyCommit.running_commit}→${proxyCommit.tree_commit}` : proxyCommit.running_commit}
+        </span>
+      )}
       <button type="button" className={`proxy-switch st-${pClass}`} onClick={proxyToggle}
               disabled={ps !== 'running'}
-              aria-label={`${PLABEL[ps] || PLABEL.unknown}${ps === 'running' ? ' — click to restart' : ''}`}
+              aria-label={`${PLABEL[ps] || PLABEL.unknown}${ps === 'running' ? ' — click to update & restart' : ''}`}
               title={ps === 'running'
-                ? (proxyHelperBacked
-                    ? 'Click to restart the proxy (helper-backed — works even after a code update)'
-                    : 'Click to restart the proxy')
+                ? 'Update & restart the proxy (fast-forwards to the deploy branch, then restarts — restart alone would not update the code)'
                 : PLABEL[ps] || PLABEL.unknown}>
         <span className={`pulse st-${pClass}`} />{PLABEL[ps] || PLABEL.unknown}
-        {ps === 'running' && <span className="sw-act"> · restart</span>}
+        {ps === 'running' && <span className="sw-act">{stale ? ' · update & restart ⚠' : ' · update & restart'}</span>}
       </button>
       <button type="button" className={`engine-switch st-${st}`} onClick={toggle}
               disabled={!clickable} aria-label={`${LABEL[st]} — ${st === 'running' ? 'click to stop' : st === 'stopped' ? 'click to start' : ''}`}
