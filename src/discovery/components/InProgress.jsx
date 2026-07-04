@@ -75,8 +75,8 @@ export default function InProgress({ probe }) {
                     <td className="mono">{r.edge_pct_per_day != null ? `${r.edge_pct_per_day}%` : '—'}</td>
                     <td className="mono">{r.t ?? '—'}</td>
                     <td className="mono">{r.n ?? '—'}</td>
-                    <td><span className={`ip-badge ${r.gate_pass ? 'pass' : 'fail'}`}>{r.gate_pass ? 'PASS' : 'FAIL'}</span></td>
-                    <td>{d.disposition || r.disposition || '—'}</td>
+                    <td><span className={`ip-badge ${r.gate_pass ? 'pass' : 'fail'}`}>{r.error ? 'ERR' : r.gate_pass ? 'PASS' : 'FAIL'}</span></td>
+                    <td>{r.error ? <span className="hint">{r.error}</span> : (d.disposition || r.disposition || '—')}</td>
                   </tr>
                 );
               })}

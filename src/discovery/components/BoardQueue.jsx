@@ -70,7 +70,7 @@ export default function BoardQueue({ contract, items, onResolved, probe }) {
         </div>
         <div className="ttl">{it.title}</div>
         {rs.s === 'running' && <div className="run-line mono">▸ {rs.stage}…</div>}
-        {rs.s === 'done' && <div className="run-line done">{rs.disposition} · t={rs.result?.t ?? '—'} n={rs.result?.n ?? '—'}</div>}
+        {rs.s === 'done' && <div className="run-line done">{rs.result?.error ? `error: ${rs.result.error}` : `${rs.disposition} · t=${rs.result?.t ?? '—'} n=${rs.result?.n ?? '—'}`}</div>}
         {rs.s !== 'running' && rs.s !== 'done' && <>
           <div className="meta">{it.meta.map((m, i) => <span key={i} className={/\$|\d/.test(m) ? 'mono' : ''}>{m}</span>)}</div>
           <div className="rec">{it.recommendation}</div>
