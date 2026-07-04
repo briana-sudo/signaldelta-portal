@@ -1,17 +1,17 @@
 {
  "board": [
   {
-   "item_id": "new-search-surface:relational_graph:cross_sectional",
+   "item_id": "new-search-surface:V-015",
    "type": "new-search-surface",
    "status": "PENDING",
-   "kind": "New search",
-   "age": "now",
-   "title": "Probe Relational \u00b7 graph \u2014 cross_sectional",
+   "kind": "Runnable now",
+   "age": "seed",
+   "title": "V-015 payment-cycle / rebalancing flows (dash-for-cash reversal, turn-",
    "meta": [
-    "score 0.88",
-    "owned"
+    "runnable-now",
+    "flow/calendar (OWNED)"
    ],
-   "recommendation": "Discovery potential 0.82, orthogonality 0.90. Owned-reachable.",
+   "recommendation": "cheapest; zero new data; needs post-2024 re-verification (settlement + fund-landscape shifted). The engine's first free test.",
    "version": 1,
    "options": [
     "approve",
@@ -19,203 +19,166 @@
    ]
   },
   {
-   "item_id": "new-search-surface:llm_events:cross_sectional",
-   "type": "new-search-surface",
+   "item_id": "engine-change-needed:V-008",
+   "type": "engine-change-needed",
    "status": "PENDING",
-   "kind": "New search",
-   "age": "now",
-   "title": "Probe LLM \u00b7 events \u2014 cross_sectional",
+   "kind": "Needs build",
+   "age": "seed",
+   "title": "V-008 neglected-universe event composite (PEAD-tail + conditional buyb",
    "meta": [
-    "score 0.69",
-    "owned"
+    "needs-build",
+    "neglected/event"
    ],
-   "recommendation": "Discovery potential 0.65, orthogonality 0.90. Owned-reachable.",
+   "recommendation": "descendant of Cell-1 (\u00a72). Needs the EDGAR parser build + the quant question: do two cost-hostile signals clear the cost bar *together* when each failed alone? Data is free; the blocker is engineering + a real test.",
    "version": 1,
    "options": [
-    "approve",
     "hold"
    ]
   },
   {
-   "item_id": "new-search-surface:borrow_dynamics:cross_sectional",
-   "type": "new-search-surface",
+   "item_id": "gated-option:V-020",
+   "type": "gated-option",
    "status": "PENDING",
-   "kind": "New search",
-   "age": "now",
-   "title": "Probe Borrow \u00b7 dynamics \u2014 cross_sectional",
+   "kind": "Needs data",
+   "age": "seed",
+   "title": "V-020 defined-risk vol premium (XSP put credit spreads, fixed max-loss",
    "meta": [
-    "score 0.66",
-    "gated \u00b7 $/mo borrow-fee feed"
+    "needs-data",
+    "options-implied"
    ],
-   "recommendation": "Discovery potential 0.58, orthogonality 0.90. Gated: $/mo borrow-fee feed.",
+   "recommendation": "cleanest counterparty story (hedgers pay for insurance); tradeable residual unproven \u2192 a data purchase to test.",
    "version": 1,
    "options": [
-    "approve",
     "hold"
    ]
   },
   {
-   "item_id": "new-search-surface:options_skew:vol_managed",
-   "type": "new-search-surface",
+   "item_id": "setup-state:V-028",
+   "type": "setup-state",
    "status": "PENDING",
-   "kind": "New search",
-   "age": "now",
-   "title": "Probe Options \u00b7 skew \u2014 vol_managed",
+   "kind": "Needs broker",
+   "age": "seed",
+   "title": "V-028 trend regime sleeve (managed-futures ETF)",
    "meta": [
-    "score 0.63",
-    "gated \u00b7 $/mo options-implied (skew/IV)"
+    "needs-broker",
+    "futures"
    ],
-   "recommendation": "Discovery potential 0.72, orthogonality 0.90. Gated: $/mo options-implied (skew/IV).",
+   "recommendation": "futures \u2260 Alpaca \u2014 needs a different broker/instrument setup. Explicitly a portfolio component (\"the half\"), not an alpha engine; must beat holding less equity.",
    "version": 1,
    "options": [
-    "approve",
-    "hold"
-   ]
-  },
-  {
-   "item_id": "new-search-surface:fundamental:cross_sectional",
-   "type": "new-search-surface",
-   "status": "PENDING",
-   "kind": "New search",
-   "age": "now",
-   "title": "Probe Fundamental \u00b7 cross-sectional \u2014 cross_sectional",
-   "meta": [
-    "score 0.30",
-    "owned"
-   ],
-   "recommendation": "Discovery potential 0.15, orthogonality 0.10. Owned-reachable.",
-   "version": 1,
-   "options": [
-    "approve",
-    "hold"
-   ]
-  },
-  {
-   "item_id": "new-search-surface:price:time_series_trend",
-   "type": "new-search-surface",
-   "status": "PENDING",
-   "kind": "New search",
-   "age": "now",
-   "title": "Probe Price \u00b7 trend \u2014 time_series_trend",
-   "meta": [
-    "score 0.23",
-    "owned"
-   ],
-   "recommendation": "Discovery potential 0.20, orthogonality 0.10. Owned-reachable.",
-   "version": 1,
-   "options": [
-    "approve",
     "hold"
    ]
   }
  ],
  "state": {
   "lane": "equity",
-  "family": "discovery",
-  "program_state": "searching",
+  "family": "forward-queue",
+  "program_state": "owned-exhausted; working the frontier",
   "retained_partials": 1,
   "window_budget": "sealed",
-  "cells_mapped": 1512
+  "cells_mapped": 71,
+  "queue": 4,
+  "killed": 20
  },
  "grid": [
   {
-   "surface": "relational_graph",
-   "name": "Relational \u00b7 graph",
-   "lane": "equity",
-   "discovery_potential": 0.82,
-   "status": "whitespace",
-   "family": "graph",
-   "note": "free (EDGAR/graph) \u2014 owned",
+   "surface": "Crypto \u00b7 on-chain",
+   "name": "Crypto \u00b7 on-chain",
+   "discovery_potential": 0.95,
+   "status": "gated",
+   "family": "crypto",
+   "note": "discovery-ranked frontier",
    "cells": [
     {
-     "status": "killed"
+     "status": "gated"
     },
     {
-     "status": "killed"
+     "status": "gated"
     },
     {
-     "status": "killed"
+     "status": "gated"
     },
     {
-     "status": "killed"
+     "status": "gated"
     },
     {
-     "status": "killed"
+     "status": "gated"
     },
     {
-     "status": "whitespace"
+     "status": "gated"
     },
     {
-     "status": "whitespace"
+     "status": "gated"
     },
     {
-     "status": "whitespace"
+     "status": "gated"
     },
     {
-     "status": "whitespace"
+     "status": "gated"
     },
     {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
+     "status": "gated"
     }
    ],
    "counts": {
-    "total": 189,
+    "open": 10,
     "occupied": 0,
-    "killed": 63,
-    "open": 126
+    "killed": 0
    }
   },
   {
-   "surface": "options_skew",
-   "name": "Options \u00b7 skew",
-   "lane": "equity",
+   "surface": "Crypto \u00b7 funding",
+   "name": "Crypto \u00b7 funding",
+   "discovery_potential": 0.88,
+   "status": "gated",
+   "family": "crypto",
+   "note": "discovery-ranked frontier",
+   "cells": [
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    }
+   ],
+   "counts": {
+    "open": 10,
+    "occupied": 0,
+    "killed": 0
+   }
+  },
+  {
+   "surface": "V-020",
+   "name": "V-020 defined-risk vol premium (XSP put credit",
    "discovery_potential": 0.72,
    "status": "gated",
-   "family": "options",
-   "note": "$/mo options-implied (skew/IV)",
+   "family": "options-implied",
+   "note": "needs-data",
    "cells": [
-    {
-     "status": "killed"
-    },
-    {
-     "status": "killed"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
     {
      "status": "gated"
     },
@@ -242,110 +205,19 @@
     }
    ],
    "counts": {
-    "total": 189,
+    "open": 8,
     "occupied": 0,
-    "killed": 21,
-    "open": 168
+    "killed": 0
    }
   },
   {
-   "surface": "llm_events",
-   "name": "LLM \u00b7 events",
-   "lane": "equity",
-   "discovery_potential": 0.65,
-   "status": "whitespace",
-   "family": "events",
-   "note": "free (EDGAR text) + LLM classify",
-   "cells": [
-    {
-     "status": "killed"
-    },
-    {
-     "status": "killed"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    }
-   ],
-   "counts": {
-    "total": 189,
-    "occupied": 0,
-    "killed": 21,
-    "open": 168
-   }
-  },
-  {
-   "surface": "borrow_dynamics",
-   "name": "Borrow \u00b7 dynamics",
-   "lane": "equity",
+   "surface": "V-028",
+   "name": "V-028 trend regime sleeve (managed-futures ETF",
    "discovery_potential": 0.58,
    "status": "gated",
-   "family": "borrow",
-   "note": "$/mo borrow-fee feed",
+   "family": "futures",
+   "note": "needs-broker",
    "cells": [
-    {
-     "status": "killed"
-    },
-    {
-     "status": "killed"
-    },
-    {
-     "status": "killed"
-    },
-    {
-     "status": "killed"
-    },
-    {
-     "status": "killed"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
     {
      "status": "gated"
     },
@@ -372,20 +244,141 @@
     }
    ],
    "counts": {
-    "total": 189,
+    "open": 8,
     "occupied": 0,
-    "killed": 63,
-    "open": 126
+    "killed": 0
    }
   },
   {
-   "surface": "price",
-   "name": "Price \u00b7 trend",
-   "lane": "equity",
+   "surface": "V-008",
+   "name": "V-008 neglected-universe event composite (PEAD",
+   "discovery_potential": 0.55,
+   "status": "whitespace",
+   "family": "neglected/event",
+   "note": "needs-build",
+   "cells": [
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    }
+   ],
+   "counts": {
+    "open": 8,
+    "occupied": 0,
+    "killed": 0
+   }
+  },
+  {
+   "surface": "V-015",
+   "name": "V-015 payment-cycle / rebalancing flows (dash-",
+   "discovery_potential": 0.45,
+   "status": "whitespace",
+   "family": "flow/calendar (OWNED)",
+   "note": "runnable-now",
+   "cells": [
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    }
+   ],
+   "counts": {
+    "open": 8,
+    "occupied": 0,
+    "killed": 0
+   }
+  },
+  {
+   "surface": "owned_xs",
+   "name": "Owned equity \u00b7 cross-sectional",
    "discovery_potential": 0.2,
    "status": "occupied",
+   "family": "fundamental_cross_sectional",
+   "note": "EXHAUSTED \u2014 mid-cap campaign",
+   "cells": [
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "occupied"
+    },
+    {
+     "status": "occupied"
+    },
+    {
+     "status": "occupied"
+    }
+   ],
+   "counts": {
+    "open": 0,
+    "occupied": 3,
+    "killed": 7
+   }
+  },
+  {
+   "surface": "owned_ts",
+   "name": "Owned equity \u00b7 time-series",
+   "discovery_potential": 0.18,
+   "status": "occupied",
    "family": "price_path",
-   "note": "owned (SEP)",
+   "note": "B1 retained; B2/B3 null",
    "cells": [
     {
      "status": "occupied"
@@ -394,7 +387,13 @@
      "status": "occupied"
     },
     {
-     "status": "killed"
+     "status": "occupied"
+    },
+    {
+     "status": "occupied"
+    },
+    {
+     "status": "occupied"
     },
     {
      "status": "killed"
@@ -403,388 +402,224 @@
      "status": "killed"
     },
     {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
+     "status": "killed"
     },
     {
      "status": "retained"
     }
    ],
    "counts": {
-    "total": 189,
-    "occupied": 27,
-    "killed": 30,
-    "open": 132
-   }
-  },
-  {
-   "surface": "fundamental",
-   "name": "Fundamental \u00b7 cross-sectional",
-   "lane": "equity",
-   "discovery_potential": 0.15,
-   "status": "occupied",
-   "family": "fundamental_cross_sectional",
-   "note": "owned (SF1)",
-   "cells": [
-    {
-     "status": "occupied"
-    },
-    {
-     "status": "killed"
-    },
-    {
-     "status": "killed"
-    },
-    {
-     "status": "killed"
-    },
-    {
-     "status": "killed"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    },
-    {
-     "status": "whitespace"
-    }
-   ],
-   "counts": {
-    "total": 189,
-    "occupied": 9,
-    "killed": 45,
-    "open": 135
-   }
-  },
-  {
-   "surface": "crypto_onchain",
-   "name": "Crypto \u00b7 on-chain",
-   "lane": "crypto",
-   "discovery_potential": 0.95,
-   "status": "gated",
-   "family": "onchain",
-   "note": "$/mo on-chain feed (Glassnode/Nansen tier)",
-   "cells": [
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    }
-   ],
-   "counts": {
-    "total": 126,
-    "occupied": 0,
-    "killed": 0,
-    "open": 126
-   }
-  },
-  {
-   "surface": "crypto_funding",
-   "name": "Funding",
-   "lane": "crypto",
-   "discovery_potential": 0.88,
-   "status": "gated",
-   "family": "funding",
-   "note": "$/mo perp funding + basis feed",
-   "cells": [
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    }
-   ],
-   "counts": {
-    "total": 126,
-    "occupied": 0,
-    "killed": 0,
-    "open": 126
-   }
-  },
-  {
-   "surface": "crypto_microstructure",
-   "name": "Crypto \u00b7 microstructure",
-   "lane": "crypto",
-   "discovery_potential": 0.8,
-   "status": "gated",
-   "family": "microstructure",
-   "note": "$/mo L2 order-book / tick",
-   "cells": [
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    },
-    {
-     "status": "gated"
-    }
-   ],
-   "counts": {
-    "total": 126,
-    "occupied": 0,
-    "killed": 0,
-    "open": 126
+    "open": 0,
+    "occupied": 5,
+    "killed": 3
    }
   }
  ],
  "ledger": [
   {
    "id": "B1",
-   "mechanism": "price-trend",
-   "orthogonality_basis": "mkt/size",
+   "mechanism": "trailing-return-sign TSMOM (liquid single-name)",
+   "orthogonality_basis": "orthogonal-by-construction to fundamentals",
    "forward_confirmed": false,
-   "net_shape": "~1.4%/yr (in-window, not forward-confirmed)"
+   "net_shape": "B1H hedged: net +1.41%/yr, HAC t=2.02, Sharpe 0.354; B1F residual net-of-BAB +3."
   }
  ],
  "kills": [
   {
-   "id": "A35",
-   "force_named": "short-constraint",
-   "disposition": "setup-state",
-   "reason": "short-leg behind the borrow wall (126 equity cells)"
+   "id": "B-GP",
+   "force_named": "gross profitability (RMW)",
+   "disposition": "permanent",
+   "reason": "gross-brick, but pool OOS-falsified \u2014 GP-controlled \u03b1 +0.454%/mo t2.73; real brick gross, but B-GP+B-AG pool OOS-falsifi"
   },
   {
-   "id": "band-skew",
-   "force_named": "band-skew",
-   "disposition": "setup-state",
-   "reason": "sub-population skews to a different band than traded (84 cells)"
-  },
-  {
-   "id": "A36",
-   "force_named": "factor-in-costume",
-   "disposition": "deliberate-review",
-   "reason": "price-trend cousin family (24 cells)"
-  },
-  {
-   "id": "KR",
-   "force_named": "recent-decay",
+   "id": "B-AG",
+   "force_named": "asset growth (CMA)",
    "disposition": "fast-scan",
-   "reason": "owned single-name classic factors, recent-third edge non-positive (9 cells)"
+   "reason": "gross-brick, orthogonal, but recently-decayed \u2014 \u03b1 +0.43%/mo t3.23, \u03c1 vs B-GP \u22120.14 (orthogonal); combination partner but"
+  },
+  {
+   "id": "B-VAL",
+   "force_named": "value (HML)",
+   "disposition": "permanent",
+   "reason": "KILLED \u2014 spanned by profitability (GP-controlled \u03b1 t0.67)"
+  },
+  {
+   "id": "B-PEAD",
+   "force_named": "PEAD ported up-cap",
+   "disposition": "deliberate-review",
+   "reason": "KILLED \u2014 doesn't-port-up (ratio 0.13 vs Cell-1 tail); char-neutral negative"
+  },
+  {
+   "id": "B-LP",
+   "force_named": "Lazy-Prices ported up-cap",
+   "disposition": "deliberate-review",
+   "reason": "KILLED \u2014 doesn't-port-up; well-powered true null"
+  },
+  {
+   "id": "B-NI",
+   "force_named": "net issuance",
+   "disposition": "deliberate-review",
+   "reason": "KILLED \u2014 B-AG-in-costume (\u03c1 +0.73; char-neutral null t0.89)"
+  },
+  {
+   "id": "B-RND",
+   "force_named": "R&D / intangibles",
+   "disposition": "permanent",
+   "reason": "KILLED \u2014 independent-but-empty; 92% Health+Tech sector bet"
+  },
+  {
+   "id": "B-Q5",
+   "force_named": "HXZ expected growth",
+   "disposition": "deliberate-review",
+   "reason": "KILLED \u2014 wrong-signed / didn't port to mid-cap (true null)"
+  },
+  {
+   "id": "B-INS",
+   "force_named": "insider (SF2)",
+   "disposition": "setup-state",
+   "reason": "KILLED \u2014 well-powered true null; band-skew (insider names skew larger/liquid); SF2 cancelled"
+  },
+  {
+   "id": "B-MOM",
+   "force_named": "12-1 momentum",
+   "disposition": "permanent",
+   "reason": "KILLED \u2014 attenuated (t1.06), all \\"
+  },
+  {
+   "id": "B2",
+   "force_named": "vol-managed time-series \u2014 NULL on power ",
+   "disposition": "permanent",
+   "reason": "vol-managed time-series \u2014 NULL on power (t=1.43)"
+  },
+  {
+   "id": "B3",
+   "force_named": "long-horizon reversal \u2014 NULL, absent/wro",
+   "disposition": "permanent",
+   "reason": "long-horizon reversal \u2014 NULL, absent/wrong-signed"
+  },
+  {
+   "id": "B-GP+B-AG",
+   "force_named": "owned-combination pool \u2014 OOS-FALSIFIED (",
+   "disposition": "permanent",
+   "reason": "owned-combination pool \u2014 OOS-FALSIFIED (SR +0.92 IS -> -0.43 OOS)"
+  },
+  {
+   "id": "B1xlow-vol",
+   "force_named": "BAB-in-costume (corr +0.87), decayed S3",
+   "disposition": "fast-scan",
+   "reason": "BAB-in-costume (corr +0.87), decayed S3"
+  },
+  {
+   "id": "B1xsin",
+   "force_named": "recently-decayed S3 -0.25",
+   "disposition": "fast-scan",
+   "reason": "recently-decayed S3 -0.25"
+  },
+  {
+   "id": "Cell-2",
+   "force_named": "Lazy-Prices neglected \u2014 raw material, bo",
+   "disposition": "permanent",
+   "reason": "Lazy-Prices neglected \u2014 raw material, borrow-killed"
+  },
+  {
+   "id": "Cell-3",
+   "force_named": "insider-on-neglected \u2014 true null",
+   "disposition": "permanent",
+   "reason": "insider-on-neglected \u2014 true null"
+  },
+  {
+   "id": "Cell-4",
+   "force_named": "econlink \u2014 true null",
+   "disposition": "permanent",
+   "reason": "econlink \u2014 true null"
+  },
+  {
+   "id": "accruals",
+   "force_named": "down-cap friction \u2014 null (gross-absence)",
+   "disposition": "permanent",
+   "reason": "down-cap friction \u2014 null (gross-absence)"
+  },
+  {
+   "id": "issuance",
+   "force_named": "down-cap friction \u2014 gross-weak/cost-surv",
+   "disposition": "permanent",
+   "reason": "down-cap friction \u2014 gross-weak/cost-survived"
   }
  ],
  "gated": [
   {
-   "id": "options_skew",
-   "surface": "Options \u00b7 skew",
-   "vendor": "$/mo options-implied (skew/IV)",
-   "price": "$/mo options-implied (skew/IV)",
-   "unlocks": "168 cells",
+   "id": "V-020",
+   "surface": "options-implied",
+   "vendor": "cleanest counterparty story (hedgers pay",
+   "price": "needs-data",
+   "unlocks": "test",
    "ev": "unpriced",
-   "likely_death": "needs deep dossier"
+   "likely_death": "needs test"
   },
   {
-   "id": "borrow_dynamics",
-   "surface": "Borrow \u00b7 dynamics",
-   "vendor": "$/mo borrow-fee feed",
-   "price": "$/mo borrow-fee feed",
-   "unlocks": "126 cells",
+   "id": "V-028",
+   "surface": "futures",
+   "vendor": "futures \u2260 Alpaca \u2014 needs a different bro",
+   "price": "needs-broker",
+   "unlocks": "test",
    "ev": "unpriced",
-   "likely_death": "needs deep dossier"
+   "likely_death": "needs test"
   },
   {
-   "id": "crypto_onchain",
-   "surface": "Crypto \u00b7 on-chain",
-   "vendor": "$/mo on-chain feed (Glassnode/Nansen tier)",
-   "price": "$/mo on-chain feed (Glassnode/Nansen tier)",
-   "unlocks": "126 cells",
+   "id": "dir#1",
+   "surface": "Cross-asset futures",
+   "vendor": "NEEDS-DATA + NEEDS-BUILD",
+   "price": "NEEDS-DATA + NEEDS-BUILD",
+   "unlocks": "frontier",
    "ev": "unpriced",
-   "likely_death": "needs deep dossier"
+   "likely_death": "\u2014"
   },
   {
-   "id": "crypto_funding",
-   "surface": "Funding",
-   "vendor": "$/mo perp funding + basis feed",
-   "price": "$/mo perp funding + basis feed",
-   "unlocks": "126 cells",
+   "id": "dir#2",
+   "surface": "Relational / cross-firm linkage",
+   "vendor": "NEEDS-BUILD",
+   "price": "NEEDS-BUILD",
+   "unlocks": "frontier",
    "ev": "unpriced",
-   "likely_death": "needs deep dossier"
+   "likely_death": "\u2014"
   },
   {
-   "id": "crypto_microstructure",
-   "surface": "Crypto \u00b7 microstructure",
-   "vendor": "$/mo L2 order-book / tick",
-   "price": "$/mo L2 order-book / tick",
-   "unlocks": "126 cells",
+   "id": "dir#3",
+   "surface": "Options-implied",
+   "vendor": "NEEDS-DATA",
+   "price": "NEEDS-DATA",
+   "unlocks": "frontier",
    "ev": "unpriced",
-   "likely_death": "needs deep dossier"
+   "likely_death": "\u2014"
   }
  ],
- "deployed": []
+ "deployed": [],
+ "watches": [
+  {
+   "watch": "KR-recent-decay-owned-classic-factors",
+   "detail": "owned single-name classic factors real 1999\u20132007 but non-positive in the recent third (2016-11..2026) are KILLED as standalone AND as recently-durable partners (B-AG, sin, low-vol). Exclusions: does NOT kill B1; does NOT kill the small/illiquid reversal; surface-scoped to owned equity (NOT futures); regime-scoped (not \"never worked\") \u2192 revives on regime reversion."
+  },
+  {
+   "watch": "Revival watch",
+   "detail": "B-AG recheck_due ~Dec 2026 (fast-scan; recent-third edge returns \u2192 revives). The recent-decay kills (B-AG, low-vol, sin) are the \"recheck low-vol / regime reverted\" board items \u2014 real, watched, not permanently dead."
+  }
+ ],
+ "open": [
+  {
+   "name": "Small/illiquid long-term-reversal variant",
+   "status": "untested-open"
+  },
+  {
+   "name": "IVOL / MAX / distress short-leg",
+   "status": "untested-open"
+  },
+  {
+   "name": "Opportunistic / cluster / executive insider at large-cap",
+   "status": "untested-open"
+  },
+  {
+   "name": "Sentiment/text change-not-level",
+   "status": "untested-open"
+  }
+ ]
 }
