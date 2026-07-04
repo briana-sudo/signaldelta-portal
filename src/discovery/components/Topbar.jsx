@@ -24,7 +24,7 @@ const PLABEL = {
 };
 
 export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart, onStop,
-                                proxyStatus, onProxyRestart }) {
+                                proxyStatus, proxyHelperBacked, onProxyRestart }) {
   const st = engineStatus || 'unknown';
   const clickable = st === 'running' || st === 'stopped';
 
@@ -60,7 +60,11 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
       <button type="button" className={`proxy-switch st-${pClass}`} onClick={proxyToggle}
               disabled={ps !== 'running'}
               aria-label={`${PLABEL[ps] || PLABEL.unknown}${ps === 'running' ? ' — click to restart' : ''}`}
-              title={ps === 'running' ? 'Click to restart the proxy' : PLABEL[ps] || PLABEL.unknown}>
+              title={ps === 'running'
+                ? (proxyHelperBacked
+                    ? 'Click to restart the proxy (helper-backed — works even after a code update)'
+                    : 'Click to restart the proxy')
+                : PLABEL[ps] || PLABEL.unknown}>
         <span className={`pulse st-${pClass}`} />{PLABEL[ps] || PLABEL.unknown}
         {ps === 'running' && <span className="sw-act"> · restart</span>}
       </button>

@@ -341,6 +341,13 @@ describe('proxy control button', () => {
     window.confirm.mockRestore();
   });
 
+  it('helper-backed → tooltip reflects the reliable restart', () => {
+    const { rerender } = render(<Topbar {...base} proxyStatus="running" proxyHelperBacked={true} onProxyRestart={vi.fn()} />);
+    expect(screen.getByText(/Proxy live/).closest('button').title).toMatch(/helper-backed/i);
+    rerender(<Topbar {...base} proxyStatus="running" proxyHelperBacked={false} onProxyRestart={vi.fn()} />);
+    expect(screen.getByText(/Proxy live/).closest('button').title).not.toMatch(/helper-backed/i);
+  });
+
   it('restarting → amber label, not clickable', () => {
     render(<Topbar {...base} proxyStatus="restarting" onProxyRestart={vi.fn()} />);
     const btn = screen.getByText(/Restarting/).closest('button');

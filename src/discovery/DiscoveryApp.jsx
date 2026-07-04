@@ -23,6 +23,7 @@ export default function DiscoveryApp({ contract }) {
   const [state, setState] = useState({ cells_mapped: 0 });
   const [engine, setEngine] = useState('unknown');   // running | starting | stopping | stopped | not-installed
   const [proxy, setProxy] = useState('unknown');     // running | restarting | stopped | unreachable | unknown
+  const [proxyHelper, setProxyHelper] = useState(false);  // SM_ProxyHelper up → restarts always work
   const restartingUntil = useRef(0);                 // ms deadline while a restart is in flight
 
   // (re)load the read-model slices — called on mount and again once the proxy
@@ -54,7 +55,10 @@ export default function DiscoveryApp({ contract }) {
     let live = true;
     const tick = async () => {
       let s = 'unknown';
-      try { s = (await client.proxyStatus()).status; } catch { s = 'unreachable'; }
+      try {
+        const r = await client.proxyStatus();
+        s = r.status; if (live) setProxyHelper(!!r.helper_backed);
+      } catch { s = 'unreachable'; }
       if (!live) return;
       if (Date.now() < restartingUntil.current) {
         if (s === 'running') { restartingUntil.current = 0; setProxy('running'); reloadData().catch(() => {}); }
@@ -83,7 +87,7 @@ export default function DiscoveryApp({ contract }) {
     <div className="app">
       <Topbar tab={tab} setTab={setTab} cellsMapped={state.cells_mapped || 0}
               engineStatus={engine} onStart={onStart} onStop={onStop}
-              proxyStatus={proxy} onProxyRestart={onProxyRestart} />
+              proxyStatus={proxy} proxyHelperBacked={proxyHelper} onProxyRestart={onProxyRestart} />
       <div className="main">
         <div className="stage">
           {tab === 'Coverage' && (

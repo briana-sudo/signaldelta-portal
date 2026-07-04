@@ -145,7 +145,7 @@ function mockContract() {
     // PROXY POWER SWITCH (controls the SignalDeltaProxy service; restart-after-deploy)
     async proxyStatus() {
       if (proxy.state === 'restarting' && now() - proxy.since > 1500) proxy.state = 'running';
-      return { status: proxy.state };
+      return { status: proxy.state, helper_backed: true };
     },
     async proxyRestart() { proxy.state = 'restarting'; proxy.since = now(); return { action: 'restart', status: proxy.state }; },
     async exportMd(slice) { return `# ${slice}\n\n(mock export — read-only, no secrets)\n`; },
