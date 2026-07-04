@@ -9,7 +9,10 @@
 // VITE_SM_PROXY_URL and MODE='live'; until then the MOCK adapter serves
 // representative data matching the read-model slices.
 
-const MODE = import.meta?.env?.VITE_SM_MODE || 'mock';
+// default 'real': read the engine-generated real state (read_model.json) published
+// alongside the app; falls back to representative mock data if it isn't present.
+// 'live' → the proxy /sm/*; 'mock' → representative data only.
+const MODE = import.meta?.env?.VITE_SM_MODE || 'real';
 const PROXY = import.meta?.env?.VITE_SM_PROXY_URL || '';
 
 // --- representative mock read model (matches 3d-i's 7 slices) ----------------
@@ -96,7 +99,8 @@ async function get(path) {
 
 export function makeContract(mode = MODE) {
   if (mode === 'mock') return mockContract();
-  return liveContract();
+  if (mode === 'live') return liveContract();
+  return realContract();
 }
 
 function mockContract() {
@@ -133,6 +137,41 @@ function mockContract() {
     // INTENT — analyst surfaces + routes, never enacts
     async analyst({ ask }) { return mockAnalyst(ask); },
     _board: board,
+  };
+}
+
+// REAL state, no infra: read the engine-generated read_model.json (published with
+// the app) for the read slices; reuse the mock behaviors for intent/engine (the
+// live proxy write-path is a later config swap). Falls back to mock data if the
+// file isn't there (e.g. local dev before a cycle has run).
+function realContract() {
+  const base = mockContract();                     // resolve/onboard/analyst/engine reused
+  let loadPromise = null;
+  function load() {
+    // memoize the PROMISE so concurrent query() calls all await the same fetch
+    // (memoizing a flag/result would race — early callers get null → mock)
+    if (!loadPromise) {
+      loadPromise = (async () => {
+        try {
+          // resolve relative to the current page so it works under the Pages base
+          // path (/signaldelta-portal/) without depending on import.meta.env
+          const url = new URL('read_model.json', document.baseURI).href;
+          const res = await fetch(url, { cache: 'no-store' });
+          if (res.ok) return await res.json();
+        } catch { /* fall back to mock slices */ }
+        return null;
+      })();
+    }
+    return loadPromise;
+  }
+  return {
+    ...base,
+    mode: 'real',
+    async query(slice) {
+      const d = await load();
+      return (d && d[slice] != null) ? structuredClone(d[slice]) : base.query(slice);
+    },
+    async exportMd(slice) { return `# ${slice}\n\n(real state export — read-only, no secrets)\n`; },
   };
 }
 

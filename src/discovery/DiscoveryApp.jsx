@@ -97,7 +97,7 @@ export default function DiscoveryApp({ contract }) {
           <AnalystDock contract={client} />
         </div>
       </div>
-      <div className="watermark">SIGNALDELTA DISCOVERY · {client.mode === 'mock' ? 'MOCK ADAPTER · representative data' : 'live'} · read-only + gated-write</div>
+      <div className="watermark">SIGNALDELTA DISCOVERY · {{ real: 'REAL STATE · generated read model', mock: 'MOCK · representative data', live: 'LIVE' }[client.mode] || client.mode} · read-only + gated-write</div>
     </div>
   );
 }

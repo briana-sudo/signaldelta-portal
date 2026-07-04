@@ -112,6 +112,14 @@ describe('UI firewall', () => {
       expect(src, `${f} must hold no 7687 reference`).not.toMatch(/7687|TradeNode/);
     }
   });
+  it('default mode is real (reads generated read_model.json, falls back to mock)', async () => {
+    const c = makeContract();                       // default → real
+    expect(c.mode).toBe('real');
+    const grid = await c.query('grid');             // fetch of read_model.json fails in jsdom → mock fallback
+    expect(Array.isArray(grid)).toBe(true);
+    expect(typeof c.resolve).toBe('function');      // intent path reused, still no graph write
+    expect(c.write).toBeUndefined();
+  });
   it('the contract exposes reads + intent only (no graph-write method)', () => {
     const c = makeContract('mock');
     expect(typeof c.query).toBe('function');

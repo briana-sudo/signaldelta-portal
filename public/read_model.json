@@ -1,0 +1,790 @@
+{
+ "board": [
+  {
+   "item_id": "new-search-surface:relational_graph:cross_sectional",
+   "type": "new-search-surface",
+   "status": "PENDING",
+   "kind": "New search",
+   "age": "now",
+   "title": "Probe Relational \u00b7 graph \u2014 cross_sectional",
+   "meta": [
+    "score 0.88",
+    "owned"
+   ],
+   "recommendation": "Discovery potential 0.82, orthogonality 0.90. Owned-reachable.",
+   "version": 1,
+   "options": [
+    "approve",
+    "hold"
+   ]
+  },
+  {
+   "item_id": "new-search-surface:llm_events:cross_sectional",
+   "type": "new-search-surface",
+   "status": "PENDING",
+   "kind": "New search",
+   "age": "now",
+   "title": "Probe LLM \u00b7 events \u2014 cross_sectional",
+   "meta": [
+    "score 0.69",
+    "owned"
+   ],
+   "recommendation": "Discovery potential 0.65, orthogonality 0.90. Owned-reachable.",
+   "version": 1,
+   "options": [
+    "approve",
+    "hold"
+   ]
+  },
+  {
+   "item_id": "new-search-surface:borrow_dynamics:cross_sectional",
+   "type": "new-search-surface",
+   "status": "PENDING",
+   "kind": "New search",
+   "age": "now",
+   "title": "Probe Borrow \u00b7 dynamics \u2014 cross_sectional",
+   "meta": [
+    "score 0.66",
+    "gated \u00b7 $/mo borrow-fee feed"
+   ],
+   "recommendation": "Discovery potential 0.58, orthogonality 0.90. Gated: $/mo borrow-fee feed.",
+   "version": 1,
+   "options": [
+    "approve",
+    "hold"
+   ]
+  },
+  {
+   "item_id": "new-search-surface:options_skew:vol_managed",
+   "type": "new-search-surface",
+   "status": "PENDING",
+   "kind": "New search",
+   "age": "now",
+   "title": "Probe Options \u00b7 skew \u2014 vol_managed",
+   "meta": [
+    "score 0.63",
+    "gated \u00b7 $/mo options-implied (skew/IV)"
+   ],
+   "recommendation": "Discovery potential 0.72, orthogonality 0.90. Gated: $/mo options-implied (skew/IV).",
+   "version": 1,
+   "options": [
+    "approve",
+    "hold"
+   ]
+  },
+  {
+   "item_id": "new-search-surface:fundamental:cross_sectional",
+   "type": "new-search-surface",
+   "status": "PENDING",
+   "kind": "New search",
+   "age": "now",
+   "title": "Probe Fundamental \u00b7 cross-sectional \u2014 cross_sectional",
+   "meta": [
+    "score 0.30",
+    "owned"
+   ],
+   "recommendation": "Discovery potential 0.15, orthogonality 0.10. Owned-reachable.",
+   "version": 1,
+   "options": [
+    "approve",
+    "hold"
+   ]
+  },
+  {
+   "item_id": "new-search-surface:price:time_series_trend",
+   "type": "new-search-surface",
+   "status": "PENDING",
+   "kind": "New search",
+   "age": "now",
+   "title": "Probe Price \u00b7 trend \u2014 time_series_trend",
+   "meta": [
+    "score 0.23",
+    "owned"
+   ],
+   "recommendation": "Discovery potential 0.20, orthogonality 0.10. Owned-reachable.",
+   "version": 1,
+   "options": [
+    "approve",
+    "hold"
+   ]
+  }
+ ],
+ "state": {
+  "lane": "equity",
+  "family": "discovery",
+  "program_state": "searching",
+  "retained_partials": 1,
+  "window_budget": "sealed",
+  "cells_mapped": 1512
+ },
+ "grid": [
+  {
+   "surface": "relational_graph",
+   "name": "Relational \u00b7 graph",
+   "lane": "equity",
+   "discovery_potential": 0.82,
+   "status": "whitespace",
+   "family": "graph",
+   "note": "free (EDGAR/graph) \u2014 owned",
+   "cells": [
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    }
+   ],
+   "counts": {
+    "total": 189,
+    "occupied": 0,
+    "killed": 63,
+    "open": 126
+   }
+  },
+  {
+   "surface": "options_skew",
+   "name": "Options \u00b7 skew",
+   "lane": "equity",
+   "discovery_potential": 0.72,
+   "status": "gated",
+   "family": "options",
+   "note": "$/mo options-implied (skew/IV)",
+   "cells": [
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    }
+   ],
+   "counts": {
+    "total": 189,
+    "occupied": 0,
+    "killed": 21,
+    "open": 168
+   }
+  },
+  {
+   "surface": "llm_events",
+   "name": "LLM \u00b7 events",
+   "lane": "equity",
+   "discovery_potential": 0.65,
+   "status": "whitespace",
+   "family": "events",
+   "note": "free (EDGAR text) + LLM classify",
+   "cells": [
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    }
+   ],
+   "counts": {
+    "total": 189,
+    "occupied": 0,
+    "killed": 21,
+    "open": 168
+   }
+  },
+  {
+   "surface": "borrow_dynamics",
+   "name": "Borrow \u00b7 dynamics",
+   "lane": "equity",
+   "discovery_potential": 0.58,
+   "status": "gated",
+   "family": "borrow",
+   "note": "$/mo borrow-fee feed",
+   "cells": [
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    }
+   ],
+   "counts": {
+    "total": 189,
+    "occupied": 0,
+    "killed": 63,
+    "open": 126
+   }
+  },
+  {
+   "surface": "price",
+   "name": "Price \u00b7 trend",
+   "lane": "equity",
+   "discovery_potential": 0.2,
+   "status": "occupied",
+   "family": "price_path",
+   "note": "owned (SEP)",
+   "cells": [
+    {
+     "status": "occupied"
+    },
+    {
+     "status": "occupied"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "retained"
+    }
+   ],
+   "counts": {
+    "total": 189,
+    "occupied": 27,
+    "killed": 30,
+    "open": 132
+   }
+  },
+  {
+   "surface": "fundamental",
+   "name": "Fundamental \u00b7 cross-sectional",
+   "lane": "equity",
+   "discovery_potential": 0.15,
+   "status": "occupied",
+   "family": "fundamental_cross_sectional",
+   "note": "owned (SF1)",
+   "cells": [
+    {
+     "status": "occupied"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "killed"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    },
+    {
+     "status": "whitespace"
+    }
+   ],
+   "counts": {
+    "total": 189,
+    "occupied": 9,
+    "killed": 45,
+    "open": 135
+   }
+  },
+  {
+   "surface": "crypto_onchain",
+   "name": "Crypto \u00b7 on-chain",
+   "lane": "crypto",
+   "discovery_potential": 0.95,
+   "status": "gated",
+   "family": "onchain",
+   "note": "$/mo on-chain feed (Glassnode/Nansen tier)",
+   "cells": [
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    }
+   ],
+   "counts": {
+    "total": 126,
+    "occupied": 0,
+    "killed": 0,
+    "open": 126
+   }
+  },
+  {
+   "surface": "crypto_funding",
+   "name": "Funding",
+   "lane": "crypto",
+   "discovery_potential": 0.88,
+   "status": "gated",
+   "family": "funding",
+   "note": "$/mo perp funding + basis feed",
+   "cells": [
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    }
+   ],
+   "counts": {
+    "total": 126,
+    "occupied": 0,
+    "killed": 0,
+    "open": 126
+   }
+  },
+  {
+   "surface": "crypto_microstructure",
+   "name": "Crypto \u00b7 microstructure",
+   "lane": "crypto",
+   "discovery_potential": 0.8,
+   "status": "gated",
+   "family": "microstructure",
+   "note": "$/mo L2 order-book / tick",
+   "cells": [
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    },
+    {
+     "status": "gated"
+    }
+   ],
+   "counts": {
+    "total": 126,
+    "occupied": 0,
+    "killed": 0,
+    "open": 126
+   }
+  }
+ ],
+ "ledger": [
+  {
+   "id": "B1",
+   "mechanism": "price-trend",
+   "orthogonality_basis": "mkt/size",
+   "forward_confirmed": false,
+   "net_shape": "~1.4%/yr (in-window, not forward-confirmed)"
+  }
+ ],
+ "kills": [
+  {
+   "id": "A35",
+   "force_named": "short-constraint",
+   "disposition": "setup-state",
+   "reason": "short-leg behind the borrow wall (126 equity cells)"
+  },
+  {
+   "id": "band-skew",
+   "force_named": "band-skew",
+   "disposition": "setup-state",
+   "reason": "sub-population skews to a different band than traded (84 cells)"
+  },
+  {
+   "id": "A36",
+   "force_named": "factor-in-costume",
+   "disposition": "deliberate-review",
+   "reason": "price-trend cousin family (24 cells)"
+  },
+  {
+   "id": "KR",
+   "force_named": "recent-decay",
+   "disposition": "fast-scan",
+   "reason": "owned single-name classic factors, recent-third edge non-positive (9 cells)"
+  }
+ ],
+ "gated": [
+  {
+   "id": "options_skew",
+   "surface": "Options \u00b7 skew",
+   "vendor": "$/mo options-implied (skew/IV)",
+   "price": "$/mo options-implied (skew/IV)",
+   "unlocks": "168 cells",
+   "ev": "unpriced",
+   "likely_death": "needs deep dossier"
+  },
+  {
+   "id": "borrow_dynamics",
+   "surface": "Borrow \u00b7 dynamics",
+   "vendor": "$/mo borrow-fee feed",
+   "price": "$/mo borrow-fee feed",
+   "unlocks": "126 cells",
+   "ev": "unpriced",
+   "likely_death": "needs deep dossier"
+  },
+  {
+   "id": "crypto_onchain",
+   "surface": "Crypto \u00b7 on-chain",
+   "vendor": "$/mo on-chain feed (Glassnode/Nansen tier)",
+   "price": "$/mo on-chain feed (Glassnode/Nansen tier)",
+   "unlocks": "126 cells",
+   "ev": "unpriced",
+   "likely_death": "needs deep dossier"
+  },
+  {
+   "id": "crypto_funding",
+   "surface": "Funding",
+   "vendor": "$/mo perp funding + basis feed",
+   "price": "$/mo perp funding + basis feed",
+   "unlocks": "126 cells",
+   "ev": "unpriced",
+   "likely_death": "needs deep dossier"
+  },
+  {
+   "id": "crypto_microstructure",
+   "surface": "Crypto \u00b7 microstructure",
+   "vendor": "$/mo L2 order-book / tick",
+   "price": "$/mo L2 order-book / tick",
+   "unlocks": "126 cells",
+   "ev": "unpriced",
+   "likely_death": "needs deep dossier"
+  }
+ ],
+ "deployed": []
+}
