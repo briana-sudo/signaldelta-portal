@@ -32,15 +32,18 @@ export default function BoardQueue({ contract, items, onResolved, probe }) {
     (RANK[a.kind] ?? 9) - (RANK[b.kind] ?? 9) || evOf(b) - evOf(a));
   const other = sorted.filter((i) => RANK[i.kind] === undefined);
 
-  // overlay the LIVE run state (from /sm/probe/status) onto each card
-  const runStateOf = (it) => {
-    if (probe?.running?.item_id === it.item_id) return { s: 'running', stage: probe.running.stage };
-    if ((probe?.queue || []).some((q) => q.item_id === it.item_id)) return { s: 'queued' };
-    const d = (probe?.done || []).find((x) => x.item_id === it.item_id);
-    if (d) return { s: 'done', result: d.result || {}, disposition: d.disposition };
-    if (held[it.item_id]) return { s: 'held' };
-    return { s: 'idle' };
-  };
+  // all component runs (from /sm/probe/status), tagged by state
+  const allRuns = [
+    ...(probe?.running ? [{ ...probe.running, _s: 'running' }] : []),
+    ...(probe?.queue || []).map((q) => ({ ...q, _s: 'queued' })),
+    ...(probe?.done || []).map((x) => ({ ...x, _s: 'done' })),
+  ];
+  // the component runs belonging to a board item (parent#recipe). A board item is
+  // "running" if ANY component runs; it concludes only when ALL components are done.
+  const componentsOf = (it) =>
+    allRuns.filter((r) => r.parent === it.item_id || (r.item_id || '').startsWith(`${it.item_id}#`))
+      .map((r) => ({ recipe_id: r.recipe_id, state: r._s, stage: r.stage, result: r.result || {}, disposition: r.disposition }));
+  const shortName = (rid) => (rid || '').replace(/^V-\d+-/, '');
 
   async function decide(item, decision) {
     setBusy(item.item_id);
@@ -53,34 +56,59 @@ export default function BoardQueue({ contract, items, onResolved, probe }) {
   }
 
   const card = (it) => {
-    const rs = runStateOf(it);
-    const active = rs.s === 'running' || rs.s === 'queued' || rs.s === 'done';
+    const comps = componentsOf(it);
+    const anyRunning = comps.some((c) => c.state === 'running');
+    const anyQueued = comps.some((c) => c.state === 'queued');
+    const allDone = comps.length > 0 && comps.every((c) => c.state === 'done');
+    const active = comps.length > 0;                 // components in flight → no re-approve
+    const isHeld = held[it.item_id];
     return (
-      <div key={it.item_id} className={`item slidein${rs.s === 'running' ? ' running' : ''}`}>
+      <div key={it.item_id} className={`item slidein${anyRunning ? ' running' : ''}`}>
         <div className="row1">
           <span className={`kind ${KIND_CLASS[it.type] || 'k-reval'}`}>{it.kind}</span>
           {typeof it.ev === 'number' && <span className="ev-chip mono" title="claim strength / EV">EV {it.ev.toFixed(2)}</span>}
-          {rs.s === 'running' && <span className="run-badge running">RUNNING</span>}
-          {rs.s === 'queued' && <span className="run-badge queued">QUEUED</span>}
-          {rs.s === 'done' && <span className={`run-badge ${rs.result?.gate_pass ? 'pass' : 'done'}`}>DONE</span>}
-          {rs.s === 'held' && <span className="run-badge held">HELD</span>}
+          {anyRunning && <span className="run-badge running">RUNNING</span>}
+          {!anyRunning && anyQueued && <span className="run-badge queued">QUEUED</span>}
+          {allDone && <span className="run-badge done">DONE</span>}
+          {isHeld && !active && <span className="run-badge held">HELD</span>}
           <span className="mono" style={{ color: 'var(--fg-3)', fontSize: 11, marginLeft: 'auto' }}>{it.age}</span>
           <button className="exp-mini" title="Export this item to MD"
                   onClick={() => downloadMd(`${it.item_id.replace(/[^a-z0-9]+/gi, '-')}.md`, it.title, renderMd(it))}>⤓ MD</button>
         </div>
         <div className="ttl">{it.title}</div>
-        {rs.s === 'running' && <div className="run-line mono">▸ {rs.stage}…</div>}
-        {rs.s === 'done' && <div className="run-line done">{rs.result?.error ? `error: ${rs.result.error}` : `${rs.disposition} · t=${rs.result?.t ?? '—'} n=${rs.result?.n ?? '—'}`}</div>}
-        {rs.s !== 'running' && rs.s !== 'done' && <>
+
+        {comps.length > 0 ? (
+          <div className="comp-states">
+            {comps.map((c) => (
+              <div key={c.recipe_id} className={`comp comp-${c.state}`} title={c.disposition || c.stage || c.state}>
+                <span className="comp-name">{shortName(c.recipe_id)}</span>
+                <span className="comp-state">
+                  {c.state === 'running' ? `▸ ${c.stage || 'running'}`
+                    : c.state === 'queued' ? 'queued'
+                      : c.result?.error ? 'error'
+                        : c.disposition?.startsWith('killed') ? `killed · t=${c.result?.t ?? '—'}`
+                          : c.disposition?.startsWith('retained') ? `retained · t=${c.result?.t ?? '—'}`
+                            : (c.disposition || 'done')}
+                </span>
+              </div>
+            ))}
+            {allDone && <div className="comp-summary">{comps.every((c) => (c.disposition || '').startsWith('killed'))
+              ? 'all flows null — surface concluded (killed as tested)'
+              : comps.some((c) => (c.disposition || '').startsWith('retained'))
+                ? 'a flow survived — surface stays a candidate'
+                : 'components concluded (mixed / errors — re-approvable)'}</div>}
+          </div>
+        ) : (<>
           <div className="meta">{it.meta.map((m, i) => <span key={i} className={/\$|\d/.test(m) ? 'mono' : ''}>{m}</span>)}</div>
           <div className="rec">{it.recommendation}</div>
-        </>}
+        </>)}
+
         <div className="acts">
-          <button className="b b-pri" disabled={busy === it.item_id || active || rs.s === 'held'}
+          <button className="b b-pri" disabled={busy === it.item_id || active || isHeld}
                   onClick={() => decide(it, 'approve')}>
-            {rs.s === 'running' ? 'Running…' : rs.s === 'queued' ? 'Queued' : rs.s === 'done' ? 'Done' : (PRIMARY_LABEL[it.type] || 'Approve')}</button>
-          {it.options.includes('hold') && rs.s !== 'running' && rs.s !== 'queued'
-            && <button className="b b-sec" disabled={rs.s === 'held'} onClick={() => decide(it, 'reject')}>{rs.s === 'held' ? 'Held' : 'Hold'}</button>}
+            {anyRunning ? 'Running…' : anyQueued ? 'Queued' : allDone ? 'Re-run' : (PRIMARY_LABEL[it.type] || 'Approve')}</button>
+          {it.options.includes('hold') && !active
+            && <button className="b b-sec" disabled={isHeld} onClick={() => decide(it, 'reject')}>{isHeld ? 'Held' : 'Hold'}</button>}
         </div>
       </div>
     );

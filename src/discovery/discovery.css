@@ -273,3 +273,13 @@
 .ip-queue li{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--fg-2)}
 .ip-qn{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg-elev);border-radius:50%;font-size:10px;color:var(--fg-3)}
 .ip-queue .ip-badge{margin-left:auto}
+
+/* --- board card: per-component (multi-flow) run state ------------------------ */
+.comp-states{display:flex;flex-direction:column;gap:5px;margin:6px 0 8px}
+.comp{display:flex;align-items:center;gap:8px;font-size:11px;padding:4px 8px;border-radius:5px;background:var(--bg-elev);border:1px solid var(--line-1)}
+.comp-name{font-weight:700;color:var(--fg-2);min-width:40px;font-family:var(--font-mono,monospace)}
+.comp-state{color:var(--fg-3)}
+.comp.comp-running{border-left:2px solid var(--accent)}
+.comp.comp-running .comp-state{color:var(--accent)}
+.comp.comp-queued .comp-state{color:var(--warning)}
+.comp-summary{font-size:11px;color:var(--fg-3);margin-top:4px;font-style:italic}

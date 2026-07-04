@@ -167,13 +167,18 @@ function mockContract() {
       if (it.version !== gate_item_version) return { rejected: true, reason: 'stale version' };
       it.version += 1;
       if (decision === 'reject') { it.status = 'HELD'; return { resolved: true, new_status: 'HELD', held: true }; }
-      const rid = (gate_item_id.match(/V-0\d\d/) || [])[0];    // runnable candidate → enqueue a run
-      if (rid) {
+      const parentId = (gate_item_id.match(/V-0\d\d/) || [])[0];   // parent candidate → enqueue its component flows
+      if (parentId) {
         it.status = 'QUEUED';
-        const job = { item_id: gate_item_id, recipe_id: rid, title: rid, stage: 'queued', steps: [], since: now() };
-        if (!probe.running) probe.running = job;
-        else if (probe.running.item_id !== gate_item_id && !probe.queue.some((q) => q.item_id === gate_item_id)) probe.queue.push(job);
-        return { resolved: true, new_status: 'QUEUED', enqueued: true, recipe_id: rid };
+        const comps = ['TOM', 'DFC', 'TDF'];
+        comps.forEach((c) => {
+          const rid = `${parentId}-${c}`;
+          const runId = `${gate_item_id}#${rid}`;
+          const job = { item_id: runId, parent: gate_item_id, recipe_id: rid, title: `${parentId} · ${c}`, stage: 'queued', steps: [], since: now() };
+          if (probe.running || probe.queue.length) { if (!probe.queue.some((q) => q.item_id === runId)) probe.queue.push(job); }
+          else probe.running = job;
+        });
+        return { resolved: true, new_status: 'QUEUED', enqueued: true, components: comps.map((c) => `${parentId}-${c}`) };
       }
       it.status = 'CLEARED';
       return { resolved: true, new_status: 'CLEARED', decision };
@@ -186,8 +191,10 @@ function mockContract() {
         r.stage = P_STAGES[idx];
         r.steps = P_STAGES.slice(1, idx + 1).map((s) => ({ stage: s, detail: pDetail(s) }));
         if (idx >= P_STAGES.length - 1 && now() - r.since > P_STAGES.length * 700 + 400) {
-          const result = { recipe_id: r.recipe_id, t: 0.03, n: 1704, edge_pct_per_day: 0.0018,
-            gate_pass: false, disposition: 'killed (no-edge, as tested)' };
+          const survived = String(r.recipe_id).endsWith('DFC');   // demo: one flow survives, others null
+          const result = survived
+            ? { recipe_id: r.recipe_id, t: 3.4, n: 40, edge_pct_per_day: 0.21, gate_pass: true, disposition: 'retained-candidate' }
+            : { recipe_id: r.recipe_id, t: 0.03, n: 1704, edge_pct_per_day: 0.0018, gate_pass: false, disposition: 'killed (no-edge, as tested)' };
           probe.done.unshift({ ...r, status: 'done', result, disposition: result.disposition });
           probe.done = probe.done.slice(0, 8);
           probe.running = probe.queue.shift() || null;

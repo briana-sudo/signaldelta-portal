@@ -496,25 +496,30 @@ describe('probe run states + queue', () => {
     await waitFor(() => expect(resolve).toHaveBeenCalledWith(expect.objectContaining({ gate_item_id: 'new-search-surface:V-015', decision: 'approve' })));
   });
 
-  it('a RUNNING probe greys the card + shows the live stage; a QUEUED one shows QUEUED', () => {
-    const items = [runnable('new-search-surface:V-015', 'V-015', 0.88), runnable('new-search-surface:V-008', 'V-008', 0.82)];
-    const probe = { running: { item_id: 'new-search-surface:V-015', stage: 'computing', steps: [] },
-                    queue: [{ item_id: 'new-search-surface:V-008' }], done: [] };
+  it('a RUNNING component greys the card + shows the flow stage; siblings queue', () => {
+    const items = [runnable('new-search-surface:V-015', 'V-015', 0.88)];
+    const P = 'new-search-surface:V-015';
+    const probe = { running: { item_id: `${P}#V-015-TOM`, parent: P, recipe_id: 'V-015-TOM', stage: 'computing' },
+      queue: [{ item_id: `${P}#V-015-DFC`, parent: P, recipe_id: 'V-015-DFC' }], done: [] };
     render(<BoardQueue contract={{}} items={items} onResolved={() => {}} probe={probe} />);
     expect(screen.getByText('RUNNING')).toBeTruthy();
+    expect(screen.getByText('TOM')).toBeTruthy();
+    expect(screen.getByText('DFC')).toBeTruthy();
     expect(screen.getByText(/computing/)).toBeTruthy();
-    expect(screen.getByText('QUEUED')).toBeTruthy();
-    expect(screen.getByText('Running…').closest('button').disabled).toBe(true);   // one-at-a-time: can't re-approve
+    expect(screen.getByText('Running…').closest('button').disabled).toBe(true);   // one-at-a-time: no re-approve
   });
 
-  it('a DONE probe shows the disposition + numbers on the card', () => {
+  it('a component null does NOT kill the surface — a survivor keeps it a candidate', () => {
     const items = [runnable('new-search-surface:V-015', 'V-015', 0.88)];
-    const probe = { running: null, queue: [], done: [{ item_id: 'new-search-surface:V-015',
-      disposition: 'killed (no-edge, as tested)', result: { t: 0.03, n: 1704, gate_pass: false } }] };
+    const P = 'new-search-surface:V-015';
+    const probe = { running: null, queue: [], done: [
+      { item_id: `${P}#V-015-TOM`, parent: P, recipe_id: 'V-015-TOM', disposition: 'killed (no-edge, as tested)', result: { t: 0.03, n: 1704 } },
+      { item_id: `${P}#V-015-DFC`, parent: P, recipe_id: 'V-015-DFC', disposition: 'retained-candidate', result: { t: 3.4, n: 40 } },
+      { item_id: `${P}#V-015-TDF`, parent: P, recipe_id: 'V-015-TDF', disposition: 'killed (no-edge, as tested)', result: { t: 0.5, n: 30 } } ] };
     render(<BoardQueue contract={{}} items={items} onResolved={() => {}} probe={probe} />);
-    expect(screen.getByText('DONE')).toBeTruthy();
-    expect(screen.getByText(/killed \(no-edge/)).toBeTruthy();
-    expect(screen.getByText(/t=0.03 n=1704/)).toBeTruthy();
+    expect(screen.getByText(/killed . t=0.03/)).toBeTruthy();     // TOM killed
+    expect(screen.getByText(/retained . t=3.4/)).toBeTruthy();    // DFC survived
+    expect(screen.getByText(/a flow survived/)).toBeTruthy();     // surface NOT killed
   });
 
   it('Hold parks the item with a visible HELD state (not a dead click)', async () => {
