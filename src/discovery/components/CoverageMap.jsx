@@ -4,8 +4,9 @@
 // click a surface → drill into its candidate cells. Not the static mockup SVG.
 import { useEffect, useRef, useState } from 'react';
 import { statusColor, isHot, layoutSpans, tooltipForSurface, tooltipForCell } from '../coverage.js';
+import { runsForSurface } from '../runs.js';
 
-export default function CoverageMap({ grid }) {
+export default function CoverageMap({ grid, runs = [], onOpenRun }) {
   const canvasRef = useRef(null);
   const [tip, setTip] = useState(null);           // {x,y,lines}
   const [drill, setDrill] = useState(null);       // a surface object (drilled)
@@ -47,8 +48,23 @@ export default function CoverageMap({ grid }) {
     <div className="map" onMouseMove={onMove} onMouseLeave={() => setTip(null)} onClick={onClick}>
       <canvas ref={canvasRef} role="img" aria-label="Coverage map — surfaces sized by discovery potential, colored by status" />
       {drill && (
-        <div className="drill">
+        <div className="drill" onClick={(e) => e.stopPropagation()}>
           <button onClick={(e) => { e.stopPropagation(); setDrill(null); }}>← all surfaces</button>
+          {(() => {
+            const rs = runsForSurface(runs, drill.surface);
+            if (!rs.length) return <span className="drill-empty">no runs behind this surface yet</span>;
+            return (
+              <div className="drill-runs">
+                <span className="drill-runs-h">runs behind {drill.surface}:</span>
+                {rs.map((r) => (
+                  <button key={r.item_id} className="drill-run mono" title="open Run Room"
+                          onClick={() => onOpenRun && onOpenRun(r.item_id)}>
+                    {r.recipe_id} · {String(r.disposition || r.status || '').split(' ')[0]}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
       {tip && (
@@ -146,7 +162,7 @@ function paintSurface(ctx, x, y, w, h, s, hitRef) {
   ctx.fillText(s.discovery_potential.toFixed(2), x + w - 34, y + 20);
 
   // status tag
-  const tag = { whitespace: 'WHITESPACE', gated: 'GATED', occupied: s.note?.includes('exhausted') ? 'OWNED · EXHAUSTED' : 'MAPPED' }[s.status] || s.status.toUpperCase();
+  const tag = { whitespace: 'WHITESPACE', gated: 'GATED', 'tested-inconclusive': 'TESTED · INCONCLUSIVE', occupied: s.note?.includes('exhausted') ? 'OWNED · EXHAUSTED' : 'MAPPED' }[s.status] || s.status.toUpperCase();
   ctx.fillStyle = tagColor(s.status); ctx.font = '500 9px Inter, sans-serif';
   ctx.fillText(tag, x + 11, y + 36);
 

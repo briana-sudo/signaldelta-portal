@@ -2,9 +2,11 @@
 // Extracted so the instrument's math is unit-tested independently of canvas.
 
 // theme.css status language (the map's legend)
+// cell states map 1:1 to the disposition taxonomy — no borrowed colors.
 export const STATUS_COLOR = {
-  whitespace: '#00C2FF',   // cyan — the uncrowded frontier
-  gated: '#F5B544',        // warning amber
+  whitespace: '#00C2FF',   // cyan — the uncrowded frontier (never tested)
+  gated: '#F5B544',        // warning amber — needs data / build / broker
+  'tested-inconclusive': '#B07CFF', // violet — tested, underpowered, re-tests pending
   retained: '#34D399',     // success green (B1 — glows)
   killed: 'rgba(248,113,113,0.55)', // danger dimmed
   occupied: '#5A6B82',     // --fg-4 dim
@@ -40,8 +42,15 @@ export function tooltipForSurface(s) {
 export function tooltipForCell(surface, cell, i) {
   if (cell.status === 'retained') return [`${surface.name} · cell ${i + 1}`, 'retained partial (B1)', 'net shape ~1.4%/yr'];
   if (cell.status === 'killed') return [`${surface.name} · cell ${i + 1}`, 'killed', 'see kill reason'];
+  if (cell.status === 'tested-inconclusive') return [`${surface.name} · cell ${i + 1}`, 'tested — inconclusive', 'underpowered; powered re-test pending'];
   return [`${surface.name} · cell ${i + 1}`, cell.status];
 }
+
+// legend rows (label + status key) — kept in sync with the taxonomy
+export const LEGEND = [
+  ['Whitespace', 'whitespace'], ['Gated', 'gated'], ['Tested · inconclusive', 'tested-inconclusive'],
+  ['Retained', 'retained'], ['Killed', 'killed'], ['Occupied', 'occupied'],
+];
 
 // squarified-ish layout: order surfaces by potential (desc) and assign a column
 // span proportional to sqrt(area) so bigger-potential surfaces get more room.

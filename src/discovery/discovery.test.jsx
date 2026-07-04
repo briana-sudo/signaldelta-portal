@@ -15,6 +15,8 @@ import AnalystPanel from './components/AnalystPanel.jsx';
 import TimelineView from './components/TimelineView.jsx';
 import InProgress from './components/InProgress.jsx';
 import Topbar from './components/Topbar.jsx';
+import RunRoom from './components/RunRoom.jsx';
+import { composeReport, mergeRuns, runsForSurface, versionDiff, surfaceOf } from './runs.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -602,5 +604,77 @@ describe('gated learning (lessons)', () => {
     const b = await c.bankLesson('lesson-v015-tom-seed');
     expect(b.status).toBe('BANKED');                  // operator Bank promotes
     expect((await c.lessons()).find((l) => l.id === 'lesson-v015-tom-seed').status).toBe('BANKED');
+  });
+});
+
+// --- THE RUN ROOM + terminus report -----------------------------------------
+describe('Run Room + terminus report', () => {
+  const run = {
+    item_id: 'new-search-surface:V-015#V-015-TDF', recipe_id: 'V-015-TDF', parent: 'new-search-surface:V-015',
+    status: 'done', stage: 'result', disposition: 'inconclusive (underpowered, as tested)',
+    classification: 'underpowered', mechanism: 'right-signed but under-powered', revival_condition: 'powered re-test',
+    classified_by: 'llm', provisional: false,
+    progress: [{ stage: 'validating recipe', detail: 'V-015-TDF' }, { stage: 'result', detail: 'inconclusive' }],
+    result: { edge_pct_per_day: 0.14, t: 1.61, n: 576, window: ['2025-01-04', '2026-07-04'], universe: 24, gate_pass: false },
+    reports: [
+      { version: 1, classified_by: 'heuristic', classification: 'structural-change', disposition: 'killed (no-edge, as tested)', provisional: true },
+      { version: 2, classified_by: 'llm', classification: 'underpowered', disposition: 'inconclusive (underpowered, as tested)', provisional: false },
+    ],
+  };
+  const slices = {
+    lessons: [{ id: 'L1', status: 'PROPOSED', source: 'terminus:V-015-TDF · llm', text: 'inconclusive, not a null' }],
+    board: [{ item_id: 'D:V-015-TDF-FULL', provenance: 'derived', derived_from: 'V-015-TDF', title: 'V-015-TDF-FULL powered re-test', ev: 0.67, blocker: 'runnable-now' }],
+    correlations: [],
+  };
+
+  it('composeReport builds all six blocks from the slices', () => {
+    const r = composeReport(run, slices);
+    expect(r.result.t).toBe(1.61);
+    expect(r.classification.class).toBe('underpowered');
+    expect(r.classification.by).toBe('llm');
+    expect(r.lessons).toHaveLength(1);
+    expect(r.derivations[0].item_id).toBe('D:V-015-TDF-FULL');
+    expect(r.versions).toHaveLength(2);
+  });
+
+  it('versionDiff shows the correction (v1 heuristic → v2 LLM)', () => {
+    const d = versionDiff(run.reports[0], run.reports[1]);
+    expect(d.join(' ')).toMatch(/killed.*inconclusive/i);
+    expect(d.join(' ')).toMatch(/heuristic.*llm/i);
+  });
+
+  it('RunRoom renders the report + version diff, and Bank/Reject are inline', () => {
+    const onBank = vi.fn();
+    render(<RunRoom run={run} slices={slices} onClose={vi.fn()} onBank={onBank} onReject={vi.fn()} />);
+    expect(screen.getByText('Terminus report')).toBeTruthy();
+    expect(screen.getByText('underpowered')).toBeTruthy();          // classification block
+    expect(screen.getByText(/V-015-TDF-FULL powered re-test/)).toBeTruthy();   // derivation card
+    expect(screen.getByText(/Correction history/i)).toBeTruthy();   // versioning
+    fireEvent.click(screen.getByRole('button', { name: 'Bank' }));
+    expect(onBank).toHaveBeenCalledWith('L1');                      // inline gate
+  });
+
+  it('mergeRuns overlays live probe stages; runsForSurface filters by surface', () => {
+    const merged = mergeRuns([run], { running: { item_id: run.item_id, stage: 'computing', steps: [{ stage: 'computing' }] } });
+    expect(merged.find((r) => r.item_id === run.item_id).stage).toBe('computing');   // live overlay wins
+    expect(runsForSurface([run], 'V-015')).toHaveLength(1);
+    expect(surfaceOf('new-search-surface:V-015#V-015-TDF')).toBe('V-015');
+  });
+
+  it('board component chip opens the component Run Room', () => {
+    const onOpenRun = vi.fn();
+    const items = [{ item_id: 'new-search-surface:V-015', status: 'CLEARED', kind: 'Cleared', title: 'V-015',
+                     disposition: 'killed (all flows null)', components: { 'V-015-TDF': 'inconclusive', 'V-015-TOM': 'killed' } }];
+    render(<BoardQueue contract={{ resolve: vi.fn(), reevaluate: vi.fn() }} items={items} onResolved={vi.fn()} onOpenRun={onOpenRun} />);
+    fireEvent.click(screen.getByText('TDF'));
+    expect(onOpenRun).toHaveBeenCalledWith('new-search-surface:V-015#V-015-TDF');
+  });
+
+  it('In-progress Recent row opens the Run Room', () => {
+    const onOpenRun = vi.fn();
+    const probe = { running: null, queue: [], done: [{ item_id: 'r1', recipe_id: 'V-015-TOM', disposition: 'killed', result: { t: 0.03, n: 1704 } }] };
+    render(<InProgress probe={probe} onOpenRun={onOpenRun} />);
+    fireEvent.click(screen.getByText('V-015-TOM'));
+    expect(onOpenRun).toHaveBeenCalledWith('r1');
   });
 });

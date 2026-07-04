@@ -51,10 +51,11 @@ function StageList({ run }) {
   );
 }
 
-export default function InProgress({ probe, lessons = [], onBank, onReject }) {
+export default function InProgress({ probe, lessons = [], onBank, onReject, onOpenRun }) {
   const running = probe?.running || null;
   const queue = probe?.queue || [];
   const done = probe?.done || [];
+  const open = (id) => onOpenRun && onOpenRun(id);
   const proposed = lessons.filter((l) => l.status === 'PROPOSED');
   const banked = lessons.filter((l) => l.status === 'BANKED');
 
@@ -73,6 +74,7 @@ export default function InProgress({ probe, lessons = [], onBank, onReject }) {
               <span className="src">{running.title || running.recipe_id}</span>
               <span className="ip-badge running">RUNNING</span>
               <span className="mono ip-stagenow">{running.stage}</span>
+              <button className="exp-mini" style={{ marginLeft: 'auto' }} onClick={() => open(running.item_id)}>Open Run Room →</button>
             </div>
             <StageList run={running} />
           </div>
@@ -85,23 +87,26 @@ export default function InProgress({ probe, lessons = [], onBank, onReject }) {
         {queue.length ? (
           <ol className="ip-queue">
             {queue.map((q, i) => (
-              <li key={q.item_id}><span className="ip-qn mono">{i + 1}</span>{q.title || q.recipe_id}<span className="ip-badge queued">QUEUED</span></li>
+              <li key={q.item_id}><span className="ip-qn mono">{i + 1}</span>
+                <button className="ip-link" onClick={() => open(q.item_id)}>{q.title || q.recipe_id}</button>
+                <span className="ip-badge queued">QUEUED</span></li>
             ))}
           </ol>
         ) : <div className="hint">Queue empty.</div>}
       </div>
 
       <div className="datastrip">
-        <h3>Recent results <span className="count mono">{done.length}</span></h3>
+        <h3>Recent — what the engine did <span className="count mono">{done.length}</span></h3>
+        <div className="cap">Concluded runs, one-line verdicts. Click any to open its Run Room.</div>
         {done.length ? (
           <table className="dtable">
-            <thead><tr><th>Probe</th><th>Edge/day</th><th>t</th><th>n</th><th>Gate</th><th>Disposition</th></tr></thead>
+            <thead><tr><th>Run</th><th>Edge/day</th><th>t</th><th>n</th><th>Gate</th><th>Disposition</th></tr></thead>
             <tbody>
               {done.map((d) => {
                 const r = d.result || {};
                 return (
                   <tr key={d.item_id}>
-                    <td className="src">{d.title || d.recipe_id}</td>
+                    <td className="src"><button className="ip-link" onClick={() => open(d.item_id)}>{d.title || d.recipe_id}</button></td>
                     <td className="mono">{r.edge_pct_per_day != null ? `${r.edge_pct_per_day}%` : '—'}</td>
                     <td className="mono">{r.t ?? '—'}</td>
                     <td className="mono">{r.n ?? '—'}</td>

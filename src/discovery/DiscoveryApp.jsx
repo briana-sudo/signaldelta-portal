@@ -12,6 +12,8 @@ import DataNeeds from './components/DataNeeds.jsx';
 import TimelineView from './components/TimelineView.jsx';
 import InProgress from './components/InProgress.jsx';
 import AnalystPanel from './components/AnalystPanel.jsx';
+import RunRoom from './components/RunRoom.jsx';
+import { mergeRuns, findRun } from './runs.js';
 import { downloadMd, renderMd } from './mdExport.js';
 import './discovery.css';
 
@@ -29,16 +31,21 @@ export default function DiscoveryApp({ contract }) {
   const [resolutions, setResolutions] = useState({}); // surface_id -> operator's recorded answer
   const [probe, setProbe] = useState({ running: null, queue: [], done: [] });  // live probe-run state
   const [lessons, setLessons] = useState([]);        // gated learning (SMLesson)
+  const [runs, setRuns] = useState([]);              // every SMRunRequest (Run Room source)
+  const [correlations, setCorrelations] = useState([]);  // CORRELATES_WITH edges
+  const [openRun, setOpenRun] = useState(null);      // run item_id whose Run Room is open
   const restartingUntil = useRef(0);                 // ms deadline while a restart is in flight
   const prevDone = useRef(0);                         // probe/re-terminus completions seen (→ map reload)
 
   // (re)load the read-model slices — called on mount and again once the proxy
   // comes back after a restart, so the board reflects the now-live 7688 data.
   const reloadData = useCallback(async () => {
-    const [g, ga, b, s] = await Promise.all([
+    const [g, ga, b, s, rn, co] = await Promise.all([
       client.query('grid'), client.query('gated'), client.query('board'), client.query('state'),
+      client.query('runs'), client.query('correlations'),
     ]);
     setGrid(g || []); setGated(ga || []); setBoard(b || []); setState(s || { cells_mapped: 0 });
+    setRuns(rn || []); setCorrelations(co || []);
   }, [client]);
 
   useEffect(() => { let live = true; reloadData().catch(() => {}); return () => { live = false; }; }, [reloadData]);
@@ -104,6 +111,11 @@ export default function DiscoveryApp({ contract }) {
   const onBankLesson = async (id) => { await client.bankLesson?.(id); setLessons(await client.lessons?.() || []); };
   const onRejectLesson = async (id) => { await client.rejectLesson?.(id); setLessons(await client.lessons?.() || []); };
 
+  // every run (stored 7688 + live probe), and the open Run Room's run object
+  const allRuns = useMemo(() => mergeRuns(runs, probe), [runs, probe]);
+  const onOpenRun = useCallback((id) => setOpenRun(id), []);
+  const openRunObj = openRun ? findRun(allRuns, openRun) : null;
+
   function onResolved(itemId, newStatus) {
     setBoard((prev) => prev.map((i) => (i.item_id === itemId ? { ...i, status: newStatus } : i)));
   }
@@ -139,6 +151,7 @@ export default function DiscoveryApp({ contract }) {
                 <div className="legend">
                   <span><i className="i-white" />Whitespace</span>
                   <span><i className="i-gate" />Gated</span>
+                  <span><i className="i-tested" />Tested · inconclusive</span>
                   <span><i className="i-ret" />Retained</span>
                   <span><i className="i-kill" />Killed</span>
                   <span><i className="i-occ" />Occupied</span>
@@ -146,15 +159,15 @@ export default function DiscoveryApp({ contract }) {
                           onClick={() => downloadMd('coverage-map.md', 'SignalDelta — Coverage map', renderMd(grid))}>⤓ Export map</button>
                 </div>
               </div>
-              <CoverageMap grid={grid} />
+              <CoverageMap grid={grid} runs={allRuns} onOpenRun={onOpenRun} />
             </>
           )}
           {tab === 'Board' && (
             <div className="stage-head"><div><h1>Board</h1>
               <div className="sub">Every pending gate, with the engine's recommendation and the priced fork. Approve / reject sends intent — the orchestrator resolves.</div></div></div>
           )}
-          {tab === 'In progress' && <InProgress probe={probe} lessons={lessons} onBank={onBankLesson} onReject={onRejectLesson} />}
-          {tab === 'Timeline' && <TimelineView contract={client} />}
+          {tab === 'In progress' && <InProgress probe={probe} lessons={lessons} onBank={onBankLesson} onReject={onRejectLesson} onOpenRun={onOpenRun} />}
+          {tab === 'Timeline' && <TimelineView contract={client} onOpenRun={onOpenRun} />}
           {(tab === 'Coverage' || tab === 'Data needs') && <DataNeeds contract={client} gated={gated} onAskAssistant={askAssistant} resolutions={resolutions} />}
           {tab === 'Board' && (
             <div className="datastrip"><div className="queue">
@@ -169,9 +182,14 @@ export default function DiscoveryApp({ contract }) {
         </div>
 
         <div className="rail">
-          <BoardQueue contract={client} items={board} onResolved={onResolved} probe={probe} />
+          <BoardQueue contract={client} items={board} onResolved={onResolved} probe={probe} onOpenRun={onOpenRun} />
         </div>
       </div>
+      {/* THE RUN ROOM — opens for any run from In-progress / board chips / map drill / timeline */}
+      {openRunObj && (
+        <RunRoom run={openRunObj} slices={{ lessons, board, correlations }}
+                 onClose={() => setOpenRun(null)} onBank={onBankLesson} onReject={onRejectLesson} />
+      )}
       {/* FLOATING analyst — draggable/resizable/minimizable, at app root (not the rail) */}
       <AnalystPanel contract={client} costingQuestion={costingQ} onCostingResolved={onCostingResolved} />
       <div className="watermark">SIGNALDELTA DISCOVERY · {{ real: 'REAL STATE · generated read model', mock: 'MOCK · representative data', live: 'LIVE' }[client.mode] || client.mode} · read-only + gated-write</div>

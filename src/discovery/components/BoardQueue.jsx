@@ -27,8 +27,9 @@ const evOf = (i) => (typeof i.ev === 'number' ? i.ev : 0);
 const CONCLUDED = ['CLEARED', 'RETAINED', 'OPEN'];
 const STATUS_CLASS = { CLEARED: 'st-cleared', RETAINED: 'st-retained', OPEN: 'st-open' };
 
-export default function BoardQueue({ contract, items, onResolved, probe }) {
+export default function BoardQueue({ contract, items, onResolved, probe, onOpenRun }) {
   const [busy, setBusy] = useState(null);
+  const openRun = (id) => onOpenRun && onOpenRun(id);
   const [held, setHeld] = useState({});             // item_id -> true (Hold visible feedback)
   const [reevaluating, setReevaluating] = useState({});  // item_id -> true (Re-evaluate queued)
   const open = items.filter((i) => i.status === 'PENDING');
@@ -97,7 +98,8 @@ export default function BoardQueue({ contract, items, onResolved, probe }) {
         {comps.length > 0 ? (
           <div className="comp-states">
             {comps.map((c) => (
-              <div key={c.recipe_id} className={`comp comp-${c.state}`} title={c.disposition || c.stage || c.state}>
+              <div key={c.recipe_id} className={`comp comp-${c.state}`} title={`${c.disposition || c.stage || c.state} — open Run Room`}
+                   role="button" onClick={() => openRun(`${it.item_id}#${c.recipe_id}`)} style={{ cursor: 'pointer' }}>
                 <span className="comp-name">{shortName(c.recipe_id)}</span>
                 <span className="comp-state">
                   {c.state === 'running' ? `▸ ${c.stage || 'running'}`
@@ -173,6 +175,17 @@ export default function BoardQueue({ contract, items, onResolved, probe }) {
                   <span className="mono" style={{ color: 'var(--fg-3)', fontSize: 11, marginLeft: 'auto' }}>{it.age}</span>
                 </div>
                 <div className="ttl">{it.title}</div>
+                {it.components && typeof it.components === 'object' && (
+                  <div className="comp-states">
+                    {Object.entries(it.components).map(([rid, disp]) => (
+                      <div key={rid} className={`comp comp-done`} title={`${disp} — open Run Room`}
+                           role="button" onClick={() => openRun(`${it.item_id}#${rid}`)} style={{ cursor: 'pointer' }}>
+                        <span className="comp-name">{shortName(rid)}</span>
+                        <span className="comp-state">{String(disp).split(' ')[0]}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="rec">{it.disposition || '—'}</div>
                 <div className="acts">
                   <button className="b b-sec" disabled={busy === it.item_id || reevaluating[it.item_id]}
