@@ -66,6 +66,8 @@ export default function BoardQueue({ contract, items, onResolved, probe }) {
       <div key={it.item_id} className={`item slidein${anyRunning ? ' running' : ''}`}>
         <div className="row1">
           <span className={`kind ${KIND_CLASS[it.type] || 'k-reval'}`}>{it.kind}</span>
+          {it.provenance === 'derived' && <span className="prov-badge prov-derived" title={`derived from ${it.derived_from || 'a concluded run'}`}>⌥ derived</span>}
+          {it.provenance === 'combination' && <span className="prov-badge prov-combo" title={`combination · burns ${it.oos_window || 'a sealed OOS window'} (operator token required)`}>⋈ combine</span>}
           {typeof it.ev === 'number' && <span className="ev-chip mono" title="claim strength / EV">EV {it.ev.toFixed(2)}</span>}
           {anyRunning && <span className="run-badge running">RUNNING</span>}
           {!anyRunning && anyQueued && <span className="run-badge queued">QUEUED</span>}
@@ -99,7 +101,7 @@ export default function BoardQueue({ contract, items, onResolved, probe }) {
                 : 'components concluded (mixed / errors — re-approvable)'}</div>}
           </div>
         ) : (<>
-          <div className="meta">{it.meta.map((m, i) => <span key={i} className={/\$|\d/.test(m) ? 'mono' : ''}>{m}</span>)}</div>
+          <div className="meta">{(it.meta || []).map((m, i) => <span key={i} className={/\$|\d/.test(m) ? 'mono' : ''}>{m}</span>)}</div>
           <div className="rec">{it.recommendation}</div>
         </>)}
 
@@ -107,7 +109,7 @@ export default function BoardQueue({ contract, items, onResolved, probe }) {
           <button className="b b-pri" disabled={busy === it.item_id || active || isHeld}
                   onClick={() => decide(it, 'approve')}>
             {anyRunning ? 'Running…' : anyQueued ? 'Queued' : allDone ? 'Re-run' : (PRIMARY_LABEL[it.type] || 'Approve')}</button>
-          {it.options.includes('hold') && !active
+          {(it.options || []).includes('hold') && !active
             && <button className="b b-sec" disabled={isHeld} onClick={() => decide(it, 'reject')}>{isHeld ? 'Held' : 'Hold'}</button>}
         </div>
       </div>

@@ -63,6 +63,18 @@ describe('board decision → resolve API (gated-write intent)', () => {
     expect(src).not.toMatch(/session|driver|MERGE|CREATE|\.run\(/i);
     expect(src).toMatch(/contract\.resolve/);
   });
+  it('terminus proposals render provenance badges (derived / combination) and survive missing meta/options', () => {
+    const items = [
+      { item_id: 'D-1', type: 'new-search-surface', status: 'PENDING', kind: 'Needs data',
+        title: 'tail variant of X', provenance: 'derived', derived_from: 'V-015-TOM', ev: 0 },
+      { item_id: 'C-1', type: 'new-search-surface', status: 'PENDING', kind: 'Needs build',
+        title: 'COMBINE A x B', provenance: 'combination', oos_window: 'sealed holdout', ev: 0 },
+    ];
+    const { container } = render(<BoardQueue contract={{ resolve: vi.fn() }} items={items} onResolved={vi.fn()} />);
+    expect(container.querySelector('.prov-derived')).toBeTruthy();   // ⌥ derived badge
+    expect(container.querySelector('.prov-combo')).toBeTruthy();     // ⋈ combine badge
+    expect(screen.getByText('tail variant of X')).toBeTruthy();  // no crash on absent meta/options
+  });
 });
 
 // --- data-needs onboarding: credential → server-side field, never in state ----
