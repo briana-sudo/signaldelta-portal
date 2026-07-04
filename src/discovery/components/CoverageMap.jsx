@@ -2,9 +2,9 @@
 // Surfaces sized by discovery-potential (uncrowded frontier large-and-glowing,
 // picked-over ground small-and-dim) and colored by status. Hover → tooltip;
 // click a surface → drill into its candidate cells. Not the static mockup SVG.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { statusColor, isHot, layoutSpans, tooltipForSurface, tooltipForCell } from '../coverage.js';
-import { runsForSurface } from '../runs.js';
+import { runsForSurface, deriveCellStatuses } from '../runs.js';
 
 export default function CoverageMap({ grid, runs = [], onOpenRun }) {
   const canvasRef = useRef(null);
@@ -12,11 +12,15 @@ export default function CoverageMap({ grid, runs = [], onOpenRun }) {
   const [drill, setDrill] = useState(null);       // a surface object (drilled)
   const hitRef = useRef([]);                       // [{x,y,w,h,surface,cell,i}]
 
+  // MAP LIVENESS — cell status DERIVED from run results at render time, not the
+  // stored (stale) SMGridCell.status. Correct on cold load; no repaint event needed.
+  const dgrid = useMemo(() => deriveCellStatuses(grid, runs), [grid, runs]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     let lastW = -1;
-    const draw = () => paint(canvas, grid, drill, hitRef);
+    const draw = () => paint(canvas, dgrid, drill, hitRef);
     draw();
     lastW = canvas.parentElement.clientWidth;
     // re-layout only on WIDTH change (the canvas height is derived from content,
@@ -27,7 +31,7 @@ export default function CoverageMap({ grid, runs = [], onOpenRun }) {
     });
     ro.observe(canvas.parentElement);
     return () => ro.disconnect();
-  }, [grid, drill]);
+  }, [dgrid, drill]);
 
   function onMove(e) {
     const rect = canvasRef.current.getBoundingClientRect();

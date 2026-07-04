@@ -7,7 +7,7 @@ import { downloadMd } from '../mdExport.js';
 
 const STATUS = (s) => (s || 'unknown').toUpperCase();
 
-export default function RunRoom({ run, slices, onClose, onBank, onReject, onReevaluate, runBusy }) {
+export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReject, onReevaluate, runBusy }) {
   if (!run) return null;
   const report = composeReport(run, slices || {});
   const steps = run.progress || [];
@@ -86,14 +86,21 @@ export default function RunRoom({ run, slices, onClose, onBank, onReject, onReev
               {report.lessons.map((l) => (
                 <div key={l.id} className={`rr-lesson ${String(l.status).toLowerCase()}`}>
                   <span className={`lesson-badge ${String(l.status).toLowerCase()}`}>{l.status}</span>
-                  {l.provisional && <span className="lesson-badge prov">PROVISIONAL</span>}
+                  {l.provisional && <span className="lesson-badge prov" title="Heuristic draft — Re-evaluate with the LLM to make it bankable">PROVISIONAL</span>}
                   <span className="rr-ltext">{l.text}</span>
                   {l.status === 'PROPOSED' && (
                     <span className="rr-lacts">
-                      <button className="b b-pri" disabled={l.provisional}
-                              title={l.provisional ? 'Heuristic draft — Re-evaluate with the LLM to enable Bank' : 'Bank this lesson'}
-                              onClick={() => !l.provisional && onBank && onBank(l.id)}>Bank</button>
+                      {/* provisional → NO Bank button; only LLM-drafted lessons are bankable */}
+                      {!l.provisional
+                        ? <button className="b b-pri" onClick={() => onBank && onBank(l.id)}>Bank</button>
+                        : <span className="lesson-note">Re-evaluate to enable Bank</span>}
                       <button className="b b-sec" onClick={() => onReject && onReject(l.id)}>Reject</button>
+                    </span>
+                  )}
+                  {l.status === 'BANKED' && (
+                    <span className="rr-lacts">
+                      <button className="b b-sec" title="Retract from the grounding pack (history kept)"
+                              onClick={() => onUnbank && onUnbank(l.id)}>Unbank</button>
                     </span>
                   )}
                 </div>

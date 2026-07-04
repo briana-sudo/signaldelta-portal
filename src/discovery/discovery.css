@@ -370,3 +370,6 @@
 .lesson.superseded{opacity:.5}
 .lesson.superseded .lesson-text{text-decoration:line-through;text-decoration-color:var(--fg-4)}
 .b:disabled{opacity:.4;cursor:not-allowed}
+
+.lesson-note{font-size:10.5px;color:var(--fg-4);font-style:italic}
+.rr-lesson .lesson-note{margin-left:2px}

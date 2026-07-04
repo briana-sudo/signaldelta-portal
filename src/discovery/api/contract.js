@@ -258,6 +258,7 @@ function mockContract() {
     // gated learning (mock): propose ≠ bank; Bank/Reject mutate the local store
     async lessons() { return structuredClone(mlessons); },
     async bankLesson(id) { const l = mlessons.find((x) => x.id === id); if (l) l.status = 'BANKED'; return { id, status: l?.status }; },
+    async unbankLesson(id) { const l = mlessons.find((x) => x.id === id); if (l && l.status === 'BANKED') l.status = 'RETRACTED'; return { id, status: l?.status }; },
     async rejectLesson(id) { const l = mlessons.find((x) => x.id === id); if (l) l.status = 'REJECTED'; return { id, status: l?.status }; },
     async proposeLesson(text, source) { const id = `lesson-${mlessons.length}`; mlessons.unshift({ id, text, source, status: 'PROPOSED' }); return { id, status: 'PROPOSED' }; },
     _board: board,
@@ -344,6 +345,7 @@ function liveContract() {
     // GATED LEARNING — read lessons; Bank/Reject are the operator's gate
     async lessons() { return get('/sm/lessons').then((r) => r.lessons || []).catch(() => []); },
     async bankLesson(id) { return post('/sm/lesson/bank', { lesson_id: id }).catch(() => ({ status: 'error' })); },
+    async unbankLesson(id) { return post('/sm/lesson/unbank', { lesson_id: id }).catch(() => ({ status: 'error' })); },
     async rejectLesson(id) { return post('/sm/lesson/reject', { lesson_id: id }).catch(() => ({ status: 'error' })); },
     async proposeLesson(text, source) { return post('/sm/lesson/propose', { text, source }).catch(() => ({ status: 'error' })); },
     // ENGINE POWER SWITCH -> /sm/engine/* (falls back to the mock state machine)

@@ -51,7 +51,7 @@ function StageList({ run }) {
   );
 }
 
-export default function InProgress({ probe, lessons = [], onBank, onReject, onOpenRun }) {
+export default function InProgress({ probe, lessons = [], onBank, onUnbank, onReject, onOpenRun }) {
   const running = probe?.running || null;
   const queue = probe?.queue || [];
   const done = probe?.done || [];
@@ -59,6 +59,7 @@ export default function InProgress({ probe, lessons = [], onBank, onReject, onOp
   const proposed = lessons.filter((l) => l.status === 'PROPOSED');
   const banked = lessons.filter((l) => l.status === 'BANKED');
   const superseded = lessons.filter((l) => l.status === 'SUPERSEDED');
+  const retracted = lessons.filter((l) => l.status === 'RETRACTED');
   // only LLM-drafted (non-provisional) lessons are bankable; heuristic drafts are
   // provisional and Bank is disabled until a Re-evaluate re-drafts them with the LLM.
   const bankable = (l) => !l.provisional;
@@ -132,14 +133,26 @@ export default function InProgress({ probe, lessons = [], onBank, onReject, onOp
         {proposed.map((l) => (
           <div key={l.id} className="lesson proposed">
             <div className="lesson-head"><span className="lesson-badge proposed">PROPOSED</span>
-              {l.provisional && <span className="lesson-badge prov">PROVISIONAL</span>}
+              {l.provisional && <span className="lesson-badge prov" title="Heuristic draft — Re-evaluate with the LLM to make it bankable">PROVISIONAL</span>}
               {l.source && <span className="lesson-src mono">{l.source}</span>}</div>
             <div className="lesson-text">{l.text}</div>
             <div className="acts">
-              <button className="b b-pri" disabled={!bankable(l)}
-                      title={bankable(l) ? 'Bank this lesson (loads into every future ask)' : 'Heuristic draft — Re-evaluate with the LLM to enable Bank'}
-                      onClick={() => bankable(l) && onBank && onBank(l.id)}>Bank</button>
+              {/* provisional (heuristic) → NO Bank button at all; only LLM-drafted lessons are bankable */}
+              {bankable(l)
+                ? <button className="b b-pri" onClick={() => onBank && onBank(l.id)}>Bank</button>
+                : <span className="lesson-note">heuristic draft — Re-evaluate to enable Bank</span>}
               <button className="b b-sec" onClick={() => onReject && onReject(l.id)}>Reject</button>
+            </div>
+          </div>
+        ))}
+        {banked.map((l) => (
+          <div key={l.id} className="lesson banked">
+            <div className="lesson-head"><span className="lesson-badge banked">BANKED</span>
+              {l.source && <span className="lesson-src mono">{l.source}</span>}</div>
+            <div className="lesson-text">{l.text}</div>
+            <div className="acts">
+              <button className="b b-sec" title="Retract from the grounding pack (history kept)"
+                      onClick={() => onUnbank && onUnbank(l.id)}>Unbank</button>
             </div>
           </div>
         ))}
@@ -150,9 +163,9 @@ export default function InProgress({ probe, lessons = [], onBank, onReject, onOp
             <div className="lesson-text">{l.text}</div>
           </div>
         ))}
-        {banked.map((l) => (
-          <div key={l.id} className="lesson banked">
-            <div className="lesson-head"><span className="lesson-badge banked">BANKED</span>
+        {retracted.map((l) => (
+          <div key={l.id} className="lesson superseded">
+            <div className="lesson-head"><span className="lesson-badge superseded">RETRACTED</span>
               {l.source && <span className="lesson-src mono">{l.source}</span>}</div>
             <div className="lesson-text">{l.text}</div>
           </div>

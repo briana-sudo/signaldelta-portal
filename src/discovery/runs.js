@@ -61,7 +61,8 @@ export function composeReport(run, { lessons = [], board = [], correlations = []
   // one lesson per component (the current PROPOSED/BANKED); superseded history lives
   // in the version diff + the In-progress audit list, not stacked here.
   const relatedLessons = (lessons || []).filter((l) =>
-    (l.component === rid || String(l.source || '').includes(rid)) && l.status !== 'SUPERSEDED');
+    (l.component === rid || String(l.source || '').includes(rid))
+    && l.status !== 'SUPERSEDED' && l.status !== 'RETRACTED');
   const derivations = (board || []).filter((b) => b.provenance === 'derived' && b.derived_from === rid);
   const combos = (board || []).filter((b) => b.provenance === 'combination'
     && JSON.stringify(b.legs || []).includes(rid));
@@ -88,6 +89,50 @@ export function composeReport(run, { lessons = [], board = [], correlations = []
       : (rels.length ? { partners: rels } : null),
     versions,
   };
+}
+
+// ── MAP LIVENESS: cell status DERIVED from run results (not stored) ──────────
+// A compact port of engine/taxonomy so the map reads a surface's TRUE state at
+// render time from the runs slice — no stale stored cell, correct on cold load.
+const POWERED_N = 100, NULL_T = 1.0;
+
+function dispositionCat({ gate_pass, t, n, edge, gate }) {
+  if (gate_pass) return 'retained';
+  const g = gate || {};
+  const dir = g.direction || 'positive';
+  const at = Math.abs(Number(t) || 0);
+  const nn = Number(n) || 0;
+  const e = Number(edge) || 0;
+  const minT = Number(g.min_abs_t) || 2.0;
+  const signOk = dir === 'positive' ? e > 0 : dir === 'negative' ? e < 0 : true;
+  const powered = nn >= POWERED_N;
+  const significant = at >= minT;
+  if (!signOk) return (powered && (significant || at < NULL_T)) ? 'killed' : 'inconclusive';
+  return (powered && at < NULL_T) ? 'killed' : 'inconclusive';
+}
+
+function parentStatus(cats) {
+  if (cats.length && cats.every((c) => c === 'killed')) return 'CLEARED';
+  if (cats.some((c) => c === 'retained')) return 'RETAINED';
+  return 'OPEN';
+}
+
+const CELL_FOR = { CLEARED: 'killed', RETAINED: 'occupied', OPEN: 'tested-inconclusive' };
+
+export function deriveCellStatuses(grid, runs) {
+  const bySurface = {};
+  for (const r of runs || []) {
+    if (r.kind === 'reterminus') continue;
+    const res = r.result;
+    if (!res || res.t == null) continue;
+    const surf = surfaceOf(r.parent || r.item_id);
+    (bySurface[surf] || (bySurface[surf] = [])).push(dispositionCat({
+      gate_pass: res.gate_pass, t: res.t, n: res.n, edge: res.edge_pct_per_day, gate: res.gate }));
+  }
+  return (grid || []).map((cell) => {
+    const cats = bySurface[cell.surface];
+    return cats ? { ...cell, status: CELL_FOR[parentStatus(cats)] } : cell;   // derived override, else generator status
+  });
 }
 
 export function reportToMd(run, report) {

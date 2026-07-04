@@ -16,7 +16,7 @@ import TimelineView from './components/TimelineView.jsx';
 import InProgress from './components/InProgress.jsx';
 import Topbar from './components/Topbar.jsx';
 import RunRoom from './components/RunRoom.jsx';
-import { composeReport, mergeRuns, runsForSurface, versionDiff, surfaceOf } from './runs.js';
+import { composeReport, mergeRuns, runsForSurface, versionDiff, surfaceOf, deriveCellStatuses } from './runs.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -670,19 +670,35 @@ describe('Run Room + terminus report', () => {
     expect(onOpenRun).toHaveBeenCalledWith('new-search-surface:V-015#V-015-TDF');
   });
 
-  it('provisional (heuristic) lessons are NOT bankable; superseded shown dimmed', () => {
-    const onBank = vi.fn();
+  it('provisional lessons have NO Bank button; LLM lessons do; Unbank on banked; superseded/retracted shown', () => {
+    const onUnbank = vi.fn();
     const lessons = [
       { id: 'L-prov', status: 'PROPOSED', provisional: true, text: 'heuristic draft', source: 'terminus:V-015-TDF · v1 · heuristic' },
       { id: 'L-llm', status: 'PROPOSED', provisional: false, text: 'llm draft', source: 'terminus:V-015-TDF · v2 · llm' },
+      { id: 'L-bank', status: 'BANKED', text: 'banked lesson', source: 'seed' },
       { id: 'L-old', status: 'SUPERSEDED', text: 'old dup', source: 'terminus:V-015-TDF · v1' },
+      { id: 'L-ret', status: 'RETRACTED', text: 'retracted', source: 'terminus:V-015-DFC' },
     ];
-    render(<InProgress probe={{ running: null, queue: [], done: [] }} lessons={lessons} onBank={onBank} onReject={vi.fn()} />);
-    const bankButtons = screen.getAllByRole('button', { name: 'Bank' });
-    // provisional lesson's Bank is disabled; the LLM one's is enabled
-    expect(bankButtons.some((b) => b.disabled)).toBe(true);
-    expect(bankButtons.some((b) => !b.disabled)).toBe(true);
-    expect(screen.getByText('SUPERSEDED')).toBeTruthy();       // the dup is collapsed, shown superseded
+    render(<InProgress probe={{ running: null, queue: [], done: [] }} lessons={lessons} onBank={vi.fn()} onUnbank={onUnbank} onReject={vi.fn()} />);
+    // exactly ONE Bank button (the LLM lesson); the provisional one has none
+    expect(screen.getAllByRole('button', { name: 'Bank' })).toHaveLength(1);
+    expect(screen.getByText(/heuristic draft — Re-evaluate to enable Bank/i)).toBeTruthy();
+    // Unbank on the banked lesson
+    fireEvent.click(screen.getByRole('button', { name: 'Unbank' }));
+    expect(onUnbank).toHaveBeenCalledWith('L-bank');
+    expect(screen.getByText('SUPERSEDED')).toBeTruthy();
+    expect(screen.getByText('RETRACTED')).toBeTruthy();
+  });
+
+  it('deriveCellStatuses reads a surface true-state from run results (cold, not stored)', () => {
+    const grid = [{ surface: 'V-015', status: 'whitespace' }, { surface: 'other', status: 'gated' }];
+    const runs = [
+      { parent: 'new-search-surface:V-015', result: { gate_pass: false, t: 1.61, n: 576, edge_pct_per_day: 0.14, gate: { min_abs_t: 2.0, direction: 'positive' } } },
+      { parent: 'new-search-surface:V-015', result: { gate_pass: false, t: 0.03, n: 1704, edge_pct_per_day: 0.0018, gate: { min_abs_t: 2.0, direction: 'positive' } } },
+    ];
+    const out = deriveCellStatuses(grid, runs);
+    expect(out[0].status).toBe('tested-inconclusive');   // stored 'whitespace' overridden by derivation
+    expect(out[1].status).toBe('gated');                 // untested surface keeps generator status
   });
 
   it('In-progress Recent row opens the Run Room', () => {
