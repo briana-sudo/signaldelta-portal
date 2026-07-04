@@ -12,9 +12,9 @@ import logoMark from '../assets/logo-mark.svg';
 const TABS = ['Coverage', 'Board', 'Timeline', 'Data needs'];
 
 const LABEL = {
-  running: 'Engine running', stopped: 'Engine stopped',
-  starting: 'Starting…', stopping: 'Stopping…', 'not-installed': 'Engine — run setup once',
-  unknown: 'Engine — unknown',
+  running: 'Discovery engine running', stopped: 'Discovery engine stopped',
+  starting: 'Starting…', stopping: 'Stopping…', 'not-installed': 'Discovery engine — run setup once',
+  unknown: 'Discovery engine — unknown',
 };
 
 const PLABEL = {
@@ -30,7 +30,7 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
 
   function toggle() {
     if (st === 'stopped') onStart();
-    else if (st === 'running') { if (window.confirm('Stop the engine? Research pauses until you start it again.')) onStop(); }
+    else if (st === 'running') { if (window.confirm('Stop the DISCOVERY engine? Research pauses until you start it again. (This does not touch live trading.)')) onStop(); }
   }
 
   const ps = proxyStatus || 'unknown';
