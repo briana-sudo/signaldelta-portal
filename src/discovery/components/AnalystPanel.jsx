@@ -7,7 +7,39 @@ import { useEffect, useRef, useState } from 'react';
 import { downloadMd, exportFor, isExportIntent } from '../mdExport.js';
 
 const KEY = 'sd-analyst-panel';
-const DEF = { x: null, y: null, w: 380, h: 460, min: false };
+const DEF = { x: null, y: null, w: 380, h: 460, min: false, max: false };
+
+// IMAGE CAPS (stated + enforced): screenshots are downscaled client-side to a 1600px
+// longest edge as JPEG q0.82 (a full-screen 4K grab → ~200-400 KB) so we don't ship
+// multi-MB PNGs; up to 5 images per message. Downscale-not-reject keeps the operator's
+// paste-heavy flow smooth. Server re-caps as defence in depth.
+const IMG_MAX_EDGE = 1600;
+const IMG_MAX_COUNT = 5;
+const IMG_QUALITY = 0.82;
+
+// draw the image onto a bounded canvas and re-encode → {media_type, data(base64), dataUrl}.
+function downscaleImage(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, IMG_MAX_EDGE / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      // PNG keeps crisp text (screenshots); re-encode large ones as JPEG to bound size
+      const asPng = (file.type === 'image/png') && (img.width * img.height <= 1400 * 1400);
+      const dataUrl = asPng ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', IMG_QUALITY);
+      const [, media_type, , data] = dataUrl.match(/^data:([^;]+);(base64),(.*)$/) || [];
+      resolve({ name: file.name || 'screenshot.png', size: file.size || data.length,
+                media_type: media_type || 'image/jpeg', data: data || '', dataUrl });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
 
 function loadBox() {
   try {
@@ -26,6 +58,7 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
   const [ask, setAsk] = useState('');
   const taRef = useRef(null);
   const [attachment, setAttachment] = useState(null);   // {name,size,text} — chat only
+  const [images, setImages] = useState([]);             // [{name,size,media_type,data,dataUrl}]
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
@@ -61,9 +94,12 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
           x: Math.max(0, Math.min(w - 80, d.ox + e.clientX - d.sx)),
           y: Math.max(0, Math.min(h - 36, d.oy + e.clientY - d.sy)) }));
       } else {
-        setBox((b) => ({ ...b,
-          w: Math.max(300, d.ow + e.clientX - d.sx),
-          h: Math.max(260, d.oh + e.clientY - d.sy) }));
+        // resize with sane bounds: min usable, max the viewport (can't drag off-screen)
+        const maxW = (window.innerWidth || 1280) - 24;
+        const maxH = (window.innerHeight || 800) - 24;
+        setBox((b) => ({ ...b, max: false,
+          w: Math.max(300, Math.min(maxW, d.ow + e.clientX - d.sx)),
+          h: Math.max(260, Math.min(maxH, d.oh + e.clientY - d.sy)) }));
       }
     };
     const onUp = () => { drag.current = null; };
@@ -94,21 +130,53 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
       text: `Costing — ${costingQuestion.surface}: ${costingQuestion.question}\n\nAnswer here and I'll record it and explain — nothing is purchased.` }]);
   }, [costingQuestion]);
 
+  // route by type: image/* → downscaled vision attachment; else → text discussion file.
+  async function addImages(files) {
+    const imgs = [...files].filter((f) => f && f.type.startsWith('image/'));
+    if (!imgs.length) return false;
+    const room = Math.max(0, IMG_MAX_COUNT - images.length);
+    const scaled = (await Promise.all(imgs.slice(0, room).map(downscaleImage))).filter(Boolean);
+    if (scaled.length) setImages((prev) => [...prev, ...scaled].slice(0, IMG_MAX_COUNT));
+    if (imgs.length > room) addMsg({ role: 'analyst', text: `Max ${IMG_MAX_COUNT} images per message — kept the first ${room + images.length}.` });
+    return true;
+  }
   async function onFiles(fileList) {
-    const f = fileList && fileList[0]; if (!f) return;
+    if (!fileList || !fileList.length) return;
+    if (await addImages(fileList)) return;              // images handled → done
+    const f = fileList[0];                              // else: text discussion attachment
     let text = '';
     try { text = (await f.text()).slice(0, 20000); } catch { /* binary/unreadable */ }
     setAttachment({ name: f.name, size: f.size, text });
     addMsg({ role: 'analyst',
       text: `Attached "${f.name}" (${f.size} bytes) to our conversation — I'll reason over it here. A chat attachment is discussion only: it never becomes engine state and never seeds or writes the graph.` });
   }
+  // PASTE — Ctrl/Cmd+V of a clipboard screenshot into the panel attaches it (primary path).
+  function onPaste(e) {
+    const items = [...(e.clipboardData?.items || [])].filter((it) => it.type.startsWith('image/'));
+    if (!items.length) return;
+    e.preventDefault();
+    addImages(items.map((it) => it.getAsFile()).filter(Boolean));
+  }
+  // MAXIMIZE / restore — one click to a large panel, one click back to the remembered size.
+  function toggleMax() {
+    setBox((b) => {
+      if (b.max) return { ...b, max: false, w: b.pw || DEF.w, h: b.ph || DEF.h, x: b.px ?? b.x, y: b.py ?? b.y };
+      const W = (window.innerWidth || 1280), H = (window.innerHeight || 800);
+      const w = Math.min(920, W - 48), h = Math.min(H - 48, 820);
+      return { ...b, max: true, pw: b.w, ph: b.h, px: b.x, py: b.y,
+               w, h, x: Math.max(12, W - w - 24), y: 24 };
+    });
+  }
 
   async function send(e) {
     e && e.preventDefault();
     const text = ask.trim();
-    if (!text && !attachment) return;
-    addMsg({ role: 'user', text: text + (attachment ? `   📎 ${attachment.name}` : '') });
+    if (!text && !attachment && !images.length) return;
+    const sentImages = images;                           // request-scoped: this message only
+    addMsg({ role: 'user', text: text + (attachment ? `   📎 ${attachment.name}` : ''),
+             images: sentImages.map((im) => im.dataUrl) });
     setAsk('');
+    setImages([]);                                       // cleared → NOT re-sent on the next ask
 
     if (isExportIntent(text)) {                          // export request → make the MD, no analyst call
       const res = await exportFor(text, contract, messages);
@@ -125,10 +193,13 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
 
     setBusy(true);
     let r;
-    try { r = await contract.analyst({ ask: text, attachment, history: messages }); }
+    try { r = await contract.analyst({ ask: text, attachment, images: sentImages, history: messages }); }
     catch { r = { kind: 'EXPLAIN', explanation: 'The analyst is unavailable right now — try again in a moment.' }; }
     setBusy(false);
-    addMsg({ role: 'analyst', text: r.explanation || '(no answer)', route: r.routed_item_type || null, kind: r.kind });
+    // FAILURE HONESTY: if the answer isn't grounded, name the failing hop from the real reason
+    const hop = (r && r.grounded === false && r.reason) ? `  ⚠ failing hop: ${r.reason}` : '';
+    addMsg({ role: 'analyst', text: (r.explanation || '(no answer)') + hop,
+             route: r.routed_item_type || null, kind: r.kind });
     if (pc) {
       pendingCosting.current = null;
       onCostingResolved && onCostingResolved(pc.surface_id, text);
@@ -153,12 +224,14 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
     right: box.x == null ? 24 : undefined, bottom: box.y == null ? 24 : undefined };
 
   return (
-    <div className="analyst-panel" style={style}
+    <div className="analyst-panel" style={style} onPaste={onPaste}
          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
          onDragLeave={() => setDragOver(false)}
          onDrop={(e) => { e.preventDefault(); setDragOver(false); onFiles(e.dataTransfer.files); }}>
       <div className="ap-head" onMouseDown={startMove}>
         <span className="ap-title"><i className="pulse st-running" />Analyst · grounded in live state</span>
+        <button className="ap-btn" onClick={toggleMax}
+                title={box.max ? 'Restore size' : 'Maximize'} aria-label={box.max ? 'Restore analyst size' : 'Maximize analyst'}>{box.max ? '❐' : '▢'}</button>
         <button className="ap-btn" onClick={() => setBox((b) => ({ ...b, min: true }))}
                 title="Minimize" aria-label="Minimize analyst">–</button>
       </div>
@@ -170,6 +243,11 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
         )}
         {messages.map((m, i) => (
           <div key={i} className={`ap-msg ${m.role}`}>
+            {m.images && m.images.length > 0 && (
+              <div className="ap-msg-imgs">
+                {m.images.map((src, j) => <img key={j} src={src} alt="attached screenshot" className="ap-msg-img" />)}
+              </div>
+            )}
             <div className="ap-text">{m.text}</div>
             {m.role === 'analyst' && m.route && <span className="route">routed → {m.route}</span>}
             {m.role === 'analyst' && m.text && m.text !== '(no answer)' && (
@@ -185,11 +263,22 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
         <div className="ap-attach">📎 {attachment.name}
           <button onClick={() => setAttachment(null)} aria-label="Remove attachment">×</button></div>
       )}
+      {images.length > 0 && (
+        <div className="ap-thumbs">
+          {images.map((im, i) => (
+            <div className="ap-thumb" key={i}>
+              <img src={im.dataUrl} alt={im.name} />
+              <button className="ap-thumb-x" onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
+                      aria-label={`Remove ${im.name}`}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <form className="ap-ask" onSubmit={send}>
-        <label className="ap-attachbtn" title="Attach a file to discuss (not engine state)">📎
-          <input type="file" onChange={(e) => onFiles(e.target.files)} style={{ display: 'none' }}
-                 aria-label="Attach a file to discuss" />
+        <label className="ap-attachbtn" title="Attach image(s) to discuss (paste, drop, or click)">📎
+          <input type="file" accept="image/*" multiple onChange={(e) => { onFiles(e.target.files); e.target.value = ''; }}
+                 style={{ display: 'none' }} aria-label="Attach image(s) to discuss" />
         </label>
         <textarea ref={taRef} value={ask} rows={1} className="ap-textarea"
                   onChange={(e) => setAsk(e.target.value)}

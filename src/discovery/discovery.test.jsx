@@ -167,6 +167,32 @@ describe('operator debrief', () => {
   });
 });
 
+// --- ANALYST vision: images go through the proxy, never a key in the client -----
+describe('analyst image input + vision transport', () => {
+  it('the attach input is images-only + multiple (paperclip is not a dead/text button)', () => {
+    const { container } = render(<AnalystPanel contract={makeContract('mock')} />);
+    const input = container.querySelector('input[type="file"]');
+    expect(input).toBeTruthy();
+    expect(input.getAttribute('accept')).toBe('image/*');
+    expect(input.hasAttribute('multiple')).toBe(true);
+  });
+  it('every adapter accepts images on analyst(); mock/file say vision needs the live proxy', async () => {
+    for (const mode of ['mock', 'real']) {
+      const c = makeContract(mode);
+      const r = await c.analyst({ ask: 'what is this?', images: [{ media_type: 'image/png', data: 'x' }] });
+      expect(r.grounded).toBe(false);
+      expect(r.reason).toMatch(/no-vision/);           // named hop, honest
+    }
+  });
+  it('no Anthropic key material anywhere in the discovery client source', () => {
+    const files = walk(HERE).filter((f) => /\.(jsx?|css)$/.test(f) && !f.endsWith('.test.jsx'));
+    for (const f of files) {
+      const src = fs.readFileSync(f, 'utf8');
+      expect(src, `${f} must hold no anthropic key`).not.toMatch(/sk-ant-|x-api-key|ANTHROPIC_API_KEY/);
+    }
+  });
+});
+
 // --- firewall: no 7687 / trading-engine reference anywhere in the console ------
 describe('UI firewall', () => {
   it('no 7687 / trading-engine identifier in the discovery source', () => {

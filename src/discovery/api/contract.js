@@ -288,7 +288,11 @@ function mockContract() {
                note: 'researched cost — no purchase, no onboarding' };
     },
     // INTENT — analyst surfaces + routes, never enacts
-    async analyst({ ask, attachment }) { return groundedAnalyst(ask, this.query?.bind(this), { attachment }); },
+    async analyst({ ask, attachment, images }) {
+      if (images && images.length) return { kind: 'EXPLAIN', grounded: false, reason: 'mock-no-vision',
+        explanation: `(mock) I can see you attached ${images.length} image(s) — vision runs through the live proxy; connect it to analyze screenshots.` };
+      return groundedAnalyst(ask, this.query?.bind(this), { attachment });
+    },
     // gated learning (mock): propose ≠ bank; Bank/Reject mutate the local store
     async lessons() { return structuredClone(mlessons); },
     async bankLesson(id) { const l = mlessons.find((x) => x.id === id); if (l) l.status = 'BANKED'; return { id, status: l?.status }; },
@@ -334,7 +338,10 @@ function realContract() {
     async debrief(run_id) { return base.debrief(run_id); },   // mock voices until live proxy
     async rulingSheet() { return base.rulingSheet(); },
   };
-  rc.analyst = ({ ask, attachment }) => groundedAnalyst(ask, rc.query, { attachment });  // grounded + attachment
+  rc.analyst = ({ ask, attachment, images }) => (images && images.length   // vision needs live proxy
+    ? Promise.resolve({ kind: 'EXPLAIN', grounded: false, reason: 'file-mode-no-vision',
+        explanation: `Vision runs through the live proxy — the file view can’t analyze the ${images.length} image(s). Switch to the live proxy.` })
+    : groundedAnalyst(ask, rc.query, { attachment }));
   return rc;
 }
 
@@ -384,10 +391,19 @@ function liveContract() {
     // REAL LLM analyst, grounded server-side in live state + corpus + banked lessons.
     // A chat attachment stays client-side (discussion-only). Honest fallback to the
     // rule-matcher on API/key error — never an empty shell.
-    async analyst({ ask, attachment, history }) {
-      if (attachment) return groundedAnalyst(ask, q, { attachment });
-      return post('/sm/analyst/ask', { ask, history: (history || []).map((m) => ({ role: m.role, text: m.text })) })
-        .catch(() => groundedAnalyst(ask, q));
+    async analyst({ ask, attachment, images, history }) {
+      const imgs = (images || []).filter(Boolean).map((im) => ({ media_type: im.media_type, data: im.data }));
+      // images REQUIRE the proxy (vision needs the key server-side); a text attachment
+      // can still be reasoned over client-side.
+      if (imgs.length === 0 && attachment) return groundedAnalyst(ask, q, { attachment });
+      try {
+        return await post('/sm/analyst/ask', { ask, images: imgs,
+          history: (history || []).map((m) => ({ role: m.role, text: m.text })) });
+      } catch {
+        if (imgs.length) return { kind: 'EXPLAIN', grounded: false, reason: 'proxy-unreachable',
+          explanation: 'I couldn’t reach the proxy to analyze the image (failing hop: proxy-unreachable). The vision call runs server-side — start the proxy and retry.' };
+        return groundedAnalyst(ask, q);   // text-only can fall back to the client rule-matcher
+      }
     },
     // GATED LEARNING — read lessons; Bank/Reject are the operator's gate
     async lessons() { return get('/sm/lessons').then((r) => r.lessons || []).catch(() => []); },

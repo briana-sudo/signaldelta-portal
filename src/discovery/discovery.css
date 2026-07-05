@@ -479,3 +479,13 @@
 .proxy-update-err{color:#f7768e;font-size:11px;max-width:340px;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap;border:1px solid #f7768e;border-radius:5px;
   padding:3px 7px;background:rgba(247,118,142,.08)}
+
+/* ANALYST — image attachments (paste / drop / attach) + maximize */
+.ap-thumbs{display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px;border-top:1px solid rgba(255,255,255,.06)}
+.ap-thumb{position:relative;width:54px;height:54px;border-radius:6px;overflow:hidden;border:1px solid var(--line-2)}
+.ap-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ap-thumb-x{position:absolute;top:1px;right:1px;width:16px;height:16px;line-height:14px;padding:0;
+  border:none;border-radius:50%;background:rgba(0,0,0,.66);color:#fff;font-size:12px;cursor:pointer}
+.ap-msg-imgs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:5px}
+.ap-msg-img{max-width:180px;max-height:150px;border-radius:6px;border:1px solid var(--line-2);cursor:zoom-in}
+.analyst-panel.dragover,.ap-body.dragover{outline:2px dashed var(--accent);outline-offset:-4px}
