@@ -16,7 +16,7 @@ import TimelineView from './components/TimelineView.jsx';
 import InProgress from './components/InProgress.jsx';
 import Topbar from './components/Topbar.jsx';
 import RunRoom from './components/RunRoom.jsx';
-import { composeReport, mergeRuns, runsForSurface, versionDiff, surfaceOf, deriveCellStatuses, computeAttention } from './runs.js';
+import { composeReport, mergeRuns, runsForSurface, versionDiff, surfaceOf, deriveCellStatuses, computeAttention, rejudgeReason } from './runs.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -70,7 +70,10 @@ describe('board decision → resolve API (gated-write intent)', () => {
     const items = [{ item_id: 'new-search-surface:V-015', type: 'new-search-surface', status: 'CLEARED',
                      kind: 'Cleared', title: 'V-015 payment-cycle flows', age: 'now',
                      disposition: 'killed (all flows null, as tested)' }];
-    render(<BoardQueue contract={{ resolve: vi.fn(), reevaluate }} items={items} onResolved={vi.fn()} />);
+    // a provisional component makes a re-judge worthwhile → the button renders
+    const runs = [{ parent: 'new-search-surface:V-015', recipe_id: 'V-015-TDF', provisional: true, classified_by: 'heuristic',
+      result: { t: 1.6, n: 576, gate_pass: false, gate: {} } }];
+    render(<BoardQueue contract={{ resolve: vi.fn(), reevaluate }} items={items} onResolved={vi.fn()} runs={runs} lessons={[]} />);
     fireEvent.click(screen.getByRole('button', { name: /Re-judge/i }));   // "↻ Re-judge stored results" — no data fetched
     await waitFor(() => expect(reevaluate).toHaveBeenCalledWith('new-search-surface:V-015'));
   });
@@ -735,9 +738,27 @@ describe('Run Room + terminus report', () => {
       title: 'Re-evaluate V-015', result: { target: 'new-search-surface:V-015', flips: [{ recipe_id: 'V-015-TDF', from: 'killed', to: 'inconclusive' }], reevaluated: 3 } }] };
     render(<InProgress probe={probe} onOpenRun={vi.fn()} />);
     expect(screen.getByText(/Re-judge · V-015/)).toBeTruthy();
-    expect(screen.getByText(/1 flip · 3 components re-judged/)).toBeTruthy();
+    expect(screen.getByText(/re-judge complete · 1 flip/)).toBeTruthy();   // verdict, not a to-do
     expect(screen.queryByText('FAIL')).toBeNull();     // a re-judge has no gate — no lying FAIL badge
-    expect(screen.getByText('re-judged')).toBeTruthy();
+    expect(screen.getByText('complete')).toBeTruthy();
+  });
+
+  it('rejudgeReason: current LLM classifications → null (button absent); provisional → reason', () => {
+    const current = [{ parent: 'new-search-surface:V-015', recipe_id: 'V-015-TDF', classified_by: 'llm', provisional: false,
+      classified_at: '2026-07-04T00:00:00Z', classified_tax_version: 2, result: { t: 1.6, n: 576, gate_pass: false, gate: {} } }];
+    expect(rejudgeReason('V-015', current, [])).toBeNull();     // nothing a re-judge would change
+    const prov = [{ ...current[0], classified_by: 'heuristic', provisional: true }];
+    expect(rejudgeReason('V-015', prov, [])).toMatch(/provisional\/heuristic/);
+    // a lesson banked AFTER the judgment also triggers it
+    expect(rejudgeReason('V-015', current, [{ status: 'BANKED', banked_at: '2026-07-05T00:00:00Z' }])).toMatch(/banked since/);
+  });
+
+  it('Re-judge button is ABSENT (not ghosted) when classifications are current', () => {
+    const items = [{ item_id: 'new-search-surface:V-015', status: 'OPEN', title: 'V-015', disposition: 'open' }];
+    const runs = [{ parent: 'new-search-surface:V-015', recipe_id: 'V-015-TDF', classified_by: 'llm', provisional: false,
+      classified_tax_version: 2, result: { t: 1.6, n: 576, gate_pass: false, gate: {} } }];
+    render(<BoardQueue contract={{ resolve: vi.fn(), reevaluate: vi.fn() }} items={items} onResolved={vi.fn()} onOpenRun={vi.fn()} runs={runs} lessons={[]} />);
+    expect(screen.queryByRole('button', { name: /Re-judge/i })).toBeNull();
   });
 
   it('section logic: OPEN item is not under CONCLUDED', () => {

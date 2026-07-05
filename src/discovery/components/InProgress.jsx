@@ -15,13 +15,13 @@ function lessonProvenance(l) {
   return l.source || '';
 }
 
-// one-line verdict for a re-judge (no gate, no edge/t/n) from its stored result
+// one-line VERDICT for a re-judge — leads with "re-judge complete" so it never reads
+// as a to-do (a bare "re-judged" past participle would)
 function rejudgeSummary(r) {
   const flips = (r.flips || []).length;
-  const parts = [`${flips} flip${flips !== 1 ? 's' : ''}`];
+  const parts = ['re-judge complete', `${flips} flip${flips !== 1 ? 's' : ''}`];
   if (r.kills_retracted != null) parts.push(`${r.kills_retracted} kill${r.kills_retracted !== 1 ? 's' : ''} retracted`);
   if (r.derived != null) parts.push(`${r.derived} derived`);
-  parts.push(`${r.reevaluated || 0} component${(r.reevaluated || 0) !== 1 ? 's' : ''} re-judged`);
   return parts.join(' · ');
 }
 
@@ -150,7 +150,7 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
                     <tr key={d.item_id} className="rj-row">
                       <td className="src"><button className="ip-link" onClick={() => open(d.item_id)}>Re-judge · {surface}</button></td>
                       <td className="hint" colSpan={4}>{rejudgeSummary(r)}</td>
-                      <td><span className="ip-badge rejudge">re-judged</span></td>
+                      <td><span className="ip-badge rejudge">complete</span></td>
                     </tr>
                   );
                 }

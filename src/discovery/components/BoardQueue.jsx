@@ -8,6 +8,7 @@
 // EV / claim strength. Tier bands make the readiness at a glance.
 import { useState } from 'react';
 import { downloadMd, renderMd } from '../mdExport.js';
+import { rejudgeReason, surfaceOf } from '../runs.js';
 
 const KIND_CLASS = { 'gated-option': 'k-gate', 'revalidation-due': 'k-reval', 'new-search-surface': 'k-new' };
 const PRIMARY_LABEL = {
@@ -30,7 +31,7 @@ const CONCLUDED_STATES = ['CLEARED', 'RETAINED'];
 const STATUS_CLASS = { CLEARED: 'st-cleared', RETAINED: 'st-retained', OPEN: 'st-open' };
 const STATUS_WORD = { CLEARED: 'killed — all flows null', RETAINED: 'retained — a flow survived', OPEN: 'open — partially tested' };
 
-export default function BoardQueue({ contract, items, onResolved, probe, onOpenRun }) {
+export default function BoardQueue({ contract, items, onResolved, probe, onOpenRun, runs = [], lessons = [] }) {
   const [busy, setBusy] = useState(null);
   const openRun = (id) => onOpenRun && onOpenRun(id);
   const [held, setHeld] = useState({});             // item_id -> true (Hold visible feedback)
@@ -159,13 +160,23 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
         </div>
       )}
       <div className="rec">{it.disposition || '—'}</div>
-      <div className="attn-reason">Re-judge stored results — no data fetched; re-applies the fixed taxonomy + LLM to the numbers already on file.</div>
-      <div className="acts">
-        <button className="b b-ghost" disabled={busy === it.item_id || reevaluating[it.item_id]}
-                title="Re-judge stored results with the fixed taxonomy + LLM — no probe is run, no data fetched."
-                onClick={() => reevaluate(it)}>
-          {reevaluating[it.item_id] ? 'Re-judging…' : '↻ Re-judge stored results'}</button>
-      </div>
+      {(() => {
+        // the Re-judge button renders ONLY when a re-judge could change something;
+        // otherwise it's absent (not ghosted). Tooltip states the engine-known reason.
+        const reason = rejudgeReason(surfaceOf(it.item_id), runs, lessons);
+        if (!reason) return null;
+        return (
+          <>
+            <div className="attn-reason">Re-judge stored results — no data fetched. {reason}.</div>
+            <div className="acts">
+              <button className="b b-ghost" disabled={busy === it.item_id || reevaluating[it.item_id]}
+                      title={`Re-judge stored results (no data fetched) — ${reason}.`}
+                      onClick={() => reevaluate(it)}>
+                {reevaluating[it.item_id] ? 'Re-judging…' : '↻ Re-judge stored results'}</button>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 

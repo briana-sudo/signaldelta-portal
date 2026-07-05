@@ -193,6 +193,24 @@ export function computeAttention({ runs = [], board = [], lessons = [] } = {}) {
   return items;
 }
 
+// Would a re-judge CHANGE anything for this surface? Mirrors the backend guard
+// (run_queue.rejudge_reason). Returns the reason (for the button tooltip) or null —
+// null ⇒ classifications current ⇒ the Re-judge button is ABSENT (not ghosted).
+export const TAX_VERSION = 2;
+export function rejudgeReason(surface, runs, lessons) {
+  const comps = (runs || []).filter((r) => r.kind !== 'reterminus'
+    && surfaceOf(r.parent || r.item_id) === surface && r.result && r.result.t != null);
+  if (!comps.length) return null;
+  if (comps.some((r) => r.provisional || (r.classified_by && r.classified_by !== 'llm')))
+    return 'a component is a provisional/heuristic draft — the LLM can improve it';
+  if (comps.some((r) => r.classified_tax_version != null && r.classified_tax_version < TAX_VERSION))
+    return 'the taxonomy was updated since this was judged';
+  const last = comps.reduce((m, r) => (r.classified_at && r.classified_at > m ? r.classified_at : m), '');
+  if ((lessons || []).some((l) => l.status === 'BANKED' && l.banked_at && l.banked_at > last))
+    return 'lessons were banked since the last judgment';
+  return null;
+}
+
 export function reportToMd(run, report) {
   const r = report.result;
   const c = report.classification;
