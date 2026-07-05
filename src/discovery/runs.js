@@ -191,6 +191,21 @@ export function inFlightMap(probe) {
 }
 export const inFlightOf = (item, flight) => (flight && (flight[item.recipe_id] || flight[item.item_id])) || null;
 
+// HEARTBEAT display: seconds since the run's last sign of life (any named stage OR a
+// fetch/universe sub-beat), the latest sub-progress line, and the STALLED flag the
+// watchdog set. A long stage with a ticking heartbeat is alive; a frozen one is not.
+export function heartbeatAge(run, nowMs) {
+  const now = nowMs || Date.now();
+  const prog = run && run.progress;
+  const hb = run && (run.heartbeat_at
+    || (Array.isArray(prog) && prog.length ? prog[prog.length - 1].at : null));
+  if (!hb) return null;
+  const t = Date.parse(hb);
+  return Number.isNaN(t) ? null : Math.max(0, Math.round((now - t) / 1000));
+}
+export const subProgress = (run) => (run && (run.sub_detail || run.sub_stage)) || null;
+export const isStalled = (run) => !!(run && run.stalled);
+
 // The attention/board reason for an errored re-test must quote the LATEST error
 // verbatim — never a stale story ("feed bug fixed" after a newer failure). Picks the
 // most-recent errored run (by finished_at when present).

@@ -17,7 +17,7 @@ import InProgress from './components/InProgress.jsx';
 import Topbar from './components/Topbar.jsx';
 import ActionButton from './components/ActionButton.jsx';
 import RunRoom from './components/RunRoom.jsx';
-import { composeReport, mergeRuns, runsForSurface, versionDiff, surfaceOf, deriveCellStatuses, computeAttention, rejudgeReason } from './runs.js';
+import { composeReport, mergeRuns, runsForSurface, versionDiff, surfaceOf, deriveCellStatuses, computeAttention, rejudgeReason, heartbeatAge, subProgress, isStalled } from './runs.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -346,6 +346,41 @@ describe('floating analyst panel', () => {
 });
 
 // --- proxy power switch (restart the SignalDeltaProxy service from the console) --
+describe('run heartbeats + stall watchdog', () => {
+  it('heartbeatAge computes seconds since the last beat; helpers read sub-progress + stalled', () => {
+    const run = { heartbeat_at: '2026-07-05T13:50:00.000Z', sub_detail: 'quarter 22/40 → 500 names', stalled: true };
+    expect(heartbeatAge(run, Date.parse('2026-07-05T13:50:45.000Z'))).toBe(45);
+    expect(subProgress(run)).toBe('quarter 22/40 → 500 names');
+    expect(isStalled(run)).toBe(true);
+    expect(heartbeatAge({}, Date.now())).toBeNull();               // no beat → null (never a fake 0)
+  });
+
+  it('Running-now card shows the heartbeat + sub-progress + Cancel; STALLED when flagged', () => {
+    const probe = { running: { item_id: 'D:V-015-TDF-FULL#V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL',
+      title: 'V-015-TDF-FULL', stage: 'resolving point-in-time universe',
+      sub_detail: 'quarter 22/40 → 500 names', heartbeat_at: new Date(Date.now() - 3000).toISOString(),
+      stalled: true, steps: [] }, queue: [], done: [] };
+    const onCancel = vi.fn();
+    render(<InProgress probe={probe} onOpenRun={vi.fn()} onCancel={onCancel} />);
+    expect(screen.getByText('STALLED')).toBeTruthy();               // watchdog flag visible
+    expect(screen.getByText(/quarter 22\/40/)).toBeTruthy();        // latest sub-progress
+    expect(screen.getByText(/since last heartbeat/)).toBeTruthy();  // seconds-since
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    // ActionButton confirm — accept it
+  });
+
+  it('RunRoom shows a Cancel run button for a running probe', () => {
+    const run = { item_id: 'D:X#X', recipe_id: 'X', status: 'running', stage: 'fetching data',
+      sub_detail: 'chunk 3/13', heartbeat_at: new Date().toISOString(), progress: [], result: {} };
+    const onCancel = vi.fn();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<RunRoom run={run} slices={{}} onClose={vi.fn()} onCancel={onCancel} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }));
+    expect(onCancel).toHaveBeenCalledWith('D:X#X');
+    window.confirm.mockRestore();
+  });
+});
+
 describe('ActionButton — shared lifecycle (B1)', () => {
   it('firing: disables immediately on click; no double-fire', () => {
     let release;

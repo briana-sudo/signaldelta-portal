@@ -2,14 +2,15 @@
 // live stage timeline, and the composed TERMINUS REPORT (the engine's voice). The
 // operator reads the engine's conclusions here; Bank/Reject the lesson inline where
 // the context is. Read + intent only — no graph write.
-import { composeReport, reportToMd, versionDiff } from '../runs.js';
+import { composeReport, reportToMd, versionDiff, heartbeatAge, subProgress, isStalled } from '../runs.js';
 import { downloadMd } from '../mdExport.js';
 import ActionButton from './ActionButton.jsx';
 
 const STATUS = (s) => (s || 'unknown').toUpperCase();
 
-export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReject, onReevaluate, runBusy }) {
+export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReject, onReevaluate, onCancel, runBusy }) {
   if (!run) return null;
+  const isRunning = String(run.status).toLowerCase() === 'running';
   const report = composeReport(run, slices || {});
   const steps = run.progress || [];
   const cur = run.stage;
@@ -32,7 +33,12 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
             <div className="rr-title mono">{title}</div>
             <div className="rr-sub">{subtitle}</div>
           </div>
-          <span className={`rr-badge ${errored ? 'error' : String(run.status).toLowerCase()}`}>{errored ? 'ERROR' : STATUS(run.status)}</span>
+          <span className={`rr-badge ${errored ? 'error' : isStalled(run) ? 'stalled' : String(run.status).toLowerCase()}`}>{errored ? 'ERROR' : isStalled(run) ? 'STALLED' : STATUS(run.status)}</span>
+          {isRunning && onCancel && (
+            <ActionButton className="b b-sec" busyLabel="Cancelling…"
+                          confirm="Cancel this running probe? It will be errored (cancelled by operator), the lock released, and the item re-approvable."
+                          onAct={() => onCancel(run.item_id)}>Cancel run</ActionButton>
+          )}
           {run.parent && onReevaluate && String(run.status).toLowerCase() === 'done' && !isRJ && !errored && (
             <button className="b b-ghost" disabled={runBusy}
                     title={runBusy ? 'a run is active — one at a time' : 'Re-judge stored results — no data fetched'}
@@ -45,6 +51,13 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
           {/* STAGE TIMELINE (vertical, live) */}
           <div className="rr-stages">
             <h4>Stages</h4>
+            {isRunning && (heartbeatAge(run) != null || subProgress(run)) && (
+              <div className={`rr-heartbeat mono${isStalled(run) ? ' stalled' : ''}`}>
+                {subProgress(run) && <span>{subProgress(run)}</span>}
+                {heartbeatAge(run) != null && <span> · {heartbeatAge(run)}s since last heartbeat</span>}
+                {isStalled(run) && <span className="rr-stall"> · STALLED</span>}
+              </div>
+            )}
             <ol>
               {steps.length === 0 && <li className="hint">No stages recorded yet.</li>}
               {steps.map((s, i) => (

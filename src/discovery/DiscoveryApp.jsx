@@ -133,6 +133,7 @@ export default function DiscoveryApp({ contract }) {
   // every run (stored 7688 + live probe), and the open Run Room's run object
   const allRuns = useMemo(() => mergeRuns(runs, probe), [runs, probe]);
   const onOpenRun = useCallback((id) => setOpenRun(id), []);
+  const onCancelRun = useCallback((id) => client.cancel?.(id), [client]);
   const openRunObj = openRun ? findRun(allRuns, openRun) : null;
 
   // NEEDS YOUR ATTENTION — recommended actions with reasons, from live state
@@ -198,7 +199,7 @@ export default function DiscoveryApp({ contract }) {
             <div className="stage-head"><div><h1>Board</h1>
               <div className="sub">Every pending gate, with the engine's recommendation and the priced fork. Approve / reject sends intent — the orchestrator resolves.</div></div></div>
           )}
-          {tab === 'In progress' && <InProgress probe={probe} lessons={lessons} onBank={onBankLesson} onUnbank={onUnbankLesson} onReject={onRejectLesson} onOpenRun={onOpenRun} attention={attention} onAttentionAction={onAttentionAction} />}
+          {tab === 'In progress' && <InProgress probe={probe} lessons={lessons} onBank={onBankLesson} onUnbank={onUnbankLesson} onReject={onRejectLesson} onOpenRun={onOpenRun} onCancel={onCancelRun} attention={attention} onAttentionAction={onAttentionAction} />}
           {tab === 'Timeline' && <TimelineView contract={client} onOpenRun={onOpenRun} />}
           {(tab === 'Coverage' || tab === 'Data needs') && <DataNeeds contract={client} gated={gated} onAskAssistant={askAssistant} resolutions={resolutions} />}
           {tab === 'Board' && (
@@ -221,7 +222,7 @@ export default function DiscoveryApp({ contract }) {
       {openRunObj && (
         <RunRoom run={openRunObj} slices={{ lessons, board, correlations }}
                  onClose={() => setOpenRun(null)} onBank={onBankLesson} onUnbank={onUnbankLesson} onReject={onRejectLesson}
-                 onReevaluate={(pid) => client.reevaluate?.(pid)} runBusy={!!probe.running} />
+                 onReevaluate={(pid) => client.reevaluate?.(pid)} onCancel={onCancelRun} runBusy={!!probe.running} />
       )}
       {/* FLOATING analyst — draggable/resizable/minimizable, at app root (not the rail) */}
       <AnalystPanel contract={client} costingQuestion={costingQ} onCostingResolved={onCostingResolved} />

@@ -233,6 +233,12 @@ function mockContract() {
       if (it) it.status = 'OPEN';   // engine reopens: an underpowered flow needs a powered re-test
       return { state: 'queued', item_id: `RETERMINUS#${item_id}` };
     },
+    // INTENT — operator abort of a running/queued probe (mock: drop it from the probe)
+    async cancel(item_id) {
+      if (probe.running && probe.running.item_id === item_id) probe.running = null;
+      probe.queue = (probe.queue || []).filter((q) => q.item_id !== item_id);
+      return { item_id, status: 'cancelling' };
+    },
     // INTENT — credential goes to the server-side field, never returned/echoed
     async onboard({ source_id, entitlement, credential, watermark, content_hash }) {
       const configured = credential != null && credential !== '';
@@ -327,6 +333,9 @@ function liveContract() {
     // RE-EVALUATE (deliberate review): the ENGINE re-judges its own concluded work
     // with the fixed taxonomy + LLM, streaming to In-progress. Intent only — a run-request.
     async reevaluate(item_id) { return post('/sm/reevaluate', { item_id }).catch(() => ({ error: 'proxy unreachable — start it to re-evaluate' })); },
+    // CANCEL — operator abort of a running/queued probe (intent only; the engine's
+    // supervisor errors the run 'cancelled by operator' + releases the lock).
+    async cancel(item_id) { return post('/sm/probe/cancel', { item_id }).catch(() => ({ error: 'proxy unreachable — cannot cancel' })); },
     async onboard(payload) { return post('/sm/onboard', payload).catch(() => ({ source_id: payload.source_id, configured: false })); },
     // INTENT — surfaces a costing/research request (never buys); local ack if the
     // proxy has no /sm/research worker yet (results fill the fields when it runs).

@@ -202,6 +202,15 @@
 .commit-chip.unknown{color:var(--fg-4);border-style:dashed}
 .commit-chip.unknown .dot{background:var(--fg-4)}
 .approve-reason{color:var(--warning);margin:2px 0 6px;font-size:11px}
+/* run heartbeats + stall watchdog */
+.ip-badge.stalled,.rr-badge.stalled{background:color-mix(in srgb,var(--warning) 22%,transparent);color:var(--warning)}
+.ip-run.stalled{border-color:color-mix(in srgb,var(--warning) 45%,transparent)}
+.ip-heartbeat,.rr-heartbeat{font-size:11px;color:var(--fg-3);margin:4px 0 6px}
+.ip-heartbeat.stale,.rr-heartbeat.stalled{color:var(--warning)}
+.ip-heartbeat .hb-age,.rr-heartbeat span+span{color:var(--fg-4)}
+.rr-heartbeat.stalled span,.rr-stall{color:var(--warning)}
+.ip-cancel{margin-left:6px}
+.ip-head .exp-mini{margin-left:auto}
 /* shared ActionButton lifecycle: firing spinner + error surface + done state */
 .act-wrap{display:inline-flex;align-items:center;gap:6px}
 .btn-spin{width:11px;height:11px;border-radius:50%;border:2px solid color-mix(in srgb,currentColor 30%,transparent);border-top-color:currentColor;display:inline-block;margin-right:5px;vertical-align:-1px;animation:btn-spin .7s linear infinite}

@@ -1,9 +1,31 @@
 // In-progress view — the currently-running probe with its stage-by-stage progress,
 // the queue in order, and recent finished runs. Reads the live run state (from 7688
 // via /sm/probe/status), so a refresh survives. Read-only.
+import { useEffect, useState } from 'react';
 import ActionButton from './ActionButton.jsx';
+import { heartbeatAge, subProgress, isStalled } from '../runs.js';
 
-const STAGES = ['queued', 'validating recipe', 'fetching data', 'building signal', 'computing', 'power-gate', 'result'];
+const STAGES = ['queued', 'validating recipe', 'resolving point-in-time universe', 'fetching data', 'building signal', 'computing', 'power-gate', 'result'];
+
+// live heartbeat line: the latest sub-progress + a ticking seconds-since-last-heartbeat,
+// so a long stage that's alive is visibly distinct from a frozen (stalled) one.
+function HeartbeatLine({ run }) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => force((n) => n + 1), 1000);   // tick the age each second
+    return () => clearInterval(id);
+  }, []);
+  const age = heartbeatAge(run);
+  const sub = subProgress(run);
+  if (age == null && !sub) return null;
+  const stale = age != null && age > 120;
+  return (
+    <div className={`ip-heartbeat mono${stale ? ' stale' : ''}`}>
+      {sub && <span className="hb-sub">{sub}</span>}
+      {age != null && <span className="hb-age" title="seconds since the last heartbeat"> · {age}s since last heartbeat</span>}
+    </div>
+  );
+}
 
 const isReterminus = (run) => run && (run.kind === 'reterminus' || run.recipe_id === 'RETERMINUS'
   || /re-evaluate/i.test(run.title || ''));
@@ -72,7 +94,7 @@ function StageList({ run }) {
   );
 }
 
-export default function InProgress({ probe, lessons = [], onBank, onUnbank, onReject, onOpenRun, attention = [], onAttentionAction }) {
+export default function InProgress({ probe, lessons = [], onBank, onUnbank, onReject, onOpenRun, onCancel, attention = [], onAttentionAction }) {
   const running = probe?.running || null;
   const queue = probe?.queue || [];
   const done = probe?.done || [];
@@ -115,13 +137,22 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
       <div className="datastrip">
         <h3>Running now</h3>
         {running ? (
-          <div className="ip-run">
+          <div className={`ip-run${isStalled(running) ? ' stalled' : ''}`}>
             <div className="ip-head">
               <span className="src">{running.title || running.recipe_id}</span>
-              <span className="ip-badge running">RUNNING</span>
+              {isStalled(running)
+                ? <span className="ip-badge stalled" title="no heartbeat past the stall threshold">STALLED</span>
+                : <span className="ip-badge running">RUNNING</span>}
               <span className="mono ip-stagenow">{running.stage}</span>
-              <button className="exp-mini" style={{ marginLeft: 'auto' }} onClick={() => open(running.item_id)}>Open run report →</button>
+              {onCancel && (
+                <ActionButton className="b b-sec ip-cancel" busyLabel="Cancelling…"
+                              confirm="Cancel this running probe? It will be errored (cancelled by operator), the lock released, and the item re-approvable."
+                              onAct={() => onCancel(running.item_id)}>Cancel</ActionButton>
+              )}
+              <button className="exp-mini" onClick={() => open(running.item_id)}>Open run report →</button>
             </div>
+            {/* HEARTBEAT: latest sub-progress + seconds since the last sign of life */}
+            <HeartbeatLine run={running} />
             <StageList run={running} />
           </div>
         ) : <div className="hint">Nothing running. Approve a runnable-now probe on the Board to start one.</div>}
