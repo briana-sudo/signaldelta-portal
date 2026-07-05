@@ -171,6 +171,21 @@ function mockContract() {
         + `## ROLES & LAWS (verbatim — non-negotiable)\n- Firewall: the research graph (7688) NEVER reaches the trading instance.\n`;
       return { markdown: md, provenance: 'mock', words: md.split(/\s+/).length, manifest: [] };
     },
+    // OPERATOR DEBRIEF — four voices; the live proxy composes from 7688 + LLM. Mock returns
+    // a representative debrief so the console renders offline (real content from /sm/debrief).
+    async debrief(run_id) {
+      return {
+        run_id,
+        reporter: `t=1.09 means results this weak show up by luck often — not convincing evidence either way. The run tested ${run_id} and came back inconclusive (underpowered), not killed.`,
+        strategist: `Ranked: (1) extend the window — cheap, owned data. NEXT CLICK: extend the window to reach t≥2.`,
+        skeptic: `No placebo calendar was run.\n\nSPARKS:\n- If we permuted the dates, how often would t beat 1.09?\n- Is the event calendar real or a filing artifact?`,
+        prospector: `The 0.105 edge is positive, not zero.\n\nGLINTS:\n- Brick in the peak sub-calendar (edge 0.105) — cheapest check: split off-peak days.`,
+        sparks: ['If we permuted the dates, how often would t beat 1.09?', 'Is the event calendar real or a filing artifact?'],
+        glints: ['Brick in the peak sub-calendar (edge 0.105) — cheapest check: split off-peak days.'],
+        cost: { passes: 4, approx_input_tokens: 1800, approx_output_tokens: 3500 },
+        unavailable: [],
+      };
+    },
     // INTENT — resolve is the §4.1 gated-write; the frontend NEVER writes the graph
     async resolve({ gate_item_id, decision, gate_item_version }) {
       const it = board.find((b) => b.item_id === gate_item_id);
@@ -312,6 +327,7 @@ function realContract() {
       return (d && d[slice] != null) ? structuredClone(d[slice]) : base.query(slice);
     },
     async exportMd(slice) { return `# ${slice}\n\n(real state export — read-only, no secrets)\n`; },
+    async debrief(run_id) { return base.debrief(run_id); },   // mock voices until live proxy
   };
   rc.analyst = ({ ask, attachment }) => groundedAnalyst(ask, rc.query, { attachment });  // grounded + attachment
   return rc;
@@ -340,6 +356,9 @@ function liveContract() {
     // LEAD HANDOFF PACK — composed live from 7688 by the proxy; if the proxy isn't
     // reachable yet, fall back to the file/mock stub so the button still yields a pack.
     async handoff() { return get('/sm/handoff').catch(() => file.handoff()); },
+    // OPERATOR DEBRIEF — four voices composed live by the proxy (7688 grounding + LLM);
+    // falls back to the mock voices if the proxy is unreachable.
+    async debrief(run_id) { return post('/sm/debrief', { run_id }).catch(() => file.debrief(run_id)); },
     async resolve(payload) { return post('/sm/resolve', payload).catch(() => ({ rejected: true, reason: 'proxy unreachable — start it to enable gated writes' })); },
     // RE-EVALUATE (deliberate review): the ENGINE re-judges its own concluded work
     // with the fixed taxonomy + LLM, streaming to In-progress. Intent only — a run-request.

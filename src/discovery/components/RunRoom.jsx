@@ -2,13 +2,24 @@
 // live stage timeline, and the composed TERMINUS REPORT (the engine's voice). The
 // operator reads the engine's conclusions here; Bank/Reject the lesson inline where
 // the context is. Read + intent only — no graph write.
+import { useState } from 'react';
 import { composeReport, reportToMd, versionDiff, heartbeatAge, subProgress, isStalled } from '../runs.js';
 import { downloadMd } from '../mdExport.js';
 import ActionButton from './ActionButton.jsx';
 
 const STATUS = (s) => (s || 'unknown').toUpperCase();
+const VOICES = [['reporter', 'Reporter — what happened'], ['strategist', 'Strategist — where this goes'],
+                ['skeptic', 'Skeptic — what’s suspicious'], ['prospector', 'Prospector — what’s glinting']];
+// the SPARKS:/GLINTS: block renders as distinct buttons — strip it from the body so it
+// is not shown twice.
+const stripBlock = (text, marker) => {
+  const i = (text || '').search(new RegExp(`\\*{0,2}${marker}`, 'i'));
+  return i < 0 ? (text || '') : text.slice(0, i).trim();
+};
 
-export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReject, onReevaluate, onCancel, runBusy }) {
+export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReject, onReevaluate, onCancel, runBusy, contract, onExplore }) {
+  const [db, setDb] = useState(null);
+  const [dbBusy, setDbBusy] = useState(false);
   if (!run) return null;
   const isRunning = String(run.status).toLowerCase() === 'running';
   const report = composeReport(run, slices || {});
@@ -24,6 +35,15 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
   const title = isRJ ? `Re-judge · ${rjTarget}` : (run.recipe_id || run.item_id);
   const subtitle = isRJ ? 'Re-judge stored results — no data fetched'
     : `${res.window} · ${res.universe} names · triggered by Approve`;
+  const concluded = String(run.status).toLowerCase() === 'done' && !isRunning;
+
+  async function genDebrief() {
+    if (!contract?.debrief) return;
+    setDbBusy(true);
+    try { setDb(await contract.debrief(run.item_id || run.recipe_id)); }
+    catch { setDb({ unavailable: [{ voice: '*', reason: 'debrief request failed' }] }); }
+    finally { setDbBusy(false); }
+  }
 
   return (
     <div className="rr-backdrop" onClick={onClose}>
@@ -223,6 +243,37 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
               </div>
             )}
             </>)}
+
+            {/* OPERATOR DEBRIEF — four plain-English voices; sparks/glints pre-fill the analyst */}
+            {concluded && (
+              <div className="rr-block rr-debrief">
+                <div className="rr-report-head">
+                  <div className="rr-blabel">Debrief — the engine explains itself</div>
+                  {!db && <button className="b b-sec" disabled={dbBusy || !contract?.debrief}
+                                  onClick={genDebrief}>{dbBusy ? 'Composing…' : '🗣 Debrief this'}</button>}
+                </div>
+                {db && (db.unavailable && db.unavailable.some((u) => u.voice === '*')
+                  ? <div className="hint">debrief unavailable — {db.unavailable[0].reason}</div>
+                  : <div className="rr-voices">
+                      {VOICES.map(([k, label]) => (
+                        <div key={k} className={`rr-voice v-${k}`}>
+                          <div className="rr-vhead">{label}</div>
+                          <div className="rr-vtext">{(k === 'skeptic' ? stripBlock(db[k], 'SPARKS:')
+                            : k === 'prospector' ? stripBlock(db[k], 'GLINTS:') : db[k]) || '(missing)'}</div>
+                          {k === 'skeptic' && (db.sparks || []).map((s, i) => (
+                            <button key={i} className="rr-spark" title="Explore this in the analyst"
+                                    onClick={() => onExplore?.(run.item_id, run.recipe_id || 'run', s)}>✦ {s}</button>
+                          ))}
+                          {k === 'prospector' && (db.glints || []).map((g, i) => (
+                            <button key={i} className="rr-glint" title="Explore this in the analyst"
+                                    onClick={() => onExplore?.(run.item_id, run.recipe_id || 'run', g)}>⛏ {g}</button>
+                          ))}
+                        </div>
+                      ))}
+                      {db.cost && <div className="rr-dbcost mono">{db.cost.passes} passes · ~{db.cost.approx_input_tokens + db.cost.approx_output_tokens} tokens</div>}
+                    </div>)}
+              </div>
+            )}
           </div>
         </div>
       </div>

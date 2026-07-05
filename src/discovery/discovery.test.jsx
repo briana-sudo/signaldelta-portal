@@ -136,6 +136,30 @@ describe('lead handoff pack', () => {
   });
 });
 
+// --- OPERATOR DEBRIEF — four voices; sparks/glints wired to the analyst -------
+describe('operator debrief', () => {
+  it('every adapter exposes debrief() returning four voices + sparks + glints', async () => {
+    for (const mode of ['mock', 'real', 'live']) {
+      const c = makeContract(mode);
+      const d = await c.debrief('V-015-TDF');
+      expect(d.reporter && d.strategist && d.skeptic && d.prospector).toBeTruthy();
+      expect(Array.isArray(d.sparks) && d.sparks.length >= 1).toBe(true);
+      expect(Array.isArray(d.glints) && d.glints.length >= 1).toBe(true);
+    }
+  });
+  it('RunRoom renders the debrief and a spark pre-fills the analyst (Explore this)', async () => {
+    const run = { item_id: 'V-015-TDF', recipe_id: 'V-015-TDF', status: 'done', parent: 'V-015',
+                  result: { t: 1.09, n: 160, edge_pct_per_day: 0.105, gate_pass: false, disposition: 'inconclusive', window: '2010-2024', universe: 'PIT' } };
+    const onExplore = vi.fn();
+    render(<RunRoom run={run} slices={{}} contract={makeContract('mock')} onExplore={onExplore} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Debrief this/i }));
+    const spark = await screen.findByText(/permuted the dates/i);
+    fireEvent.click(spark);
+    expect(onExplore).toHaveBeenCalled();
+    expect(onExplore.mock.calls[0][2]).toMatch(/permuted the dates/i);   // spark text handed to analyst
+  });
+});
+
 // --- firewall: no 7687 / trading-engine reference anywhere in the console ------
 describe('UI firewall', () => {
   it('no 7687 / trading-engine identifier in the discovery source', () => {

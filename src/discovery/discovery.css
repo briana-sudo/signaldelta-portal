@@ -457,3 +457,20 @@
 .dn-need{padding:8px 0;font-size:12px;color:var(--fg-2);line-height:1.55}
 .dn-need-why b{color:var(--fg-1)}
 .dn-need-unlocks{margin-top:6px;font-size:11px;color:var(--fg-3)}
+
+/* OPERATOR DEBRIEF — four voices; sparks/glints pre-fill the analyst */
+.rr-debrief{border-top:1px solid rgba(255,255,255,.08)}
+.rr-voices{display:flex;flex-direction:column;gap:11px;margin-top:8px}
+.rr-voice{border-left:2px solid var(--line-2);padding-left:10px}
+.rr-voice.v-reporter{border-color:#7aa2f7}
+.rr-voice.v-strategist{border-color:#5eead4}
+.rr-voice.v-skeptic{border-color:#f7768e}
+.rr-voice.v-prospector{border-color:#e0af68}
+.rr-vhead{font-size:11px;font-weight:600;color:var(--fg-1);margin-bottom:3px}
+.rr-vtext{font-size:12px;color:var(--fg-2);line-height:1.55;white-space:pre-wrap}
+.rr-spark,.rr-glint{display:block;width:100%;text-align:left;margin-top:6px;padding:5px 8px;
+  background:rgba(255,255,255,.03);border:1px solid var(--line-2);border-radius:5px;
+  color:var(--fg-2);font-size:11px;cursor:pointer;line-height:1.4}
+.rr-spark:hover{border-color:#f7768e;color:var(--fg-1)}
+.rr-glint:hover{border-color:#e0af68;color:var(--fg-1)}
+.rr-dbcost{margin-top:8px;font-size:10px;color:var(--fg-3)}
