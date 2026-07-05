@@ -15,6 +15,7 @@ import AnalystPanel from './components/AnalystPanel.jsx';
 import TimelineView from './components/TimelineView.jsx';
 import InProgress from './components/InProgress.jsx';
 import Topbar from './components/Topbar.jsx';
+import ActionButton from './components/ActionButton.jsx';
 import RunRoom from './components/RunRoom.jsx';
 import { composeReport, mergeRuns, runsForSurface, versionDiff, surfaceOf, deriveCellStatuses, computeAttention, rejudgeReason } from './runs.js';
 
@@ -345,6 +346,38 @@ describe('floating analyst panel', () => {
 });
 
 // --- proxy power switch (restart the SignalDeltaProxy service from the console) --
+describe('ActionButton — shared lifecycle (B1)', () => {
+  it('firing: disables immediately on click; no double-fire', () => {
+    let release;
+    const onAct = vi.fn(() => new Promise((r) => { release = r; }));
+    render(<ActionButton onAct={onAct}>Go</ActionButton>);
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }));
+    expect(onAct).toHaveBeenCalledTimes(1);
+    const btn = screen.getByRole('button');
+    expect(btn.disabled).toBe(true);                       // immediate firing lock
+    fireEvent.click(btn);                                  // ignored while in flight
+    expect(onAct).toHaveBeenCalledTimes(1);
+    release && release();
+  });
+
+  it('error → button re-enables and shows the reason', async () => {
+    const onAct = vi.fn(() => Promise.reject(new Error('boom')));
+    render(<ActionButton onAct={onAct}>Go</ActionButton>);
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }));
+    await screen.findByText(/boom/);                       // reason surfaced, not silent
+    expect(screen.getByRole('button', { name: 'Go' }).disabled).toBe(false);
+  });
+
+  it('done → greyed, relabelled, unclickable', () => {
+    const onAct = vi.fn();
+    render(<ActionButton onAct={onAct} done doneLabel="Banked">Bank</ActionButton>);
+    const btn = screen.getByRole('button', { name: 'Banked' });
+    expect(btn.disabled).toBe(true);
+    fireEvent.click(btn);
+    expect(onAct).not.toHaveBeenCalled();
+  });
+});
+
 describe('proxy control button', () => {
   const base = { tab: 'Coverage', setTab: () => {}, cellsMapped: 0,
                  engineStatus: 'running', onStart: () => {}, onStop: () => {} };
@@ -774,7 +807,24 @@ describe('Run Room + terminus report', () => {
     const a = computeAttention({ runs, board, lessons: [] });
     const approve = a.find((x) => x.kind === 'approve' && x.target === 'D:V-015-TDF-FULL');
     expect(approve).toBeTruthy();                                     // errors NEVER satisfy → still surfaces
-    expect(approve.reason).toMatch(/last attempt errored — feed bug fixed, re-staged on point-in-time/);
+    expect(approve.reason).toMatch(/last attempt errored:.*only 4 names.*re-approve to retry/);  // quotes the LATEST error (C4)
+  });
+
+  it('B3 stale-attention fix: a running/queued re-test shows that state, NOT an actionable Approve', () => {
+    const board = [
+      { item_id: 'D:V-015-DFC-FULL', recipe_id: 'V-015-DFC-FULL', provenance: 'derived', blocker: 'runnable-now', status: 'OPEN' },
+      { item_id: 'D:V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL', provenance: 'derived', blocker: 'runnable-now', status: 'OPEN' },
+    ];
+    const probe = { running: { item_id: 'D:V-015-DFC-FULL#V-015-DFC-FULL', parent: 'D:V-015-DFC-FULL', recipe_id: 'V-015-DFC-FULL', stage: 'fetching data' },
+      queue: [{ item_id: 'D:V-015-TDF-FULL#V-015-TDF-FULL', parent: 'D:V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL' }] };
+    const a = computeAttention({ runs: [], board, lessons: [], probe });
+    const dfc = a.find((x) => x.target === 'D:V-015-DFC-FULL');
+    const tdf = a.find((x) => x.target === 'D:V-015-TDF-FULL');
+    expect(dfc.state).toBe('running');
+    expect(dfc.action).toBeUndefined();                              // NOT clickable while running
+    expect(tdf.state).toBe('queued');
+    expect(tdf.action).toBeUndefined();                              // NOT clickable while queued
+    expect(a.filter((x) => x.action).length).toBe(0);               // count of actionable = 0
   });
 
   it('a SUCCESSFUL run satisfies the re-test; a Hold suppresses it', () => {
@@ -792,7 +842,17 @@ describe('Run Room + terminus report', () => {
     render(<BoardQueue contract={{ resolve: vi.fn(() => Promise.resolve({ resolved: true })) }}
       items={items} onResolved={vi.fn()} probe={{}} runs={runs} onOpenRun={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();          // in the approve queue
-    expect(screen.getByText(/last attempt errored — feed bug fixed, re-staged on the point-in-time/)).toBeTruthy();
+    expect(screen.getByText(/last attempt errored:.*only 4 names/)).toBeTruthy();  // quotes the LATEST error (C4)
+  });
+
+  it('Dispatch-A item 3 — an errored component shows ERRORED badge, not DONE', () => {
+    const items = [{ item_id: 'D:V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL', type: 'new-search-surface',
+      kind: 'Runnable now', provenance: 'derived', blocker: 'runnable-now', status: 'PENDING', title: 're-test', ev: 0.6 }];
+    const probe = { done: [{ item_id: 'D:V-015-TDF-FULL#V-015-TDF-FULL', parent: 'D:V-015-TDF-FULL',
+      recipe_id: 'V-015-TDF-FULL', stage: 'result', disposition: 'error', result: { error: 'FeedUnavailable: only 4 names' } }] };
+    render(<BoardQueue contract={{ resolve: vi.fn() }} items={items} onResolved={vi.fn()} probe={probe} runs={[]} onOpenRun={vi.fn()} />);
+    expect(screen.getByText('ERRORED')).toBeTruthy();                              // honest badge
+    expect(screen.queryByText('DONE')).toBeNull();                                 // no lying DONE
   });
 
   it('map dots derive from runs (not stored) — V-015 strip = 1 killed + 2 inconclusive + rest blue', () => {

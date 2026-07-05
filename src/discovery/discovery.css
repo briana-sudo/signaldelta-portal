@@ -202,6 +202,13 @@
 .commit-chip.unknown{color:var(--fg-4);border-style:dashed}
 .commit-chip.unknown .dot{background:var(--fg-4)}
 .approve-reason{color:var(--warning);margin:2px 0 6px;font-size:11px}
+/* shared ActionButton lifecycle: firing spinner + error surface + done state */
+.act-wrap{display:inline-flex;align-items:center;gap:6px}
+.btn-spin{width:11px;height:11px;border-radius:50%;border:2px solid color-mix(in srgb,currentColor 30%,transparent);border-top-color:currentColor;display:inline-block;margin-right:5px;vertical-align:-1px;animation:btn-spin .7s linear infinite}
+@keyframes btn-spin{to{transform:rotate(360deg)}}
+.act-err{color:var(--danger);font-size:11px}
+.b.is-done{opacity:.55;cursor:default}
+.attn-inflight{opacity:.85}
 .pulse.st-restarting{background:var(--warning);box-shadow:0 0 0 0 rgba(245,181,68,.6);animation:pulse-amber 1.1s infinite}
 .pulse.st-unreachable{background:var(--fg-4);box-shadow:none;animation:none}
 
@@ -259,6 +266,7 @@
 .run-badge.running{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
 .run-badge.queued{background:color-mix(in srgb,var(--warning) 16%,transparent);color:var(--warning)}
 .run-badge.done{background:color-mix(in srgb,var(--fg-4) 24%,transparent);color:var(--fg-2)}
+.run-badge.errored{background:color-mix(in srgb,#f87171 20%,transparent);color:#f87171}
 .run-badge.pass{background:color-mix(in srgb,var(--success) 18%,transparent);color:var(--success)}
 .run-badge.held{background:color-mix(in srgb,var(--fg-4) 22%,transparent);color:var(--fg-3)}
 .run-line{font-size:11.5px;margin:2px 0 4px;color:var(--accent)}

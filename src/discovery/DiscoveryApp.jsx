@@ -136,7 +136,7 @@ export default function DiscoveryApp({ contract }) {
   const openRunObj = openRun ? findRun(allRuns, openRun) : null;
 
   // NEEDS YOUR ATTENTION — recommended actions with reasons, from live state
-  const attention = useMemo(() => computeAttention({ runs: allRuns, board, lessons }), [allRuns, board, lessons]);
+  const attention = useMemo(() => computeAttention({ runs: allRuns, board, lessons, probe }), [allRuns, board, lessons, probe]);
   const onAttentionAction = useCallback(async (a) => {
     if (a.kind === 'reevaluate') await client.reevaluate?.(a.target);
     else if (a.kind === 'approve') await client.resolve?.({ gate_item_id: a.target, decision: 'approve', gate_item_version: a.version || 0 });

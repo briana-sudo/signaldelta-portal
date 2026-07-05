@@ -1,6 +1,8 @@
 // In-progress view — the currently-running probe with its stage-by-stage progress,
 // the queue in order, and recent finished runs. Reads the live run state (from 7688
 // via /sm/probe/status), so a refresh survives. Read-only.
+import ActionButton from './ActionButton.jsx';
+
 const STAGES = ['queued', 'validating recipe', 'fetching data', 'building signal', 'computing', 'power-gate', 'result'];
 
 const isReterminus = (run) => run && (run.kind === 'reterminus' || run.recipe_id === 'RETERMINUS'
@@ -95,12 +97,17 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
         <h3>Needs your attention <span className="count mono">{attention.filter((a) => a.action).length}</span></h3>
         {attention.length === 0 && <div className="attn-empty">Nothing needs you.</div>}
         {attention.map((a, i) => (
-          <div key={i} className={`attn attn-${a.kind}`}>
+          <div key={i} className={`attn attn-${a.kind}${a.state ? ' attn-inflight' : ''}`}>
             <div className="attn-main">
               <span className="attn-title">{a.title}</span>
               <span className="attn-reason">{a.reason}</span>
             </div>
-            {a.action && <button className="b b-pri" onClick={() => onAttentionAction && onAttentionAction(a)}>{a.action}</button>}
+            {/* in-flight → agree with the board: show the state, unclickable */}
+            {a.state && <span className={`run-badge ${a.state}`}>{a.state === 'running' ? 'RUNNING' : 'QUEUED'}</span>}
+            {a.action && (
+              <ActionButton className="b b-pri" busyLabel="Approving…"
+                            onAct={() => onAttentionAction && onAttentionAction(a)}>{a.action}</ActionButton>
+            )}
           </div>
         ))}
       </div>

@@ -4,6 +4,7 @@
 // the context is. Read + intent only — no graph write.
 import { composeReport, reportToMd, versionDiff } from '../runs.js';
 import { downloadMd } from '../mdExport.js';
+import ActionButton from './ActionButton.jsx';
 
 const STATUS = (s) => (s || 'unknown').toUpperCase();
 
@@ -137,15 +138,15 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
                     <span className="rr-lacts">
                       {/* provisional → NO Bank button; only LLM-drafted lessons are bankable */}
                       {!l.provisional
-                        ? <button className="b b-pri" onClick={() => onBank && onBank(l.id)}>Bank</button>
+                        ? <ActionButton className="b b-pri" busyLabel="Banking…" onAct={() => onBank && onBank(l.id)}>Bank</ActionButton>
                         : <span className="lesson-note">Re-evaluate to enable Bank</span>}
-                      <button className="b b-sec" onClick={() => onReject && onReject(l.id)}>Reject</button>
+                      <ActionButton className="b b-sec" busyLabel="Rejecting…" onAct={() => onReject && onReject(l.id)}>Reject</ActionButton>
                     </span>
                   )}
                   {l.status === 'BANKED' && (
                     <span className="rr-lacts">
-                      <button className="b b-sec" title="Retract from the grounding pack (history kept)"
-                              onClick={() => onUnbank && onUnbank(l.id)}>Unbank</button>
+                      <ActionButton className="b b-sec" busyLabel="Unbanking…" title="Retract from the grounding pack (history kept)"
+                                    onAct={() => onUnbank && onUnbank(l.id)}>Unbank</ActionButton>
                     </span>
                   )}
                 </div>

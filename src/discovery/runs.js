@@ -173,6 +173,37 @@ export function indexRunsByRecipe(runs = []) {
   return m;
 }
 
+// IN-FLIGHT state from the live probe, keyed by recipe_id AND parent/item_id so a board
+// item can look up whether its run is running/queued right now. This is what keeps the
+// attention list and the board in agreement: an in-flight item is being acted on — it
+// is NOT an idle "awaiting Approve".
+export function inFlightMap(probe) {
+  const m = {};
+  const tag = (arr, state) => (arr || []).forEach((r) => {
+    if (!r) return;
+    if (r.recipe_id) m[r.recipe_id] = state;
+    if (r.parent) m[r.parent] = state;
+    if (r.item_id) { m[r.item_id] = state; const p = String(r.item_id).split('#')[0]; if (p) m[p] = state; }
+  });
+  tag(probe && probe.running ? [probe.running] : [], 'running');
+  tag(probe && probe.queue, 'queued');
+  return m;
+}
+export const inFlightOf = (item, flight) => (flight && (flight[item.recipe_id] || flight[item.item_id])) || null;
+
+// The attention/board reason for an errored re-test must quote the LATEST error
+// verbatim — never a stale story ("feed bug fixed" after a newer failure). Picks the
+// most-recent errored run (by finished_at when present).
+export function erroredReason(runs) {
+  const errs = (runs || []).filter(runErrored)
+    .sort((a, b) => String(a.finished_at || a.started_at || '').localeCompare(String(b.finished_at || b.started_at || '')));
+  const last = errs[errs.length - 1];
+  const msg = last && last.result && (last.result.error || last.result.error_message);
+  return msg
+    ? `last attempt errored: ${String(msg).slice(0, 180)} — re-approve to retry`
+    : 'last attempt errored — re-approve to retry';
+}
+
 // ── NEEDS YOUR ATTENTION: every recommended action WITH its reason, from live state ──
 function catOf(disp) {
   const d = String(disp || '').toLowerCase();
@@ -182,8 +213,9 @@ function catOf(disp) {
   return '';
 }
 
-export function computeAttention({ runs = [], board = [], lessons = [] } = {}) {
+export function computeAttention({ runs = [], board = [], lessons = [], probe = null } = {}) {
   const items = [];
+  const flight = inFlightMap(probe);
   // 1. RE-EVALUATE recommended — a concluded surface whose stored disposition the
   //    fixed taxonomy has SUPERSEDED, or that was judged by a provisional heuristic.
   const bySurface = {};
@@ -210,9 +242,18 @@ export function computeAttention({ runs = [], board = [], lessons = [] } = {}) {
   const runsByRecipe = indexRunsByRecipe(runs);
   for (const b of board) {
     if (!needsApproval(b, runsByRecipe)) continue;
+    // AGREE WITH THE BOARD: if the item is running/queued right now, it is being acted
+    // on — show that state, unclickable (no action), never a stale "awaiting Approve".
+    const fl = inFlightOf(b, flight);
+    if (fl) {
+      items.push({ kind: 'approve', title: b.recipe_id || b.title, target: b.item_id, state: fl,
+        reason: fl === 'running' ? 'running now — in progress, no action needed'
+          : 'queued — starts when the current run finishes' });
+      continue;
+    }
     const rs = runsByRecipe[b.recipe_id] || [];
     const reason = rs.some(runErrored)
-      ? 'last attempt errored — feed bug fixed, re-staged on point-in-time universe — awaiting your Approve'
+      ? erroredReason(rs)
       : 'derived powered re-test, runnable on owned data — awaiting your Approve';
     items.push({ kind: 'approve', title: b.recipe_id || b.title, target: b.item_id, version: b.version,
       action: 'Approve', reason });

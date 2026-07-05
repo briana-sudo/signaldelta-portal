@@ -8,7 +8,7 @@
 // EV / claim strength. Tier bands make the readiness at a glance.
 import { useState } from 'react';
 import { downloadMd, renderMd } from '../mdExport.js';
-import { rejudgeReason, surfaceOf, needsApproval, indexRunsByRecipe, runErrored } from '../runs.js';
+import { rejudgeReason, surfaceOf, needsApproval, indexRunsByRecipe, runErrored, erroredReason } from '../runs.js';
 
 const KIND_CLASS = { 'gated-option': 'k-gate', 'revalidation-due': 'k-reval', 'new-search-surface': 'k-new' };
 const PRIMARY_LABEL = {
@@ -85,6 +85,7 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
     const anyRunning = comps.some((c) => c.state === 'running');
     const anyQueued = comps.some((c) => c.state === 'queued');
     const allDone = comps.length > 0 && comps.every((c) => c.state === 'done');
+    const anyErr = comps.some(runErrored);           // a component threw — the card is NOT "done"
     const active = anyRunning || anyQueued;          // IN FLIGHT → no re-approve; done (incl. errored) stays re-runnable
     const erroredResurface = needsApproval(it, runsByRecipe) && (runsByRecipe[it.recipe_id] || []).some(runErrored);
     const isHeld = held[it.item_id];
@@ -97,7 +98,9 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
           {typeof it.ev === 'number' && <span className="ev-chip mono" title="claim strength / EV">EV {it.ev.toFixed(2)}</span>}
           {anyRunning && <span className="run-badge running">RUNNING</span>}
           {!anyRunning && anyQueued && <span className="run-badge queued">QUEUED</span>}
-          {allDone && <span className="run-badge done">DONE</span>}
+          {allDone && (anyErr
+            ? <span className="run-badge errored" title="a component run errored — not a completed result">ERRORED</span>
+            : <span className="run-badge done">DONE</span>)}
           {isHeld && !active && <span className="run-badge held">HELD</span>}
           <span className="mono" style={{ color: 'var(--fg-3)', fontSize: 11, marginLeft: 'auto' }}>{it.age}</span>
           <button className="exp-mini" title="Export this item to MD"
@@ -133,7 +136,7 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
         </>)}
 
         {erroredResurface && (
-          <div className="approve-reason hint">last attempt errored — feed bug fixed, re-staged on the point-in-time universe — awaiting your Approve</div>
+          <div className="approve-reason hint">{erroredReason(runsByRecipe[it.recipe_id])}</div>
         )}
         <div className="acts">
           <button className="b b-pri" disabled={busy === it.item_id || active || isHeld}
