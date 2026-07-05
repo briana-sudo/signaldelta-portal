@@ -74,6 +74,10 @@ export function composeReport(run, { lessons = [], board = [], correlations = []
       window: res.window ? `${res.window[0]} … ${res.window[1]}` : '—',
       universe: num(res.universe), gate: res.gate, gate_pass: res.gate_pass,
       gate_reason: res.gate_reason, disposition: run?.disposition || res.disposition || '—',
+      // a run that ERRORED carries a verbatim message and reached NO gate — the UI
+      // must show the error, not a lying "gate FAIL". error wins over gate/class.
+      error: res.error || null,
+      errored: !!res.error || res.disposition === 'error' || run?.disposition === 'error',
     },
     classification: {
       class: run?.classification || latest.classification || '—',
@@ -220,13 +224,22 @@ export function reportToMd(run, report) {
   L.push(`- status: ${run.status || '—'} · triggered: ${run.kind === 'reterminus' ? 'Re-evaluate' : 'Approve'}`);
   L.push('');
   L.push('## 1. Result');
-  L.push(`edge ${r.edge}%/day · t ${r.t} · n ${r.n} · window ${r.window} · universe ${r.universe}`);
-  L.push(`gate ${r.gate_pass ? 'PASS' : 'FAIL'} — ${r.gate_reason || ''}`);
-  L.push(`disposition: **${r.disposition}**`);
+  if (r.errored) {
+    L.push(`**ERROR** — ${r.error || 'run errored'}`);
+    L.push('errored — no gate was evaluated');
+  } else {
+    L.push(`edge ${r.edge}%/day · t ${r.t} · n ${r.n} · window ${r.window} · universe ${r.universe}`);
+    L.push(`gate ${r.gate_pass ? 'PASS' : 'FAIL'} — ${r.gate_reason || ''}`);
+    L.push(`disposition: **${r.disposition}**`);
+  }
   L.push('');
   L.push('## 2. Classification');
-  L.push(`**${c.class}** (${c.by}${c.provisional ? ' · provisional' : ''})`);
-  L.push(c.mechanism);
+  if (r.errored) {
+    L.push('not classified — run errored');
+  } else {
+    L.push(`**${c.class}** (${c.by}${c.provisional ? ' · provisional' : ''})`);
+    L.push(c.mechanism);
+  }
   L.push(`revival: ${c.revival}`);
   L.push('');
   L.push('## 3. Lessons proposed');

@@ -14,6 +14,7 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
   const cur = run.stage;
   const res = report.result;
   const c = report.classification;
+  const errored = res.errored;   // the run threw (e.g. FeedUnavailable) — no gate, no class
   // a re-judge (RETERMINUS) is not a probe — different title, subtitle, and report body
   const rres = run.result || {};
   const isRJ = run.recipe_id === 'RETERMINUS' || run.kind === 'reterminus';
@@ -30,8 +31,8 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
             <div className="rr-title mono">{title}</div>
             <div className="rr-sub">{subtitle}</div>
           </div>
-          <span className={`rr-badge ${String(run.status).toLowerCase()}`}>{STATUS(run.status)}</span>
-          {run.parent && onReevaluate && String(run.status).toLowerCase() === 'done' && !isRJ && (
+          <span className={`rr-badge ${errored ? 'error' : String(run.status).toLowerCase()}`}>{errored ? 'ERROR' : STATUS(run.status)}</span>
+          {run.parent && onReevaluate && String(run.status).toLowerCase() === 'done' && !isRJ && !errored && (
             <button className="b b-ghost" disabled={runBusy}
                     title={runBusy ? 'a run is active — one at a time' : 'Re-judge stored results — no data fetched'}
                     onClick={() => onReevaluate(run.parent)}>↻ Re-judge stored results</button>
@@ -87,17 +88,31 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
             )}
 
             {!isRJ && (<>
-            {/* 1. Result */}
+            {/* 1. Result — or, if the run ERRORED, the verbatim error (no gate reached) */}
             <div className="rr-block">
               <div className="rr-blabel">1 · Result</div>
-              <div className="rr-nums mono">
-                <span>edge {res.edge}%/day</span><span>t {res.t}</span><span>n {res.n}</span>
-                <span className={`rr-gate ${res.gate_pass ? 'pass' : 'fail'}`}>gate {res.gate_pass ? 'PASS' : 'FAIL'}</span>
-              </div>
-              <div className="rr-disp">{res.disposition}</div>
+              {errored ? (
+                <div className="rr-errbox">
+                  <div className="rr-errmsg mono">{res.error || 'run errored'}</div>
+                  <div className="rr-disp">errored — no gate was evaluated</div>
+                </div>
+              ) : (<>
+                <div className="rr-nums mono">
+                  <span>edge {res.edge}%/day</span><span>t {res.t}</span><span>n {res.n}</span>
+                  <span className={`rr-gate ${res.gate_pass ? 'pass' : 'fail'}`}>gate {res.gate_pass ? 'PASS' : 'FAIL'}</span>
+                </div>
+                <div className="rr-disp">{res.disposition}</div>
+              </>)}
             </div>
 
-            {/* 2. Classification (verbatim) */}
+            {/* 2. Classification (verbatim) — or "not classified" when the run errored */}
+            {errored ? (
+              <div className="rr-block">
+                <div className="rr-blabel">2 · Classification</div>
+                <div className="rr-class">not classified — run errored</div>
+                <div className="rr-mech">no result was produced, so nothing was classified.</div>
+              </div>
+            ) : (
             <div className="rr-block">
               <div className="rr-blabel">2 · Classification
                 <span className={`rr-prov ${c.by === 'llm' ? 'llm' : 'heur'}`}>
@@ -107,6 +122,7 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
               <div className="rr-mech">{c.mechanism}</div>
               {c.revival && <div className="rr-revival"><b>revival:</b> {c.revival}</div>}
             </div>
+            )}
 
             {/* 3. Lessons — Bank / Reject inline */}
             <div className="rr-block">

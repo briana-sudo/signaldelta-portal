@@ -672,6 +672,32 @@ describe('Run Room + terminus report', () => {
     expect(surfaceOf('new-search-surface:V-015#V-015-TDF')).toBe('V-015');
   });
 
+  // ERROR DISPLAY HONESTY — an errored run must NOT read as DONE / gate FAIL / classified
+  const errored = {
+    item_id: 'new-search-surface:V-015#V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL', parent: 'new-search-surface:V-015',
+    status: 'done', stage: 'result', disposition: 'error',
+    progress: [{ stage: 'fetching data', detail: 'point-in-time' }],
+    result: { error: 'FeedUnavailable: point-in-time universe resolved to 0 names (SEP entitlement/coverage)',
+              disposition: 'error', gate_pass: false, t: null, n: null, edge_pct_per_day: null },
+  };
+
+  it('composeReport flags errored + carries the verbatim message', () => {
+    const r = composeReport(errored, slices);
+    expect(r.result.errored).toBe(true);
+    expect(r.result.error).toMatch(/FeedUnavailable/);
+  });
+
+  it('RunRoom shows ERROR badge + verbatim error, suppresses gate FAIL, reads "not classified — run errored"', () => {
+    render(<RunRoom run={errored} slices={{}} onClose={vi.fn()} />);
+    expect(screen.getByText('ERROR')).toBeTruthy();                 // ERROR badge, not DONE
+    expect(screen.queryByText('DONE')).toBeNull();
+    expect(screen.getByText(/point-in-time universe resolved to 0 names/)).toBeTruthy();  // verbatim
+    expect(screen.queryByText('gate FAIL')).toBeNull();             // no lying gate
+    expect(screen.queryByText('gate PASS')).toBeNull();
+    expect(screen.getByText(/not classified — run errored/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Re-judge stored results/ })).toBeNull();  // nothing to re-judge
+  });
+
   it('board component chip opens the component Run Room', () => {
     const onOpenRun = vi.fn();
     const items = [{ item_id: 'new-search-surface:V-015', status: 'CLEARED', kind: 'Cleared', title: 'V-015',
