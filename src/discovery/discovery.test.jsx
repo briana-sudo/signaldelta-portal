@@ -381,6 +381,22 @@ describe('run heartbeats + stall watchdog', () => {
   });
 });
 
+describe('map reads derived runs (item 3)', () => {
+  it('surfaceOf maps a derived FULL/CLUSTERED run to its surface family (V-015)', () => {
+    expect(surfaceOf('D:V-015-TDF-FULL')).toBe('V-015');
+    expect(surfaceOf('D:V-015-TDF-FULL#V-015-TDF-FULL')).toBe('V-015');
+    expect(surfaceOf('new-search-surface:V-015#V-015-TDF')).toBe('V-015');
+  });
+
+  it("V-015's strip reflects the FULL/clustered conclusion on cold load", () => {
+    const grid = [{ surface: 'V-015', status: 'whitespace', cells: Array(8).fill({ status: 'whitespace' }) }];
+    const runs = [{ item_id: 'D:V-015-TDF-FULL#V-015-TDF-FULL', parent: 'D:V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL',
+      result: { gate_pass: false, t: 1.09, n: 160, edge_pct_per_day: 0.1, gate: { min_abs_t: 2.0, direction: 'positive' } } }];
+    const out = deriveCellStatuses(grid, runs);
+    expect(out[0].cells.map((c) => c.status)).toContain('tested-inconclusive');   // the derived run paints
+  });
+});
+
 describe('candidate (survivor) pipeline', () => {
   it('computeAttention surfaces a flagged stage + the S6 OOS decision', () => {
     const candidates = [{ run_id: 'D:V-015-TDF-FULL#V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL',

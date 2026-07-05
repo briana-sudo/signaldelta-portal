@@ -4,7 +4,10 @@
 
 export function surfaceOf(parentOrId) {
   const p = String(parentOrId || '');
-  return p.includes(':') ? p.split('#')[0].split(':').pop() : p.split('#')[0];
+  const base = p.split('#')[0].replace(/^D:/, '');          // strip the derived-item prefix
+  const m = base.match(/V-\d+/);                            // the surface family (V-015) — so a
+  if (m) return m[0];                                       // derived FULL/CLUSTERED run maps to V-015
+  return base.includes(':') ? base.split(':').pop() : base;
 }
 
 // merge stored runs (7688) with the LIVE probe (fresher stages for the running one)
