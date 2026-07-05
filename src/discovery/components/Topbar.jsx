@@ -65,7 +65,7 @@ const PLABEL = {
 };
 
 export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart, onStop,
-                                proxyStatus, proxyHelperBacked, onProxyRestart, proxyCommit, onProxyUpdateRestart, bundle }) {
+                                proxyStatus, proxyHelperBacked, onProxyRestart, proxyCommit, onProxyUpdateRestart, proxyErr, bundle }) {
   const st = engineStatus || 'unknown';
   const clickable = st === 'running' || st === 'stopped';
   const [glossary, setGlossary] = useState(false);
@@ -150,6 +150,10 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
               title="Update & restart the proxy (fast-forwards to the deploy branch, then restarts — restart alone would not update the code)">
         ⟳ Update &amp; restart{stale ? ' ⚠' : ''}
       </button>
+      {proxyErr && (
+        <span className="proxy-update-err" role="alert"
+              title={proxyErr}>⚠ update failed — {proxyErr}</span>
+      )}
       <button type="button" className={`engine-switch st-${st}`} onClick={toggle}
               disabled={!clickable} aria-label={`${LABEL[st]} — ${st === 'running' ? 'click to stop' : st === 'stopped' ? 'click to start' : ''}`}
               title={st === 'running' ? 'Click to stop' : st === 'stopped' ? 'Click to start' : LABEL[st]}>

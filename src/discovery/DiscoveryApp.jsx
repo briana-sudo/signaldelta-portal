@@ -29,6 +29,7 @@ export default function DiscoveryApp({ contract }) {
   const [proxy, setProxy] = useState('unknown');     // running | restarting | stopped | unreachable | unknown
   const [proxyHelper, setProxyHelper] = useState(false);  // SM_ProxyHelper up → restarts always work
   const [proxyCommit, setProxyCommit] = useState({});     // {running_commit, tree_commit, stale}
+  const [proxyErr, setProxyErr] = useState(null);         // loud update-step failure (never silent)
   const [bundle, setBundle] = useState({ id: BUILD_ID, stale: false });  // served vs latest Pages deploy
   const [costingQ, setCostingQ] = useState(null);    // a costing question handed to the assistant
   const [resolutions, setResolutions] = useState({}); // surface_id -> operator's recorded answer
@@ -175,7 +176,14 @@ export default function DiscoveryApp({ contract }) {
   async function onProxyUpdateRestart() {
     restartingUntil.current = Date.now() + 90000;    // ff + restart — a bit longer
     setProxy('restarting');
-    try { await client.proxyUpdateRestart(); } catch { /* fire-and-forget; the poll tracks recovery */ }
+    setProxyErr(null);
+    try {
+      const res = await client.proxyUpdateRestart();
+      // LOUD: a silent no-op update is forbidden — if the ff/update step failed, show why.
+      if (res?.update && res.update.ok === false) {
+        setProxyErr(res.update.detail || `update failed${res.update.exit_code != null ? ` (exit ${res.update.exit_code})` : ''}`);
+      }
+    } catch { /* the poll tracks restart recovery; update errors surface above */ }
   }
 
   return (
@@ -183,7 +191,7 @@ export default function DiscoveryApp({ contract }) {
       <Topbar tab={tab} setTab={setTab} cellsMapped={state.cells_mapped || 0}
               engineStatus={engine} onStart={onStart} onStop={onStop}
               proxyStatus={proxy} proxyHelperBacked={proxyHelper} onProxyRestart={onProxyRestart}
-              proxyCommit={proxyCommit} onProxyUpdateRestart={onProxyUpdateRestart} bundle={bundle} />
+              proxyCommit={proxyCommit} onProxyUpdateRestart={onProxyUpdateRestart} proxyErr={proxyErr} bundle={bundle} />
       <div className="main">
         <div className="stage">
           {tab === 'Coverage' && (
