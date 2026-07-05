@@ -70,6 +70,7 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }, [ask]);
   const bodyRef = useRef(null);
+  const panelRef = useRef(null);
   const drag = useRef(null);
   const pendingCosting = useRef(null);                   // Part C: a costing Q awaiting the operator's answer
 
@@ -94,12 +95,24 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
           x: Math.max(0, Math.min(w - 80, d.ox + e.clientX - d.sx)),
           y: Math.max(0, Math.min(h - 36, d.oy + e.clientY - d.sy)) }));
       } else {
-        // resize with sane bounds: min usable, max the viewport (can't drag off-screen)
+        // EDGE/CORNER resize: dir contains any of n/s/e/w. E/S grow from the far edge;
+        // W/N grow from the near edge (which also shifts x/y). Clamped to min + viewport.
+        const dir = d.dir || 'se';
         const maxW = (window.innerWidth || 1280) - 24;
         const maxH = (window.innerHeight || 800) - 24;
-        setBox((b) => ({ ...b, max: false,
-          w: Math.max(300, Math.min(maxW, d.ow + e.clientX - d.sx)),
-          h: Math.max(260, Math.min(maxH, d.oh + e.clientY - d.sy)) }));
+        const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+        let { ow: w, oh: h, ox: x, oy: y } = d;
+        if (dir.includes('e')) w = d.ow + dx;
+        if (dir.includes('s')) h = d.oh + dy;
+        if (dir.includes('w')) { w = d.ow - dx; x = d.ox + dx; }
+        if (dir.includes('n')) { h = d.oh - dy; y = d.oy + dy; }
+        w = Math.max(300, Math.min(maxW, w));
+        h = Math.max(260, Math.min(maxH, h));
+        // when shrinking from the near edge, keep the far edge pinned (don't let x/y drift)
+        if (dir.includes('w')) x = d.ox + (d.ow - w);
+        if (dir.includes('n')) y = d.oy + (d.oh - h);
+        setBox((b) => ({ ...b, max: false, w, h,
+          x: x != null ? Math.max(0, x) : b.x, y: y != null ? Math.max(0, y) : b.y }));
       }
     };
     const onUp = () => { drag.current = null; };
@@ -113,8 +126,11 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
     drag.current = { mode: 'move', sx: e.clientX, sy: e.clientY, ox: box.x, oy: box.y };
     e.preventDefault();
   };
-  const startResize = (e) => {
-    drag.current = { mode: 'resize', sx: e.clientX, sy: e.clientY, ow: box.w, oh: box.h };
+  const startResize = (e, dir) => {
+    // resolve the current on-screen origin even if the panel is corner-docked (x/y null)
+    const r = panelRef.current ? panelRef.current.getBoundingClientRect() : { left: box.x || 0, top: box.y || 0 };
+    drag.current = { mode: 'resize', dir, sx: e.clientX, sy: e.clientY,
+                     ow: box.w, oh: box.h, ox: box.x != null ? box.x : r.left, oy: box.y != null ? box.y : r.top };
     e.preventDefault(); e.stopPropagation();
   };
 
@@ -224,7 +240,7 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
     right: box.x == null ? 24 : undefined, bottom: box.y == null ? 24 : undefined };
 
   return (
-    <div className="analyst-panel" style={style} onPaste={onPaste}
+    <div className="analyst-panel" style={style} onPaste={onPaste} ref={panelRef}
          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
          onDragLeave={() => setDragOver(false)}
          onDrop={(e) => { e.preventDefault(); setDragOver(false); onFiles(e.dataTransfer.files); }}>
@@ -287,7 +303,11 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
         <button type="submit" disabled={busy}>Ask</button>
       </form>
 
-      <div className="ap-resize" onMouseDown={startResize} title="Drag to resize" aria-hidden="true" />
+      {/* draggable edges + corners — resize like any window (n/s/e/w + 4 corners) */}
+      {['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].map((dir) => (
+        <div key={dir} className={`ap-rz ap-rz-${dir}`} aria-hidden="true"
+             onMouseDown={(e) => startResize(e, dir)} />
+      ))}
     </div>
   );
 }

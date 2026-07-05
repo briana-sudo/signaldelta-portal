@@ -169,6 +169,19 @@ describe('operator debrief', () => {
 
 // --- ANALYST vision: images go through the proxy, never a key in the client -----
 describe('analyst image input + vision transport', () => {
+  it('has 8 draggable resize handles and the east edge actually resizes width', () => {
+    localStorage.removeItem('sd-analyst-panel');        // start from the default 380px width
+    const { container } = render(<AnalystPanel contract={makeContract('mock')} />);
+    const handles = container.querySelectorAll('.ap-rz');
+    expect(handles.length).toBe(8);                     // n/s/e/w + 4 corners, not just one corner
+    const panel = container.querySelector('.analyst-panel');
+    const w0 = parseInt(panel.style.width, 10);
+    const east = container.querySelector('.ap-rz-e');
+    fireEvent.mouseDown(east, { clientX: 400, clientY: 300 });
+    fireEvent.mouseMove(window, { clientX: 520, clientY: 300 });   // drag +120px right
+    fireEvent.mouseUp(window);
+    expect(parseInt(panel.style.width, 10)).toBe(w0 + 120);        // width grew by the drag
+  });
   it('the attach input is images-only + multiple (paperclip is not a dead/text button)', () => {
     const { container } = render(<AnalystPanel contract={makeContract('mock')} />);
     const input = container.querySelector('input[type="file"]');
