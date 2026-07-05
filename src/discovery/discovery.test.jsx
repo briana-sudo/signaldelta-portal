@@ -128,6 +128,13 @@ describe('lead handoff pack', () => {
       expect(res.markdown).toMatch(/BOOT_CONTEXT|LEAD HANDOFF/);
     }
   });
+  it('every adapter exposes rulingSheet() returning markdown', async () => {
+    for (const mode of ['mock', 'real', 'live']) {
+      const c = makeContract(mode);
+      const r = await c.rulingSheet();
+      expect(typeof r.markdown === 'string' && /Ruling Sheet/i.test(r.markdown)).toBe(true);
+    }
+  });
   it('downloadText emits the pack AS-IS (no title double-wrap)', () => {
     const md = '# BOOT_CONTEXT.md — LEAD HANDOFF PACK\n\nbody';
     const out = downloadText('BOOT_CONTEXT.md', md);

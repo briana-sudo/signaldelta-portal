@@ -171,6 +171,10 @@ function mockContract() {
         + `## ROLES & LAWS (verbatim — non-negotiable)\n- Firewall: the research graph (7688) NEVER reaches the trading instance.\n`;
       return { markdown: md, provenance: 'mock', words: md.split(/\s+/).length, manifest: [] };
     },
+    // OPERATOR RULING SHEET — the audit's decision doc (live proxy serves the committed MD).
+    async rulingSheet() {
+      return { markdown: '# Operator Ruling Sheet\n\n*(mock — connect the live proxy /sm/ruling-sheet for the audit findings)*\n', words: 12 };
+    },
     // OPERATOR DEBRIEF — four voices; the live proxy composes from 7688 + LLM. Mock returns
     // a representative debrief so the console renders offline (real content from /sm/debrief).
     async debrief(run_id) {
@@ -328,6 +332,7 @@ function realContract() {
     },
     async exportMd(slice) { return `# ${slice}\n\n(real state export — read-only, no secrets)\n`; },
     async debrief(run_id) { return base.debrief(run_id); },   // mock voices until live proxy
+    async rulingSheet() { return base.rulingSheet(); },
   };
   rc.analyst = ({ ask, attachment }) => groundedAnalyst(ask, rc.query, { attachment });  // grounded + attachment
   return rc;
@@ -359,6 +364,8 @@ function liveContract() {
     // OPERATOR DEBRIEF — four voices composed live by the proxy (7688 grounding + LLM);
     // falls back to the mock voices if the proxy is unreachable.
     async debrief(run_id) { return post('/sm/debrief', { run_id }).catch(() => file.debrief(run_id)); },
+    // OPERATOR RULING SHEET — the live proxy serves the committed audit MD.
+    async rulingSheet() { return get('/sm/ruling-sheet').catch(() => file.rulingSheet()); },
     async resolve(payload) { return post('/sm/resolve', payload).catch(() => ({ rejected: true, reason: 'proxy unreachable — start it to enable gated writes' })); },
     // RE-EVALUATE (deliberate review): the ENGINE re-judges its own concluded work
     // with the fixed taxonomy + LLM, streaming to In-progress. Intent only — a run-request.

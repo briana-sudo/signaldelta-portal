@@ -158,6 +158,11 @@ export default function DiscoveryApp({ contract }) {
     const md = res?.markdown || '# BOOT_CONTEXT.md\n\n(handoff unavailable — proxy unreachable)\n';
     downloadText('BOOT_CONTEXT.md', md);
   }, [client]);
+  // OPERATOR RULING SHEET — download the audit's decision doc (read-only; proposals only).
+  const onRulingSheet = useCallback(async () => {
+    const res = await client.rulingSheet?.();
+    downloadText('OPERATOR_RULING_SHEET.md', res?.markdown || '# Operator Ruling Sheet\n\n(unavailable — proxy unreachable)\n');
+  }, [client]);
   const onCostingResolved = (surface_id, answer) => {
     setResolutions((r) => ({ ...r, [surface_id]: answer }));
     setCostingQ(null);
@@ -199,6 +204,8 @@ export default function DiscoveryApp({ contract }) {
                           onClick={() => downloadMd('coverage-map.md', 'SignalDelta — Coverage map', renderMd(grid))}>⤓ Export map</button>
                   <button className="exp-mini" title="Generate the lead handoff pack (BOOT_CONTEXT.md) from live state"
                           onClick={onHandoff}>⤓ Lead handoff pack</button>
+                  <button className="exp-mini" title="Export the kill-board audit operator ruling sheet (proposals only)"
+                          onClick={onRulingSheet}>⤓ Ruling sheet</button>
                 </div>
               </div>
               <CoverageMap grid={grid} runs={allRuns} onOpenRun={onOpenRun} />
