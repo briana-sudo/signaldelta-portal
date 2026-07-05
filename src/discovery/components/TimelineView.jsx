@@ -14,16 +14,17 @@ export default function TimelineView({ contract }) {
   const [scans, setScans] = useState([]);
   const [gated, setGated] = useState([]);
   const [board, setBoard] = useState([]);
+  const [refiled, setRefiled] = useState([]);   // ruling a/b: kills refiled as raw material
 
   useEffect(() => {
     let live = true;
     (async () => {
-      const [w, s, g, b] = await Promise.all([
+      const [w, s, g, b, rf] = await Promise.all([
         contract.query('watches'), contract.query('scan_history'),
-        contract.query('gated'), contract.query('board'),
+        contract.query('gated'), contract.query('board'), contract.query('refiled'),
       ]);
       if (!live) return;
-      setWatches(w || []); setScans(s || []); setGated(g || []); setBoard(b || []);
+      setWatches(w || []); setScans(s || []); setGated(g || []); setBoard(b || []); setRefiled(rf || []);
     })();
     return () => { live = false; };
   }, [contract]);
@@ -83,6 +84,27 @@ export default function TimelineView({ contract }) {
           </tbody>
         </table>
       </div>
+
+      {/* REFILED — kills corrected to raw material by the audit ruling (a/b) */}
+      {refiled.length > 0 && (
+        <div className="datastrip">
+          <h3>Refiled as raw material <span className="count mono">{refiled.length}</span></h3>
+          <div className="cap">Kills the audit ruling corrected: a real brick or an active watch that was over-subtracted. Combiner-visible; no longer a kill.</div>
+          <table className="dtable">
+            <thead><tr><th>Item</th><th>New status</th><th>Revival class</th><th>Why</th></tr></thead>
+            <tbody>
+              {refiled.map((k) => (
+                <tr key={k.id}>
+                  <td className="src">{k.id}</td>
+                  <td><span className={`tl-pill st-${k.status}`}>{String(k.status || '').toUpperCase()}</span></td>
+                  <td className="mono">{k.revival_class || '—'}</td>
+                  <td>{k.revival_justification || k.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* DATA-PULL QUEUE */}
       <div className="datastrip">

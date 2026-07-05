@@ -298,6 +298,21 @@ describe('Timeline / Watches view', () => {
     }
   });
 
+  it('renders refiled kills as raw material (ruling a/b) with new status + revival class', async () => {
+    const c = {
+      mode: 'real',
+      query: async (slice) => (slice === 'refiled'
+        ? [{ id: 'B-GP', status: 'occupied', revival_class: 'n/a', revival_justification: 'reclassified OCCUPIED gross-brick' },
+           { id: 'B-AG', status: 'watch', revival_class: 'REGIME-SCOPED', revival_justification: 'recently-decayed' }]
+        : (RM[slice] ?? null)),
+      resolve: () => { throw new Error('no'); }, onboard: () => { throw new Error('no'); },
+    };
+    render(<TimelineView contract={c} />);
+    await waitFor(() => expect(screen.getByText(/Refiled as raw material/i)).toBeTruthy());
+    expect(screen.getByText('OCCUPIED')).toBeTruthy();
+    expect(screen.getByText('REGIME-SCOPED')).toBeTruthy();
+  });
+
   it('data-pull queue surfaces the gated data needs (options/futures/relational)', async () => {
     render(<TimelineView contract={seedContract()} />);
     await waitFor(() => expect(screen.getByText(/Data-pull queue/)).toBeTruthy());
