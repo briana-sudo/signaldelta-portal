@@ -381,6 +381,32 @@ describe('run heartbeats + stall watchdog', () => {
   });
 });
 
+describe('candidate (survivor) pipeline', () => {
+  it('computeAttention surfaces a flagged stage + the S6 OOS decision', () => {
+    const candidates = [{ run_id: 'D:V-015-TDF-FULL#V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL',
+      stages: [
+        { id: 'S1', name: 'validity review', kind: 'auto', status: 'flags', output: { flags: ['jump-vs-prior: 6.4x'] } },
+        { id: 'S6', name: 'OOS decision', kind: 'operator', status: 'awaiting-operator', output: { note: 'window law' } },
+      ] }];
+    const a = computeAttention({ runs: [], board: [], lessons: [], candidates });
+    const s1 = a.find((x) => x.kind === 'candidate' && /S1/.test(x.title));
+    const s6 = a.find((x) => x.kind === 'candidate' && /S6/.test(x.title));
+    expect(s1.reason).toMatch(/jump-vs-prior/);              // the critic's flag surfaced
+    expect(s6.action).toBe('Approve OOS');                   // S6 is the only actionable stage
+    expect(s6.reason).toMatch(/window law/);
+  });
+
+  it('map: a gate-passing run paints the green CANDIDATE dot (not occupied)', () => {
+    const grid = [{ surface: 'V-015', status: 'whitespace', cells: Array(8).fill({ status: 'whitespace' }) }];
+    const runs = [{ parent: 'new-search-surface:V-015', recipe_id: 'V-015-TDF',
+      result: { gate_pass: true, t: 2.8, n: 160, edge_pct_per_day: 0.1, gate: { min_abs_t: 2.0, direction: 'positive' } } }];
+    const out = deriveCellStatuses(grid, runs);
+    const dots = out[0].cells.map((c) => c.status);
+    expect(dots).toContain('candidate');                     // survivor → green candidate dot
+    expect(dots).not.toContain('occupied');
+  });
+});
+
 describe('ActionButton — shared lifecycle (B1)', () => {
   it('firing: disables immediately on click; no double-fire', () => {
     let release;

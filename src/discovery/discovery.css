@@ -202,6 +202,16 @@
 .commit-chip.unknown{color:var(--fg-4);border-style:dashed}
 .commit-chip.unknown .dot{background:var(--fg-4)}
 .approve-reason{color:var(--warning);margin:2px 0 6px;font-size:11px}
+/* candidate (survivor) pipeline S1–S6 */
+.rr-pipe-prog{margin-left:8px;color:#5EEAD4}
+.rr-stage-row{display:grid;grid-template-columns:26px 150px 52px 1fr;gap:8px;align-items:baseline;font-size:11px;padding:3px 0;border-top:1px solid var(--line-1)}
+.rr-stage-row .pl-id{color:var(--fg-3)}
+.rr-stage-row .pl-status.pass{color:var(--success)}
+.rr-stage-row .pl-status.flags{color:var(--warning)}
+.rr-stage-row .pl-status.awaiting-operator{color:var(--accent)}
+.rr-stage-row .pl-status.n\/a,.rr-stage-row .pl-status.done{color:var(--fg-4)}
+.rr-stage-row .pl-note{color:var(--fg-3)}
+.attn-candidate{border-left:2px solid #5EEAD4}
 /* run heartbeats + stall watchdog */
 .ip-badge.stalled,.rr-badge.stalled{background:color-mix(in srgb,var(--warning) 22%,transparent);color:var(--warning)}
 .ip-run.stalled{border-color:color-mix(in srgb,var(--warning) 45%,transparent)}

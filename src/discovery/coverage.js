@@ -8,8 +8,9 @@ export const STATUS_COLOR = {
   gated: '#F5B544',        // warning amber — needs data / build / broker
   'tested-inconclusive': '#B07CFF', // violet — tested, underpowered, re-tests pending
   retained: '#34D399',     // success green (B1 — glows)
+  candidate: '#5EEAD4',    // teal-green — a SURVIVOR in the S1–S6 pipeline (distinct from a confirmed brick)
   killed: 'rgba(248,113,113,0.55)', // danger dimmed
-  occupied: '#5A6B82',     // --fg-4 dim
+  occupied: '#5A6B82',     // --fg-4 dim (confirmed / concluded brick)
 };
 
 export function statusColor(status) {

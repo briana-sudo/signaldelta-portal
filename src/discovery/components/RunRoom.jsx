@@ -179,6 +179,25 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
               ))}
             </div>
 
+            {/* CANDIDATE PIPELINE — the survivor lifecycle (S1 validity … S6 OOS) */}
+            {(() => {
+              const cand = (slices?.candidates || []).find((c) => c.run_id === run.item_id);
+              if (!cand) return null;
+              return (
+                <div className="rr-block rr-pipeline">
+                  <div className="rr-blabel">Candidate pipeline <span className="rr-pipe-prog mono">{cand.progress}</span></div>
+                  {(cand.stages || []).map((s) => (
+                    <div key={s.id} className={`rr-stage-row pl-${s.status}`}>
+                      <span className="pl-id mono">{s.id}</span>
+                      <span className="pl-name">{s.name}</span>
+                      <span className={`pl-status ${s.status}`}>{s.status}</span>
+                      <span className="pl-note">{(s.output && (s.output.note || (s.output.flags || []).join('; ') || s.output.verdict)) || ''}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             {/* 5. Combination */}
             <div className="rr-block">
               <div className="rr-blabel">5 · Combination</div>

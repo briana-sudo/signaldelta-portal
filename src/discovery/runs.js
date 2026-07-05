@@ -121,9 +121,11 @@ function parentStatus(cats) {
   return 'OPEN';
 }
 
-const CELL_FOR = { CLEARED: 'killed', RETAINED: 'occupied', OPEN: 'tested-inconclusive' };
+// a survivor paints the GREEN-CANDIDATE state (in the S1–S6 pipeline), distinct from a
+// confirmed 'occupied' brick — this is the miss that left TDF's retained result unpainted.
+const CELL_FOR = { CLEARED: 'killed', RETAINED: 'candidate', OPEN: 'tested-inconclusive' };
 // per-component disposition → dot color (the strip legend: red/violet/green/blue)
-const DOT_FOR = { killed: 'killed', inconclusive: 'tested-inconclusive', retained: 'retained' };
+const DOT_FOR = { killed: 'killed', inconclusive: 'tested-inconclusive', retained: 'candidate' };
 
 // derive BOTH the header status AND the dot strip from the runs — nothing on the map
 // reads stored cell state. Each concluded component paints one dot; the rest stay blue.
@@ -228,7 +230,7 @@ function catOf(disp) {
   return '';
 }
 
-export function computeAttention({ runs = [], board = [], lessons = [], probe = null } = {}) {
+export function computeAttention({ runs = [], board = [], lessons = [], probe = null, candidates = [] } = {}) {
   const items = [];
   const flight = inFlightMap(probe);
   // 1. RE-EVALUATE recommended — a concluded surface whose stored disposition the
@@ -272,6 +274,22 @@ export function computeAttention({ runs = [], board = [], lessons = [], probe = 
       : 'derived powered re-test, runnable on owned data — awaiting your Approve';
     items.push({ kind: 'approve', title: b.recipe_id || b.title, target: b.item_id, version: b.version,
       action: 'Approve', reason });
+  }
+  // 3b. CANDIDATE PIPELINE — a survivor's stages that need the operator: a flagged
+  //     validity/robustness/cost stage, or the S6 OOS decision (Approve-only, window law).
+  for (const c of candidates || []) {
+    for (const st of (c.stages || [])) {
+      if (st.status === 'flags') {
+        const out = st.output || {};
+        const why = (out.flags && out.flags.length) ? out.flags.join('; ') : (out.note || 'needs your review');
+        items.push({ kind: 'candidate', title: `${c.recipe_id || c.run_id} · ${st.id} ${st.name}`,
+          target: c.run_id, reason: `${st.id} flagged — ${why}` });
+      } else if (st.kind === 'operator' && st.status === 'awaiting-operator') {
+        items.push({ kind: 'candidate', title: `${c.recipe_id || c.run_id} · S6 OOS decision`,
+          target: c.run_id, action: 'Approve OOS', version: 0,
+          reason: 'S6 — spends a sealed OOS window; operator Approve only (window law). S1–S5 spent nothing.' });
+      }
+    }
   }
   // 3. Provisional-lesson notice — heuristic drafts that a Re-evaluate will replace.
   const provL = lessons.filter((l) => l.status === 'PROPOSED' && l.provisional);
