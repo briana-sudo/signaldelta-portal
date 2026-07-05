@@ -151,6 +151,28 @@ export function deriveCellStatuses(grid, runs) {
   });
 }
 
+// A run ERRORED = it threw (FeedUnavailable, etc.) and produced NO result — it can
+// NEVER satisfy a recommendation. A run SUCCEEDED = it reached a real gated result.
+export const runErrored = (r) => !!(r && ((r.result && (r.result.error || r.result.errored))
+  || String(r.disposition || '').toLowerCase().startsWith('error')));
+export const runSucceeded = (r) => !!(r && r.result && r.result.t != null && !runErrored(r));
+
+// A runnable re-test the operator still owes a decision on: runnable-now + derived (or
+// flagged runnable), NOT held, and with NO successful run yet (an errored run does not
+// count — it re-surfaces). This is the single rule the Board and the attention list share.
+export function needsApproval(item, runsByRecipe) {
+  const runnable = item.blocker === 'runnable-now' && (item.provenance === 'derived' || item.runnable);
+  if (!runnable) return false;
+  if (item.held || item.status === 'HELD') return false;
+  const rs = (runsByRecipe && runsByRecipe[item.recipe_id]) || [];
+  return !rs.some(runSucceeded);
+}
+export function indexRunsByRecipe(runs = []) {
+  const m = {};
+  for (const r of runs) { if (r && r.recipe_id) (m[r.recipe_id] || (m[r.recipe_id] = [])).push(r); }
+  return m;
+}
+
 // ── NEEDS YOUR ATTENTION: every recommended action WITH its reason, from live state ──
 function catOf(disp) {
   const d = String(disp || '').toLowerCase();
@@ -181,12 +203,19 @@ export function computeAttention({ runs = [], board = [], lessons = [] } = {}) {
       items.push({ kind: 'reevaluate', title: surface, target: sruns[0].parent, action: 'Re-evaluate', reason });
     }
   }
-  // 2. APPROVE recommended — a runnable derived re-test awaiting the operator.
+  // 2. APPROVE recommended — a runnable re-test with NO SUCCESSFUL run yet surfaces
+  //    until the operator Approves or Holds it. An errored last run RE-SURFACES it
+  //    (errors never satisfy), with the reason updated. NOT gated on status==='PENDING'
+  //    — an errored run flips the item to OPEN, and it must still surface here.
+  const runsByRecipe = indexRunsByRecipe(runs);
   for (const b of board) {
-    if (b.provenance === 'derived' && b.blocker === 'runnable-now' && b.status === 'PENDING') {
-      items.push({ kind: 'approve', title: b.recipe_id || b.title, target: b.item_id, version: b.version,
-        action: 'Approve', reason: 'derived powered re-test, runnable on owned data — awaiting your Approve' });
-    }
+    if (!needsApproval(b, runsByRecipe)) continue;
+    const rs = runsByRecipe[b.recipe_id] || [];
+    const reason = rs.some(runErrored)
+      ? 'last attempt errored — feed bug fixed, re-staged on point-in-time universe — awaiting your Approve'
+      : 'derived powered re-test, runnable on owned data — awaiting your Approve';
+    items.push({ kind: 'approve', title: b.recipe_id || b.title, target: b.item_id, version: b.version,
+      action: 'Approve', reason });
   }
   // 3. Provisional-lesson notice — heuristic drafts that a Re-evaluate will replace.
   const provL = lessons.filter((l) => l.status === 'PROPOSED' && l.provisional);

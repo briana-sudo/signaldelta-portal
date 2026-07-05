@@ -8,7 +8,7 @@
 // EV / claim strength. Tier bands make the readiness at a glance.
 import { useState } from 'react';
 import { downloadMd, renderMd } from '../mdExport.js';
-import { rejudgeReason, surfaceOf } from '../runs.js';
+import { rejudgeReason, surfaceOf, needsApproval, indexRunsByRecipe, runErrored } from '../runs.js';
 
 const KIND_CLASS = { 'gated-option': 'k-gate', 'revalidation-due': 'k-reval', 'new-search-surface': 'k-new' };
 const PRIMARY_LABEL = {
@@ -36,8 +36,12 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
   const openRun = (id) => onOpenRun && onOpenRun(id);
   const [held, setHeld] = useState({});             // item_id -> true (Hold visible feedback)
   const [reevaluating, setReevaluating] = useState({});  // item_id -> true (Re-evaluate queued)
-  const open = items.filter((i) => i.status === 'PENDING');
-  const openItems = items.filter((i) => OPEN_STATES.includes(i.status));       // partially tested
+  const runsByRecipe = indexRunsByRecipe(runs);
+  // APPROVABLE = PENDING, OR a runnable re-test the operator still owes a decision on
+  // (no successful run yet). An errored run flips the item's status to OPEN, but it
+  // must stay in the approve queue — errors never satisfy a recommendation.
+  const open = items.filter((i) => i.status === 'PENDING' || needsApproval(i, runsByRecipe));
+  const openItems = items.filter((i) => OPEN_STATES.includes(i.status) && !needsApproval(i, runsByRecipe));
   const concluded = items.filter((i) => CONCLUDED_STATES.includes(i.status));  // fully disposed
   const sorted = [...open].sort((a, b) =>
     (RANK[a.kind] ?? 9) - (RANK[b.kind] ?? 9) || evOf(b) - evOf(a));
@@ -81,7 +85,8 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
     const anyRunning = comps.some((c) => c.state === 'running');
     const anyQueued = comps.some((c) => c.state === 'queued');
     const allDone = comps.length > 0 && comps.every((c) => c.state === 'done');
-    const active = comps.length > 0;                 // components in flight → no re-approve
+    const active = anyRunning || anyQueued;          // IN FLIGHT → no re-approve; done (incl. errored) stays re-runnable
+    const erroredResurface = needsApproval(it, runsByRecipe) && (runsByRecipe[it.recipe_id] || []).some(runErrored);
     const isHeld = held[it.item_id];
     return (
       <div key={it.item_id} className={`item slidein${anyRunning ? ' running' : ''}`}>
@@ -127,10 +132,13 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
           <div className="rec">{it.recommendation}</div>
         </>)}
 
+        {erroredResurface && (
+          <div className="approve-reason hint">last attempt errored — feed bug fixed, re-staged on the point-in-time universe — awaiting your Approve</div>
+        )}
         <div className="acts">
           <button className="b b-pri" disabled={busy === it.item_id || active || isHeld}
                   onClick={() => decide(it, 'approve')}>
-            {anyRunning ? 'Running…' : anyQueued ? 'Queued' : allDone ? 'Re-run' : (PRIMARY_LABEL[it.type] || 'Approve')}</button>
+            {anyRunning ? 'Running…' : anyQueued ? 'Queued' : erroredResurface ? 'Approve' : allDone ? 'Re-run' : (PRIMARY_LABEL[it.type] || 'Approve')}</button>
           {(it.options || []).includes('hold') && !active
             && <button className="b b-sec" disabled={isHeld} onClick={() => decide(it, 'reject')}>{isHeld ? 'Held' : 'Hold'}</button>}
         </div>

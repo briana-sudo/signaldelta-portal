@@ -93,22 +93,30 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
           <span className="dot" />ui {bundle.id}{bundle.stale ? ' · update ⚠' : ''}
         </span>
       )}
-      {proxyCommit?.running_commit && (
-        <span className={`commit-chip${stale ? ' stale' : ''}`}
-              title={stale
-                ? `Running ${proxyCommit.running_commit}, disk has ${proxyCommit.tree_commit} — click Update & restart to go live`
-                : `Proxy running the latest commit (${proxyCommit.running_commit})`}>
-          <span className="dot" />{stale ? `stale · ${proxyCommit.running_commit}→${proxyCommit.tree_commit}` : proxyCommit.running_commit}
-        </span>
-      )}
-      <button type="button" className={`proxy-switch st-${pClass}`} onClick={proxyToggle}
-              disabled={ps !== 'running'}
-              aria-label={`${PLABEL[ps] || PLABEL.unknown}${ps === 'running' ? ' — click to update & restart' : ''}`}
-              title={ps === 'running'
-                ? 'Update & restart the proxy (fast-forwards to the deploy branch, then restarts — restart alone would not update the code)'
-                : PLABEL[ps] || PLABEL.unknown}>
+      {/* PROXY COMMIT chip — the running commit, same "proxy <hash>" format as the ui
+          chip. If the process hasn't reported its commit yet (hasn't cycled since the
+          fix), say so explicitly — never show nothing. */}
+      <span className={`commit-chip${proxyCommit?.running_commit ? (stale ? ' stale' : '') : ' unknown'}`}
+            title={proxyCommit?.running_commit
+              ? (stale
+                  ? `Proxy running ${proxyCommit.running_commit}; disk has ${proxyCommit.tree_commit} — Update & restart to go live`
+                  : `Proxy running the latest commit (${proxyCommit.running_commit})`)
+              : 'The proxy has not reported its running commit yet — Update & restart to populate it'}>
+        <span className="dot" />
+        {proxyCommit?.running_commit
+          ? (stale ? `proxy ${proxyCommit.running_commit} · update ⚠` : `proxy ${proxyCommit.running_commit}`)
+          : 'proxy commit unknown — update & restart to populate'}
+      </span>
+      {/* PROXY STATUS pill — an INDICATOR ONLY (green/amber/grey); not the action */}
+      <span className={`proxy-status st-${pClass}`} title={PLABEL[ps] || PLABEL.unknown}>
         <span className={`pulse st-${pClass}`} />{PLABEL[ps] || PLABEL.unknown}
-        {ps === 'running' && <span className="sw-act">{stale ? ' · update & restart ⚠' : ' · update & restart'}</span>}
+      </span>
+      {/* ACTION — a visually DISTINCT button, separate from the status pill */}
+      <button type="button" className={`proxy-update${stale ? ' stale' : ''}`} onClick={proxyToggle}
+              disabled={ps !== 'running'}
+              aria-label="Update and restart the proxy"
+              title="Update & restart the proxy (fast-forwards to the deploy branch, then restarts — restart alone would not update the code)">
+        ⟳ Update &amp; restart{stale ? ' ⚠' : ''}
       </button>
       <button type="button" className={`engine-switch st-${st}`} onClick={toggle}
               disabled={!clickable} aria-label={`${LABEL[st]} — ${st === 'running' ? 'click to stop' : st === 'stopped' ? 'click to start' : ''}`}

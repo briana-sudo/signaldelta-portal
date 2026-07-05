@@ -349,44 +349,64 @@ describe('proxy control button', () => {
   const base = { tab: 'Coverage', setTab: () => {}, cellsMapped: 0,
                  engineStatus: 'running', onStart: () => {}, onStop: () => {} };
 
-  it('running → confirm-on-restart fires onProxyRestart', () => {
-    const onProxyRestart = vi.fn();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    render(<Topbar {...base} proxyStatus="running" onProxyRestart={onProxyRestart} />);
-    fireEvent.click(screen.getByText(/Proxy live/).closest('button'));
-    expect(window.confirm).toHaveBeenCalled();          // confirm-on-restart (not accidental)
-    expect(onProxyRestart).toHaveBeenCalled();
-    window.confirm.mockRestore();
+  const updateBtn = () => screen.getByRole('button', { name: /update and restart the proxy/i });
+
+  it('status and action are SEPARATE: Proxy live is a status pill, not the action button', () => {
+    const { container } = render(<Topbar {...base} proxyStatus="running"
+      proxyCommit={{ running_commit: 'aaa1111', stale: false }} onProxyUpdateRestart={vi.fn()} />);
+    // the status word lives in a NON-button pill
+    const statusEl = screen.getByText(/Proxy live/);
+    expect(statusEl.closest('button')).toBeNull();
+    expect(statusEl.closest('.proxy-status')).toBeTruthy();
+    // the action is its own distinct button
+    expect(container.querySelector('.proxy-update')).toBeTruthy();
+    expect(updateBtn().className).toContain('proxy-update');
   });
 
-  it('confirm cancelled → does NOT restart', () => {
-    const onProxyRestart = vi.fn();
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
-    render(<Topbar {...base} proxyStatus="running" onProxyRestart={onProxyRestart} />);
-    fireEvent.click(screen.getByText(/Proxy live/).closest('button'));
-    expect(onProxyRestart).not.toHaveBeenCalled();
-    window.confirm.mockRestore();
+  it('commit chip shows "proxy <hash>" (ui-chip format), green when current', () => {
+    const { container } = render(<Topbar {...base} proxyStatus="running"
+      proxyCommit={{ running_commit: '7c6d502', stale: false }} onProxyUpdateRestart={vi.fn()} />);
+    expect(screen.getByText('proxy 7c6d502')).toBeTruthy();
+    expect(container.querySelector('.commit-chip.stale')).toBeNull();
   });
 
-  it('proxy button is Update & restart; a stale commit shows the stale chip', () => {
+  it('running_commit unknown → chip says so, not nothing', () => {
+    render(<Topbar {...base} proxyStatus="running" proxyCommit={{ running_commit: null }} onProxyUpdateRestart={vi.fn()} />);
+    expect(screen.getByText(/proxy commit unknown — update & restart to populate/)).toBeTruthy();
+  });
+
+  it('running → confirm then fires onProxyUpdateRestart from the distinct button', () => {
     const onUpd = vi.fn();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const { container } = render(<Topbar {...base} proxyStatus="running"
-      proxyCommit={{ running_commit: 'aaa1111', tree_commit: 'bbb2222', stale: true }}
-      onProxyUpdateRestart={onUpd} onProxyRestart={vi.fn()} />);
-    // running-commit visibility: stale chip shows running→tree
-    expect(container.querySelector('.commit-chip.stale')).toBeTruthy();
-    expect(screen.getByText(/aaa1111→bbb2222/)).toBeTruthy();
-    // the action updates then restarts (not a bare restart)
-    fireEvent.click(screen.getByText(/Proxy live/).closest('button'));
+    render(<Topbar {...base} proxyStatus="running" onProxyUpdateRestart={onUpd} onProxyRestart={vi.fn()} />);
+    fireEvent.click(updateBtn());
+    expect(window.confirm).toHaveBeenCalled();
     expect(onUpd).toHaveBeenCalled();
     window.confirm.mockRestore();
   });
 
-  it('restarting → amber label, not clickable', () => {
-    render(<Topbar {...base} proxyStatus="restarting" onProxyRestart={vi.fn()} />);
-    const btn = screen.getByText(/Restarting/).closest('button');
-    expect(btn.disabled).toBe(true);
+  it('confirm cancelled → does NOT restart', () => {
+    const onUpd = vi.fn();
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<Topbar {...base} proxyStatus="running" onProxyUpdateRestart={onUpd} onProxyRestart={vi.fn()} />);
+    fireEvent.click(updateBtn());
+    expect(onUpd).not.toHaveBeenCalled();
+    window.confirm.mockRestore();
+  });
+
+  it('stale commit → chip + action both flag stale', () => {
+    const { container } = render(<Topbar {...base} proxyStatus="running"
+      proxyCommit={{ running_commit: 'aaa1111', tree_commit: 'bbb2222', stale: true }}
+      onProxyUpdateRestart={vi.fn()} />);
+    expect(container.querySelector('.commit-chip.stale')).toBeTruthy();
+    expect(screen.getByText(/proxy aaa1111 · update ⚠/)).toBeTruthy();
+    expect(container.querySelector('.proxy-update.stale')).toBeTruthy();
+  });
+
+  it('restarting → amber status pill; action button disabled', () => {
+    render(<Topbar {...base} proxyStatus="restarting" onProxyUpdateRestart={vi.fn()} />);
+    expect(screen.getByText(/Restarting/)).toBeTruthy();
+    expect(updateBtn().disabled).toBe(true);
   });
 
   it('mock contract: restart transitions running → restarting', async () => {
@@ -743,6 +763,36 @@ describe('Run Room + terminus report', () => {
 
   it('empty attention → nothing needs you', () => {
     expect(computeAttention({ runs: [], board: [], lessons: [] })).toHaveLength(0);
+  });
+
+  it('FALSE-IDLE FIX: an errored re-test (status OPEN, no successful run) surfaces as Approve with the errored reason', () => {
+    // the FULL errored → the engine flipped the item to OPEN; it must NOT read as idle
+    const runs = [{ parent: 'D:V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL', disposition: 'error',
+      result: { error: 'FeedUnavailable: only 4 names with price history', errored: true } }];
+    const board = [{ item_id: 'D:V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL', provenance: 'derived',
+      blocker: 'runnable-now', status: 'OPEN', title: 're-test' }];
+    const a = computeAttention({ runs, board, lessons: [] });
+    const approve = a.find((x) => x.kind === 'approve' && x.target === 'D:V-015-TDF-FULL');
+    expect(approve).toBeTruthy();                                     // errors NEVER satisfy → still surfaces
+    expect(approve.reason).toMatch(/last attempt errored — feed bug fixed, re-staged on point-in-time/);
+  });
+
+  it('a SUCCESSFUL run satisfies the re-test; a Hold suppresses it', () => {
+    const board = [{ item_id: 'D:V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL', provenance: 'derived', blocker: 'runnable-now', status: 'OPEN' }];
+    const okRun = [{ recipe_id: 'V-015-TDF-FULL', result: { t: 2.3, n: 400, gate_pass: true } }];
+    expect(computeAttention({ runs: okRun, board, lessons: [] }).some((x) => x.kind === 'approve')).toBe(false);
+    expect(computeAttention({ runs: [], board: [{ ...board[0], held: true }], lessons: [] }).some((x) => x.kind === 'approve')).toBe(false);
+  });
+
+  it('item 2 — BoardQueue renders an errored OPEN re-test as APPROVABLE (not a ghost OPEN card)', () => {
+    const items = [{ item_id: 'D:V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL', type: 'new-search-surface',
+      kind: 'Runnable now', provenance: 'derived', blocker: 'runnable-now', status: 'OPEN',
+      title: 'V-015-TDF-FULL powered re-test', ev: 0.6 }];
+    const runs = [{ recipe_id: 'V-015-TDF-FULL', disposition: 'error', result: { error: 'FeedUnavailable: only 4 names', errored: true } }];
+    render(<BoardQueue contract={{ resolve: vi.fn(() => Promise.resolve({ resolved: true })) }}
+      items={items} onResolved={vi.fn()} probe={{}} runs={runs} onOpenRun={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();          // in the approve queue
+    expect(screen.getByText(/last attempt errored — feed bug fixed, re-staged on the point-in-time/)).toBeTruthy();
   });
 
   it('map dots derive from runs (not stored) — V-015 strip = 1 killed + 2 inconclusive + rest blue', () => {
