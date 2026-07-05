@@ -417,3 +417,8 @@
 /* lessons never truncate — full text, wrap long words, scroll if huge */
 .lesson-text,.rr-ltext{white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;max-height:none}
 .lesson-text{max-height:320px;overflow:auto}
+
+/* engine-created data-need (no vendor to price) — why + unlocks, no pricing grid */
+.dn-need{padding:8px 0;font-size:12px;color:var(--fg-2);line-height:1.55}
+.dn-need-why b{color:var(--fg-1)}
+.dn-need-unlocks{margin-top:6px;font-size:11px;color:var(--fg-3)}

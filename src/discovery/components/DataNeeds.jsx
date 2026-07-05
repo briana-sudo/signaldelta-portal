@@ -12,6 +12,13 @@ import { useRef, useState } from 'react';
 const UNP = 'unpriced — research needed';
 const isUnpriced = (v) => v == null || v === '' || v === UNP || v === 'unpriced';
 
+// the seed cards use id/surface; the terminus-created ones use surface_id/title —
+// normalize so an engine-created card (e.g. B1-return-stream) is never nameless.
+const cardId = (g) => g.id || g.surface_id || '';
+const cardName = (g) => g.surface || g.title || g.surface_id || g.id || '(unnamed data need)';
+// a RETURN-STREAM / build need has no vendor to price — Price-it doesn't apply.
+const isPriceable = (g) => g.kind !== 'combination-infra' && !/return[ -]?stream/i.test(g.title || g.surface || '');
+
 export default function DataNeeds({ contract, gated, onAskAssistant, resolutions = {} }) {
   const [onboarding, setOnboarding] = useState(null);   // source_id being onboarded (NOT the value)
   const [result, setResult] = useState(null);
@@ -20,34 +27,40 @@ export default function DataNeeds({ contract, gated, onAskAssistant, resolutions
   const credRef = useRef(null);                          // uncontrolled — value never enters state
 
   async function submit(g) {
+    const id = cardId(g);
     const credential = credRef.current?.value || '';     // read transiently
     const res = await contract.onboard({
-      source_id: g.id, entitlement: `${g.id}_entitlement`, credential,
+      source_id: id, entitlement: `${id}_entitlement`, credential,
       watermark: new Date().toISOString().slice(0, 10), content_hash: 'pending-validate',
     });
     if (credRef.current) credRef.current.value = '';      // clear immediately — never persisted
-    setResult({ id: g.id, configured: res.configured });
+    setResult({ id, configured: res.configured });
     setOnboarding(null);
   }
 
   // "Price it / Research" — the costing worker fills the fields. INTENT only: it
   // never buys, never onboards, spends nothing.
   async function priceIt(g) {
-    setBusy(g.id);
+    const id = cardId(g);
+    setBusy(id);
     let r = null;
-    try { r = await contract.research({ surface_id: g.id, kind: 'price-research', surface: g.surface }); }
+    try { r = await contract.research({ surface_id: id, kind: 'price-research', surface: cardName(g) }); }
     catch { r = null; }
     setBusy(null);
     if (r && (r.fields || r.researched)) {
-      setPriced((m) => ({ ...m, [g.id]: { fields: r.fields || {}, questions: r.questions || [], note: r.note } }));
+      setPriced((m) => ({ ...m, [id]: { fields: r.fields || {}, questions: r.questions || [], note: r.note } }));
     } else {
-      setPriced((m) => ({ ...m, [g.id]: { fields: {}, questions: [], note: 'Could not reach the costing worker — try again.' } }));
+      // distinguish the real cause (the message must say WHICH)
+      const note = isPriceable(g)
+        ? 'Can’t reach the costing worker — the proxy may need Update & restart (topbar).'
+        : 'No vendor entry for this item — it’s a build/return-stream need, not a purchasable data source.';
+      setPriced((m) => ({ ...m, [id]: { fields: {}, questions: [], note } }));
     }
   }
 
-  // a field: prefer the researched value; else the seed value; else "unpriced".
+  // a field: prefer the just-researched value; else the PERSISTED node value; else "unpriced".
   const shown = (g, key) => {
-    const v = priced[g.id]?.fields?.[key] ?? g[key];
+    const v = priced[cardId(g)]?.fields?.[key] ?? g[key];
     return isUnpriced(v) ? UNP : v;
   };
   const field = (g, label, key) => {
@@ -55,7 +68,7 @@ export default function DataNeeds({ contract, gated, onAskAssistant, resolutions
     return (
       <div className="dn-field">
         <span className="dn-k">{label}</span>
-        <span className={`dn-v${v === UNP ? ' unpriced' : ''}${priced[g.id]?.fields?.[key] && v !== UNP ? ' priced' : ''}`}>{v}</span>
+        <span className={`dn-v${v === UNP ? ' unpriced' : ''}${(priced[cardId(g)]?.fields?.[key] || g[key]) && v !== UNP ? ' priced' : ''}`}>{v}</span>
       </div>
     );
   };
@@ -65,14 +78,27 @@ export default function DataNeeds({ contract, gated, onAskAssistant, resolutions
       <h3>Data needs</h3>
       <div className="cap">Gated surfaces and what it takes to unlock them. "Price it / Research" runs the costing worker — it fills the real numbers (or "quote required"); it never buys.</div>
       <div className="dn-list">
-        {gated.map((g) => (
-          <div key={g.id} className="dn-card">
+        {gated.map((g) => {
+          const id = cardId(g);
+          const priceable = isPriceable(g);
+          const isPriced = !!priced[id] || g.priced;
+          return (
+          <div key={id || cardName(g)} className="dn-card">
             <div className="dn-head">
-              <span className="src">{g.surface}</span>
+              <span className="src">{cardName(g)}</span>
               {g.blocker && <span className="dn-blocker mono">{g.blocker}</span>}
-              {priced[g.id] && <span className="dn-priced">priced ✓</span>}
-              <span className="dn-unlocks mono" title="cells unlocked">{g.unlocks || '—'}</span>
+              {priceable && isPriced && <span className="dn-priced">priced ✓</span>}
+              {!priceable && <span className="dn-blocker mono">engine data-need</span>}
+              <span className="dn-unlocks mono" title="what it unlocks">{g.unlocks || '—'}</span>
             </div>
+            {/* engine-created needs (e.g. a return stream) have no vendor to price —
+                show WHY it's needed + WHAT it unlocks, not a pricing grid */}
+            {!priceable ? (
+              <div className="dn-need">
+                <div className="dn-need-why"><b>Why it’s needed:</b> {g.note || 'required by the engine to proceed.'}</div>
+                {g.unlocks && <div className="dn-need-unlocks mono">unlocks: {g.unlocks}</div>}
+              </div>
+            ) : (
             <div className="dn-grid">
               {field(g, 'Cost / yr', 'cost_yr')}
               {field(g, 'Monthly option', 'monthly')}
@@ -83,46 +109,50 @@ export default function DataNeeds({ contract, gated, onAskAssistant, resolutions
               {field(g, 'EV', 'ev')}
               {field(g, 'Likely death', 'likely_death')}
             </div>
+            )}
 
             {/* worker's judgment calls → hand off to the assistant (Part C) */}
-            {priced[g.id]?.questions?.length > 0 && (
+            {priced[id]?.questions?.length > 0 && (
               <div className="dn-questions">
-                <div className="dn-qh">The worker needs your call on {priced[g.id].questions.length}:</div>
-                {priced[g.id].questions.map((q, i) => (
+                <div className="dn-qh">The worker needs your call on {priced[id].questions.length}:</div>
+                {priced[id].questions.map((q, i) => (
                   <div key={i} className="dn-q">
                     <span className={`dn-qk mono ${q.kind}`}>{q.kind}</span>
                     <span className="dn-qt">{q.q}</span>
-                    <button className="b b-sec" onClick={() => onAskAssistant && onAskAssistant(g.id, g.surface, q.q)}>Ask the assistant</button>
+                    <button className="b b-sec" onClick={() => onAskAssistant && onAskAssistant(id, cardName(g), q.q)}>Ask the assistant</button>
                   </div>
                 ))}
               </div>
             )}
-            {resolutions[g.id] && <div className="dn-note hint">Resolved with the assistant: “{resolutions[g.id]}”</div>}
+            {resolutions[id] && <div className="dn-note hint">Resolved with the assistant: “{resolutions[id]}”</div>}
 
             <div className="acts">
-              <button className="b b-sec" disabled={busy === g.id} onClick={() => priceIt(g)}>
-                {busy === g.id ? 'Researching…' : priced[g.id] ? 'Re-price' : 'Price it / Research'}</button>
-              <button className="b b-pri" onClick={() => { setResult(null); setOnboarding(g.id); }}>Approve &amp; onboard</button>
+              {priceable && (
+                <button className="b b-sec" disabled={busy === id} onClick={() => priceIt(g)}>
+                  {busy === id ? 'Researching…' : isPriced ? 'Re-price' : 'Price it / Research'}</button>
+              )}
+              <button className="b b-pri" onClick={() => { setResult(null); setOnboarding(id); }}>Approve &amp; onboard</button>
             </div>
-            {priced[g.id]?.note && <div className="dn-note hint">{priced[g.id].note}</div>}
+            {priced[id]?.note && <div className="dn-note hint">{priced[id].note}</div>}
 
-            {onboarding === g.id && (
+            {onboarding === id && (
               <div className="onboard-row slidein">
-                <span className="src">Onboard {g.surface}:</span>
+                <span className="src">Onboard {cardName(g)}:</span>
                 <input ref={credRef} type="password" placeholder="paste API key (goes to server-side field)"
-                       aria-label={`API key for ${g.surface}`} autoComplete="off" />
+                       aria-label={`API key for ${cardName(g)}`} autoComplete="off" />
                 <button className="b b-pri" onClick={() => submit(g)}>Store server-side</button>
                 <button className="b b-sec" onClick={() => setOnboarding(null)}>Cancel</button>
                 <span className="hint">The key posts to the server-side secrets store — never held here, never sent to the analyst.</span>
               </div>
             )}
-            {result && result.id === g.id && (
+            {result && result.id === id && (
               <div className="dn-note hint">
                 {result.configured ? `Configured — key stored server-side, validating…` : `No key supplied.`}
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
         {gated.length === 0 && <div className="hint">No gated data needs queued.</div>}
       </div>
     </div>
