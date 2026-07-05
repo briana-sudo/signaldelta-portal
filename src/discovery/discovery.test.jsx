@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { statusColor, sizeForPotential, isHot, layoutSpans } from './coverage.js';
 import { makeContract, groundedAnalyst } from './api/contract.js';
+import { downloadText } from './mdExport.js';
 import BoardQueue from './components/BoardQueue.jsx';
 import DataNeeds from './components/DataNeeds.jsx';
 import AnalystPanel from './components/AnalystPanel.jsx';
@@ -114,6 +115,24 @@ describe('onboarding credential firewall', () => {
     const src = fs.readFileSync(path.join(HERE, 'components/DataNeeds.jsx'), 'utf8');
     expect(src).toMatch(/useRef/);                    // ref, not useState, for the credential
     expect(src).not.toMatch(/useState\([^)]*credential/i);
+  });
+});
+
+// --- LEAD HANDOFF PACK — contract exposes handoff(); raw-download keeps the pack whole
+describe('lead handoff pack', () => {
+  it('every adapter exposes handoff() and returns pack markdown', async () => {
+    for (const mode of ['mock', 'real', 'live']) {
+      const c = makeContract(mode);
+      const res = await c.handoff();
+      expect(res && typeof res.markdown === 'string').toBe(true);
+      expect(res.markdown).toMatch(/BOOT_CONTEXT|LEAD HANDOFF/);
+    }
+  });
+  it('downloadText emits the pack AS-IS (no title double-wrap)', () => {
+    const md = '# BOOT_CONTEXT.md — LEAD HANDOFF PACK\n\nbody';
+    const out = downloadText('BOOT_CONTEXT.md', md);
+    expect(out.filename).toBe('BOOT_CONTEXT.md');
+    expect(out.text).toBe(md);                       // unchanged — not wrapped in another # title
   });
 });
 

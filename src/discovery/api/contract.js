@@ -163,6 +163,14 @@ function mockContract() {
     async proxyRestart() { proxy.state = 'restarting'; proxy.since = now(); return { action: 'restart', status: proxy.state }; },
     async proxyUpdateRestart() { proxy.state = 'restarting'; proxy.since = now(); return { action: 'update-restart', status: proxy.state }; },
     async exportMd(slice) { return `# ${slice}\n\n(mock export — read-only, no secrets)\n`; },
+    // LEAD HANDOFF PACK — the live proxy composes it from 7688; the mock returns a stub
+    // so the button is exercised offline. Real content comes from /sm/handoff.
+    async handoff() {
+      const md = `# BOOT_CONTEXT.md — SignalDelta Discovery, LEAD HANDOFF PACK\n\n`
+        + `*(mock — connect the live proxy /sm/handoff for the real, current pack)*\n\n`
+        + `## ROLES & LAWS (verbatim — non-negotiable)\n- Firewall: the research graph (7688) NEVER reaches the trading instance.\n`;
+      return { markdown: md, provenance: 'mock', words: md.split(/\s+/).length, manifest: [] };
+    },
     // INTENT — resolve is the §4.1 gated-write; the frontend NEVER writes the graph
     async resolve({ gate_item_id, decision, gate_item_version }) {
       const it = board.find((b) => b.item_id === gate_item_id);
@@ -329,6 +337,9 @@ function liveContract() {
     mode: 'live',
     async query(slice) { return q(slice); },
     async exportMd(slice) { return file.exportMd(slice); },
+    // LEAD HANDOFF PACK — composed live from 7688 by the proxy; if the proxy isn't
+    // reachable yet, fall back to the file/mock stub so the button still yields a pack.
+    async handoff() { return get('/sm/handoff').catch(() => file.handoff()); },
     async resolve(payload) { return post('/sm/resolve', payload).catch(() => ({ rejected: true, reason: 'proxy unreachable — start it to enable gated writes' })); },
     // RE-EVALUATE (deliberate review): the ENGINE re-judges its own concluded work
     // with the fixed taxonomy + LLM, streaming to In-progress. Intent only — a run-request.

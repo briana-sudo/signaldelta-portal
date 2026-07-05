@@ -47,6 +47,22 @@ export function downloadMd(filename, title, body) {
   return { filename, md };
 }
 
+// trigger a download of a fully-formed markdown document AS-IS (no title wrapping) —
+// used by the Lead Handoff Pack, whose markdown is already a complete BOOT_CONTEXT.md.
+export function downloadText(filename, text) {
+  try {
+    if (typeof URL !== 'undefined' && URL.createObjectURL && typeof document !== 'undefined') {
+      const blob = new Blob([text], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.rel = 'noopener';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
+  } catch { /* best-effort */ }
+  return { filename, text };
+}
+
 export function isExportIntent(text) {
   return /\b(export|download|make an md|md on|md of|save as md|save.*markdown)\b/i.test(text || '');
 }

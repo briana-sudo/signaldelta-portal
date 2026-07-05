@@ -15,7 +15,7 @@ import AnalystPanel from './components/AnalystPanel.jsx';
 import RunRoom from './components/RunRoom.jsx';
 import { mergeRuns, findRun, computeAttention } from './runs.js';
 import { BUILD_ID } from '../buildInfo.js';
-import { downloadMd, renderMd } from './mdExport.js';
+import { downloadMd, downloadText, renderMd } from './mdExport.js';
 import './discovery.css';
 
 export default function DiscoveryApp({ contract }) {
@@ -152,6 +152,12 @@ export default function DiscoveryApp({ contract }) {
   // Part C — the worker hands a judgment call to the assistant panel; the operator's
   // answer is recorded back to the card. No spend at any point.
   const askAssistant = (surface_id, surface, question) => setCostingQ({ surface_id, surface, question });
+  // LEAD HANDOFF PACK — compose BOOT_CONTEXT.md from live state and download it (read-only).
+  const onHandoff = useCallback(async () => {
+    const res = await client.handoff?.();
+    const md = res?.markdown || '# BOOT_CONTEXT.md\n\n(handoff unavailable — proxy unreachable)\n';
+    downloadText('BOOT_CONTEXT.md', md);
+  }, [client]);
   const onCostingResolved = (surface_id, answer) => {
     setResolutions((r) => ({ ...r, [surface_id]: answer }));
     setCostingQ(null);
@@ -191,6 +197,8 @@ export default function DiscoveryApp({ contract }) {
                   <span><i className="i-occ" />Occupied</span>
                   <button className="exp-mini" title="Export the coverage map to MD"
                           onClick={() => downloadMd('coverage-map.md', 'SignalDelta — Coverage map', renderMd(grid))}>⤓ Export map</button>
+                  <button className="exp-mini" title="Generate the lead handoff pack (BOOT_CONTEXT.md) from live state"
+                          onClick={onHandoff}>⤓ Lead handoff pack</button>
                 </div>
               </div>
               <CoverageMap grid={grid} runs={allRuns} onOpenRun={onOpenRun} />
