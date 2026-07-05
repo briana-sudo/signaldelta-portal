@@ -20,7 +20,22 @@ const GLOSSARY = [
   ['Bank', 'the engine remembers this lesson permanently (loads into every future answer)'],
   ['Unbank', 'forget a banked lesson (removed from memory; history kept)'],
 ];
-const DOTS = [['#B4462E', 'killed'], ['#B07CFF', 'inconclusive — needs a powered re-test'], ['#34D399', 'retained'], ['#00C2FF', 'untested']];
+const DOTS = [['#B4462E', 'killed'], ['#B07CFF', 'inconclusive — needs a powered re-test'], ['#5EEAD4', 'candidate (survivor, in the S1–S6 pipeline)'], ['#34D399', 'retained (confirmed)'], ['#00C2FF', 'untested']];
+
+// RECIPE STANDARDS — the methodology floor the runner ENFORCES. Every recipe is rejected
+// at validation if it violates one; this is what the machine refuses and why.
+const RECIPE_STANDARDS = [
+  ['survivorship-free universe', 'long-history studies use a point-in-time universe; a fixed list projected >2y back is rejected'],
+  ['independence / clustering', 'panel tests use day-clustered inference; per-observation t on correlated name-days is rejected'],
+  ['gate completeness', 'the gate pre-registers metric, min-t, min-n, AND direction — a partial gate is rejected'],
+  ['power floor', 'a stated expected-n below min-n is rejected (don’t burn a run to discover it’s underpowered)'],
+  ['cost model', 'a recipe that can retain must name a cost model; gross-only concludes gross-real/killed, never retained'],
+  ['borrow cost', 'a short-leg recipe names borrow assumptions or is capped gross-only'],
+  ['corporate actions', 'returns use split/dividend-adjusted prices; a source without them is rejected'],
+  ['look-ahead bias', 'a fundamentals join keys on the filing/report date, never the period date'],
+  ['window law', 'an OOS-window-consuming stage requires the operator token; no auto-OOS'],
+  ['scope of conclusion', 'a disposition is scoped to the tested universe/window; no “surface killed” from one construction'],
+];
 
 function Glossary({ onClose }) {
   return (
@@ -31,6 +46,8 @@ function Glossary({ onClose }) {
       <div className="glossary-dots">
         {DOTS.map(([c, label]) => (<span key={label}><i style={{ background: c }} />{label}</span>))}
       </div>
+      <div className="glossary-dots-h">Recipe standards — what the runner refuses (deny-by-construction)</div>
+      {RECIPE_STANDARDS.map(([k, v]) => (<div key={k} className="glossary-row"><b>{k}</b><span>{v}</span></div>))}
     </div>
   );
 }
@@ -107,6 +124,21 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
           ? (stale ? `proxy ${proxyCommit.running_commit} · update ⚠` : `proxy ${proxyCommit.running_commit}`)
           : 'proxy commit unknown — update & restart to populate'}
       </span>
+      {/* ENGINE COMMIT chip — the discovery service's running commit (stamped at start).
+          "Is the engine current" is a chip, never pid-vs-commit-time archaeology. */}
+      {proxyCommit?.engine_commit !== undefined && (
+        <span className={`commit-chip${proxyCommit?.engine_commit ? (proxyCommit.engine_stale ? ' stale' : '') : ' unknown'}`}
+              title={proxyCommit?.engine_commit
+                ? (proxyCommit.engine_stale
+                    ? `Discovery engine running ${proxyCommit.engine_commit}; disk has ${proxyCommit.engine_tree_commit} — reload the engine`
+                    : `Discovery engine running the latest commit (${proxyCommit.engine_commit})`)
+                : 'The engine has not reported its commit yet — reload it to populate'}>
+          <span className="dot" />
+          {proxyCommit?.engine_commit
+            ? (proxyCommit.engine_stale ? `engine ${proxyCommit.engine_commit} · reload ⚠` : `engine ${proxyCommit.engine_commit}`)
+            : 'engine commit unknown'}
+        </span>
+      )}
       {/* PROXY STATUS pill — an INDICATOR ONLY (green/amber/grey); not the action */}
       <span className={`proxy-status st-${pClass}`} title={PLABEL[ps] || PLABEL.unknown}>
         <span className={`pulse st-${pClass}`} />{PLABEL[ps] || PLABEL.unknown}

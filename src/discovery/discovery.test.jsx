@@ -464,6 +464,17 @@ describe('proxy control button', () => {
     expect(container.querySelector('.commit-chip.stale')).toBeNull();
   });
 
+  it('engine commit chip renders from proxyCommit.engine_commit (+ stale)', () => {
+    render(<Topbar {...base} proxyStatus="running"
+      proxyCommit={{ running_commit: 'aaa', engine_commit: 'df01c1b', engine_tree_commit: 'df01c1b', engine_stale: false }}
+      onProxyUpdateRestart={vi.fn()} />);
+    expect(screen.getByText('engine df01c1b')).toBeTruthy();
+    // Recipe standards live in the glossary
+    fireEvent.click(screen.getByRole('button', { name: '?' }));
+    expect(screen.getByText(/Recipe standards/)).toBeTruthy();
+    expect(screen.getByText(/independence \/ clustering/)).toBeTruthy();
+  });
+
   it('running_commit unknown → chip says so, not nothing', () => {
     render(<Topbar {...base} proxyStatus="running" proxyCommit={{ running_commit: null }} onProxyUpdateRestart={vi.fn()} />);
     expect(screen.getByText(/proxy commit unknown — update & restart to populate/)).toBeTruthy();
