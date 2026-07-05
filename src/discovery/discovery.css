@@ -130,7 +130,11 @@
 .ap-attach{display:flex;align-items:center;gap:8px;padding:6px 12px;border-top:1px solid var(--line-1);
   color:var(--fg-3);font-size:11px;background:var(--bg-panel)}
 .ap-attach button{margin-left:auto;background:none;border:none;color:var(--fg-3);cursor:pointer;font-size:14px}
-.ap-ask{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line-1);align-items:center}
+.ap-ask{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line-1);align-items:flex-end}
+.ap-textarea{flex:1;background:var(--bg-panel);border:1px solid var(--line-1);border-radius:6px;padding:8px 10px;
+  color:var(--fg-1);font-family:var(--font-sans);font-size:12.5px;line-height:1.5;resize:none;min-height:34px;max-height:140px;overflow-y:auto}
+.ap-textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px rgba(0,194,255,.3)}
+.ap-ask .ap-attachbtn{align-self:flex-end;padding-bottom:6px}
 .ap-attachbtn{cursor:pointer;font-size:16px;color:var(--fg-3);user-select:none}
 .ap-attachbtn:hover{color:var(--accent)}
 .ap-ask input{flex:1;background:var(--bg-panel);border:1px solid var(--line-1);border-radius:6px;padding:8px 10px;

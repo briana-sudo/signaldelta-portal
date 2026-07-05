@@ -24,9 +24,18 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
   const [box, setBox] = useState(loadBox);
   const [messages, setMessages] = useState([]);
   const [ask, setAsk] = useState('');
+  const taRef = useRef(null);
   const [attachment, setAttachment] = useState(null);   // {name,size,text} — chat only
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+
+  // the ask box auto-grows with content (single line → multi-line), capped then scroll
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }, [ask]);
   const bodyRef = useRef(null);
   const drag = useRef(null);
   const pendingCosting = useRef(null);                   // Part C: a costing Q awaiting the operator's answer
@@ -182,8 +191,10 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
           <input type="file" onChange={(e) => onFiles(e.target.files)} style={{ display: 'none' }}
                  aria-label="Attach a file to discuss" />
         </label>
-        <input value={ask} onChange={(e) => setAsk(e.target.value)}
-               placeholder="Ask, or “export the board”…" aria-label="Ask the analyst" />
+        <textarea ref={taRef} value={ask} rows={1} className="ap-textarea"
+                  onChange={(e) => setAsk(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(e); } }}
+                  placeholder="Ask, or “export the board”… (Shift+Enter for a new line)" aria-label="Ask the analyst" />
         <button type="submit" disabled={busy}>Ask</button>
       </form>
 
