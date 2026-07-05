@@ -211,6 +211,15 @@
 .commit-chip.unknown{color:var(--fg-4);border-style:dashed}
 .commit-chip.unknown .dot{background:var(--fg-4)}
 .approve-reason{color:var(--warning);margin:2px 0 6px;font-size:11px}
+/* DEF-017: a disabled Approve always says WHY inline; every click yields a visible outcome */
+.approve-reason.gate-reason{color:var(--fg-3);background:color-mix(in srgb,var(--warning) 8%,transparent);
+  border-left:3px solid var(--warning);padding:3px 7px;border-radius:3px}
+.approve-reason.outcome-queued{color:var(--success)}
+.approve-reason.outcome-error{color:var(--danger,#e5484d);background:color-mix(in srgb,var(--danger,#e5484d) 10%,transparent);
+  border-left:3px solid var(--danger,#e5484d);padding:3px 7px;border-radius:3px}
+.approve-reason.outcome-needs-build,.approve-reason.outcome-needs-data,
+.approve-reason.outcome-needs-broker,.approve-reason.outcome-gated{color:var(--fg-3);
+  border-left:3px solid var(--warning);padding:3px 7px;border-radius:3px}
 /* candidate (survivor) pipeline S1–S6 */
 .rr-pipe-prog{margin-left:8px;color:#5EEAD4}
 .rr-stage-row{display:grid;grid-template-columns:26px 150px 52px 1fr;gap:8px;align-items:baseline;font-size:11px;padding:3px 0;border-top:1px solid var(--line-1)}

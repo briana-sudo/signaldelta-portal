@@ -91,6 +91,50 @@ describe('board decision → resolve API (gated-write intent)', () => {
     expect(container.querySelector('.prov-combo')).toBeTruthy();     // ⋈ combine badge
     expect(screen.getByText('tail variant of X')).toBeTruthy();  // no crash on absent meta/options
   });
+
+  // ── DEF-017: a disabled Approve ALWAYS says WHY inline; no silent/dead button ──
+  it('a needs-build card disables Approve AND shows the named reason inline', () => {
+    const resolve = vi.fn();
+    const items = [{ item_id: 'B-AG-RECHECK-CLEAN', type: 'recheck', status: 'PENDING',
+      kind: 'Needs build', tier: 'needs-build', blocker: 'needs-build', approve_enabled: false,
+      disabled_reason: 'engine has no asset-growth (CMA) signal or SF1 source — build item.',
+      title: 'B-AG faithful re-check', version: 1, options: ['approve', 'hold'] }];
+    render(<BoardQueue contract={{ resolve }} items={items} onResolved={vi.fn()} />);
+    const btn = screen.getByRole('button', { name: /Needs build/i });
+    expect(btn.disabled).toBe(true);                                  // disabled…
+    expect(screen.getByText(/asset-growth \(CMA\) signal or SF1/)).toBeTruthy();  // …but says WHY
+    fireEvent.click(btn);
+    expect(resolve).not.toHaveBeenCalled();                           // a disabled button never fires
+  });
+
+  it('a runnable-now card enqueues and shows a visible outcome (never silent)', async () => {
+    const resolve = vi.fn(async () => ({ resolved: true, enqueued: true, new_status: 'QUEUED' }));
+    const onResolved = vi.fn();
+    const items = [{ item_id: 'V-015-TDF-2006', type: 'probe', status: 'PENDING',
+      kind: 'Runnable now', tier: 'runnable-now', blocker: 'runnable-now', approve_enabled: true,
+      recipe_id: 'V-015-TDF-2006', title: 'TDF re-test 2006', version: 1, options: ['approve', 'hold'] }];
+    render(<BoardQueue contract={{ resolve }} items={items} onResolved={onResolved} />);
+    const btn = screen.getByRole('button', { name: /^Approve$/i });
+    expect(btn.disabled).toBe(false);
+    fireEvent.click(btn);
+    await waitFor(() => expect(resolve).toHaveBeenCalledWith(
+      { gate_item_id: 'V-015-TDF-2006', decision: 'approve', gate_item_version: 1 }));
+    await waitFor(() => expect(screen.getByText(/queued — starting/i)).toBeTruthy());  // visible outcome
+    expect(onResolved).toHaveBeenCalledWith('V-015-TDF-2006', 'QUEUED');
+  });
+
+  it('a non-enqueued resolve renders a NAMED outcome, never a silent no-op', async () => {
+    // backstop: even if a resolve reaches the proxy and comes back not-enqueued, the card
+    // shows the reason — it does not vanish.
+    const resolve = vi.fn(async () => ({ resolved: true, enqueued: false, blocker: 'needs-build',
+      reason: 'no audit-job runner wired — build item.' }));
+    const items = [{ item_id: 'HELDBACK-TRACE-30', type: 'audit-job', status: 'PENDING',
+      kind: 'Runnable now', tier: 'runnable-now', approve_enabled: true, recipe_id: 'x',
+      title: '30-cell trace', version: 1, options: ['approve', 'hold'] }];
+    render(<BoardQueue contract={{ resolve }} items={items} onResolved={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Approve$/i }));
+    await waitFor(() => expect(screen.getByText(/no audit-job runner wired/i)).toBeTruthy());
+  });
 });
 
 // --- data-needs onboarding: credential → server-side field, never in state ----

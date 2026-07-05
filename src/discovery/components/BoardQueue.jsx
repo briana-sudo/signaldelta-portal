@@ -36,6 +36,7 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
   const openRun = (id) => onOpenRun && onOpenRun(id);
   const [held, setHeld] = useState({});             // item_id -> true (Hold visible feedback)
   const [reevaluating, setReevaluating] = useState({});  // item_id -> true (Re-evaluate queued)
+  const [outcome, setOutcome] = useState({});       // item_id -> {kind, text} — EVERY click's visible result
   const runsByRecipe = indexRunsByRecipe(runs);
   // APPROVABLE = PENDING, OR a runnable re-test the operator still owes a decision on
   // (no successful run yet). An errored run flips the item's status to OPEN, but it
@@ -60,14 +61,34 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
       .map((r) => ({ recipe_id: r.recipe_id, state: r._s, stage: r.stage, result: r.result || {}, disposition: r.disposition }));
   const shortName = (rid) => (rid || '').replace(/^V-\d+-/, '');
 
+  // EVERY click produces a visible outcome within one render — enqueued (→running),
+  // held, a NAMED gate (needs-build/data/broker with its reason), or a named error.
+  // There is no path that leaves the card silent: a lying/dead button is a defect even
+  // if the happy path works.
   async function decide(item, decision) {
     setBusy(item.item_id);
-    const res = await contract.resolve({
-      gate_item_id: item.item_id, decision, gate_item_version: item.version,
-    });
+    let res;
+    try {
+      res = await contract.resolve({ gate_item_id: item.item_id, decision, gate_item_version: item.version });
+    } catch (e) {
+      setBusy(null);
+      setOutcome((o) => ({ ...o, [item.item_id]: { kind: 'error', text: `resolve failed at the proxy hop — ${e.message}` } }));
+      return;
+    }
     setBusy(null);
     if (res.held) { setHeld((h) => ({ ...h, [item.item_id]: true })); return; }
-    if (res.resolved) onResolved(item.item_id, res.new_status);
+    if (res.rejected) { setOutcome((o) => ({ ...o, [item.item_id]: { kind: 'error', text: res.reason || 'resolve rejected' } })); return; }
+    if (res.enqueued) {                              // a real run was enqueued → running/queued
+      setOutcome((o) => ({ ...o, [item.item_id]: { kind: 'queued', text: 'queued — starting on the engine' } }));
+      onResolved(item.item_id, res.new_status || 'QUEUED');
+      return;
+    }
+    if (res.runnable === false || res.blocker) {     // NOT runnable → a NAMED gate; keep the card VISIBLE (never vanish)
+      setOutcome((o) => ({ ...o, [item.item_id]: { kind: res.blocker || 'gated', text: res.reason || res.note || 'routed — no runnable recipe' } }));
+      return;
+    }
+    if (res.resolved) { onResolved(item.item_id, res.new_status); return; }   // a real disposition transition (CLEARED/AT-GATE/…)
+    setOutcome((o) => ({ ...o, [item.item_id]: { kind: 'error', text: 'no outcome from resolve' } }));
   }
 
   // Re-evaluate = the deliberate-review path: the ENGINE re-runs terminus on the
@@ -89,6 +110,14 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
     const active = anyRunning || anyQueued;          // IN FLIGHT → no re-approve; done (incl. errored) stays re-runnable
     const erroredResurface = needsApproval(it, runsByRecipe) && (runsByRecipe[it.recipe_id] || []).some(runErrored);
     const isHeld = held[it.item_id];
+    // DEF-017: a card whose tier is not runnable-now carries approve_enabled === false and
+    // a named disabled_reason. Its Approve is disabled but ALWAYS says WHY inline — never a
+    // bare, reasonless disable. runnable-now cards are unaffected (approve_enabled !== false).
+    const notRunnable = it.approve_enabled === false;
+    const gateReason = it.disabled_reason;
+    const gateLabel = { 'needs-data': 'Needs data', 'needs-build': 'Needs build',
+      'needs-broker': 'Needs broker' }[it.tier || it.blocker] || 'Not runnable';
+    const oc = outcome[it.item_id];
     return (
       <div key={it.item_id} className={`item slidein${anyRunning ? ' running' : ''}`}>
         <div className="row1">
@@ -138,10 +167,18 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
         {erroredResurface && (
           <div className="approve-reason hint">{erroredReason(runsByRecipe[it.recipe_id])}</div>
         )}
+        {/* WHY a disabled Approve is disabled — always inline, never silent (DEF-017) */}
+        {notRunnable && gateReason && !active && (
+          <div className="approve-reason gate-reason">⛔ {gateLabel} — {gateReason}</div>
+        )}
+        {/* the outcome of the last click on THIS card — a visible state change every time */}
+        {oc && <div className={`approve-reason outcome-${oc.kind}`}>{oc.text}</div>}
         <div className="acts">
-          <button className="b b-pri" disabled={busy === it.item_id || active || isHeld}
+          <button className="b b-pri" disabled={busy === it.item_id || active || isHeld || notRunnable}
+                  title={notRunnable ? gateReason : undefined}
                   onClick={() => decide(it, 'approve')}>
-            {anyRunning ? 'Running…' : anyQueued ? 'Queued' : erroredResurface ? 'Approve' : allDone ? 'Re-run' : (PRIMARY_LABEL[it.type] || 'Approve')}</button>
+            {busy === it.item_id ? 'Working…' : anyRunning ? 'Running…' : anyQueued ? 'Queued'
+              : notRunnable ? gateLabel : erroredResurface ? 'Approve' : allDone ? 'Re-run' : (PRIMARY_LABEL[it.type] || 'Approve')}</button>
           {(it.options || []).includes('hold') && !active
             && <button className="b b-sec" disabled={isHeld} onClick={() => decide(it, 'reject')}>{isHeld ? 'Held' : 'Hold'}</button>}
         </div>
