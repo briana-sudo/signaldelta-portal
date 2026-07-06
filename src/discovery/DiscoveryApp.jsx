@@ -29,6 +29,7 @@ export default function DiscoveryApp({ contract }) {
   const [proxy, setProxy] = useState('unknown');     // running | restarting | stopped | unreachable | unknown
   const [proxyHelper, setProxyHelper] = useState(false);  // SM_ProxyHelper up → restarts always work
   const [proxyCommit, setProxyCommit] = useState({});     // {running_commit, tree_commit, stale}
+  const [engineCommit, setEngineCommit] = useState({});   // {running_commit, tree_commit, stale} — the DISCOVERY worker
   const [proxyErr, setProxyErr] = useState(null);         // loud update-step failure (never silent)
   const [bundle, setBundle] = useState({ id: BUILD_ID, stale: false });  // served vs latest Pages deploy
   const [costingQ, setCostingQ] = useState(null);    // a costing question handed to the assistant
@@ -91,7 +92,10 @@ export default function DiscoveryApp({ contract }) {
       try {
         const r = await client.proxyStatus();
         s = r.status;
-        if (live) { setProxyHelper(!!r.helper_backed); setProxyCommit({ running_commit: r.running_commit, tree_commit: r.tree_commit, stale: r.stale }); }
+        if (live) {
+          setProxyHelper(!!r.helper_backed); setProxyCommit({ running_commit: r.running_commit, tree_commit: r.tree_commit, stale: r.stale });
+          setEngineCommit({ running_commit: r.engine_commit, tree_commit: r.engine_tree_commit, stale: r.engine_stale });   // DEF-016 for the engine — a stale worker is visible
+        }
       } catch { s = 'unreachable'; }
       if (!live) return;
       if (Date.now() < restartingUntil.current) {
@@ -151,6 +155,7 @@ export default function DiscoveryApp({ contract }) {
   }
   async function onStart() { const r = await client.engineStart(); setEngine(r.status); }
   async function onStop() { const r = await client.engineStop(); setEngine(r.status); }
+  async function onEngineRestart() { setEngine('restarting'); try { await client.engineRestart(); } catch { /* poll tracks recovery */ } }
   // Part C — the worker hands a judgment call to the assistant panel; the operator's
   // answer is recorded back to the card. No spend at any point.
   const askAssistant = (surface_id, surface, question) => setCostingQ({ surface_id, surface, question });
@@ -190,7 +195,7 @@ export default function DiscoveryApp({ contract }) {
   return (
     <div className="app">
       <Topbar tab={tab} setTab={setTab} cellsMapped={state.cells_mapped || 0}
-              engineStatus={engine} onStart={onStart} onStop={onStop}
+              engineStatus={engine} onStart={onStart} onStop={onStop} onEngineRestart={onEngineRestart} engineCommit={engineCommit}
               proxyStatus={proxy} proxyHelperBacked={proxyHelper} onProxyRestart={onProxyRestart}
               proxyCommit={proxyCommit} onProxyUpdateRestart={onProxyUpdateRestart} proxyErr={proxyErr} bundle={bundle} />
       <div className="main">

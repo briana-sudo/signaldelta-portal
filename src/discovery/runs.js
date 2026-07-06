@@ -98,8 +98,16 @@ function tierHintFor(key, text) {
 export function debriefSuggestions(db, { run = {}, board = [] } = {}) {
   if (!db) return [];
   const acts = [];
-  const nc = String(db.strategist || '').match(/NEXT CLICK[:\s]+([^\n.]+)/gi) || [];
-  nc.forEach((m) => acts.push({ voice: 'strategist', text: m.replace(/NEXT CLICK[:\s]+/i, '').trim(), lead: true }));
+  // Prefer STRUCTURED asks (run_terminus parses the strategist's NEXT CLICK into
+  // db.next_clicks at debrief-compose time). Fall back to regex-scraping the strategist
+  // prose for older stored debriefs that predate structured asks — backward-compatible.
+  const structured = Array.isArray(db.next_clicks) ? db.next_clicks.filter(Boolean) : [];
+  if (structured.length) {
+    structured.forEach((t) => acts.push({ voice: 'strategist', text: String(t).trim(), lead: true }));
+  } else {
+    const nc = String(db.strategist || '').match(/NEXT CLICK[:\s]+([^\n.]+)/gi) || [];
+    nc.forEach((m) => acts.push({ voice: 'strategist', text: m.replace(/NEXT CLICK[:\s]+/i, '').trim(), lead: true }));
+  }
   (db.glints || []).forEach((t) => acts.push({ voice: 'prospector', text: t }));
   (db.sparks || []).forEach((t) => acts.push({ voice: 'skeptic', text: t }));
   const groups = {};

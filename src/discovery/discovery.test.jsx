@@ -280,6 +280,21 @@ describe('board decision → resolve API (gated-write intent)', () => {
     expect(conv[0].asks.length).toBe(2);
   });
 
+  it('debriefSuggestions prefers structured db.next_clicks over regexing strategist prose', async () => {
+    const { debriefSuggestions } = await import('./runs.js');
+    // structured asks present → used verbatim; the prose form is NOT re-scraped (no dup lead)
+    const db = { next_clicks: ['extend the window to reach t≥2'],
+      strategist: 'NEXT CLICK: extend the window to reach t≥2 — cheapest power.', sparks: [], glints: [] };
+    const sugg = debriefSuggestions(db, { run: { item_id: 'r', recipe_id: 'V-015-TOM' }, board: [] });
+    const leads = sugg.filter((s) => s.lead);
+    expect(leads.length).toBe(1);                                             // exactly one strategist lead
+    expect(leads[0].asks[0].text).toBe('extend the window to reach t≥2');     // the STRUCTURED text
+    // backward-compatible: no next_clicks → falls back to regexing the prose
+    const legacy = debriefSuggestions({ strategist: 'NEXT CLICK: split the band', sparks: [], glints: [] },
+      { run: { item_id: 'r', recipe_id: 'V-015-TOM' }, board: [] });
+    expect(legacy.some((s) => s.lead && /split the band/.test(s.asks[0].text))).toBe(true);
+  });
+
   it('createCard makes a PROPOSAL card (no enqueue) and is idempotent per target', async () => {
     const c = makeContract('mock');
     const r1 = await c.createCard({ run_id: 'D:V-015-TOM-FULL#x', target_key: 'peak-split', title: 'peak split', tier_hint: 'build', asks: [{ voice: 'prospector', text: 'x' }] });
@@ -538,6 +553,40 @@ describe('engine power switch button', () => {
     expect((await c.engineStop()).status).toBe('stopping');
     // the switch is separate from research — resolve is unaffected
     expect(typeof c.resolve).toBe('function');
+  });
+  it('restart discovery engine → confirm true → calls onEngineRestart', () => {
+    const onEngineRestart = vi.fn();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<Topbar tab="Coverage" setTab={noop} cellsMapped={1134} engineStatus="running"
+                   onStart={noop} onStop={noop} onEngineRestart={onEngineRestart} />);
+    fireEvent.click(screen.getByRole('button', { name: /Restart discovery engine/i }));
+    expect(onEngineRestart).toHaveBeenCalled();
+    window.confirm.mockRestore();
+  });
+  it('restart discovery engine → confirm cancelled → does NOT restart', () => {
+    const onEngineRestart = vi.fn();
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<Topbar tab="Coverage" setTab={noop} cellsMapped={1134} engineStatus="running"
+                   onStart={noop} onStop={noop} onEngineRestart={onEngineRestart} />);
+    fireEvent.click(screen.getByRole('button', { name: /Restart discovery engine/i }));
+    expect(onEngineRestart).not.toHaveBeenCalled();
+    window.confirm.mockRestore();
+  });
+  it('engine commit chip renders the running hash; stale flags reload', () => {
+    const { rerender } = render(
+      <Topbar tab="Coverage" setTab={noop} cellsMapped={0} engineStatus="running" onStart={noop} onStop={noop}
+              engineCommit={{ running_commit: 'abc1234', tree_commit: 'abc1234', stale: false }} />);
+    expect(screen.getByText(/engine abc1234/i)).toBeTruthy();
+    rerender(
+      <Topbar tab="Coverage" setTab={noop} cellsMapped={0} engineStatus="running" onStart={noop} onStop={noop}
+              engineCommit={{ running_commit: 'abc1234', tree_commit: 'def5678', stale: true }} />);
+    expect(screen.getByText(/engine abc1234 · reload/i)).toBeTruthy();
+  });
+  it('contract engineRestart hits /sm/engine/restart (mock returns restarting)', async () => {
+    const c = makeContract('mock');
+    const r = await c.engineRestart();
+    expect(r.status).toBe('restarting');
+    expect(r.service).toBe('SignalDeltaDiscovery');   // pinned to discovery, never trading
   });
 });
 
@@ -831,9 +880,10 @@ describe('proxy control button', () => {
     expect(container.querySelector('.commit-chip.stale')).toBeNull();
   });
 
-  it('engine commit chip renders from proxyCommit.engine_commit (+ stale)', () => {
+  it('engine commit chip renders from the engineCommit prop (+ stale)', () => {
     render(<Topbar {...base} proxyStatus="running"
-      proxyCommit={{ running_commit: 'aaa', engine_commit: 'df01c1b', engine_tree_commit: 'df01c1b', engine_stale: false }}
+      proxyCommit={{ running_commit: 'aaa' }}
+      engineCommit={{ running_commit: 'df01c1b', tree_commit: 'df01c1b', stale: false }}
       onProxyUpdateRestart={vi.fn()} />);
     expect(screen.getByText('engine df01c1b')).toBeTruthy();
     // Recipe standards live in the glossary

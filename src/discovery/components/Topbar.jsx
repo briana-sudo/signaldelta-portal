@@ -64,7 +64,7 @@ const PLABEL = {
   unreachable: 'Proxy — unreachable', unknown: 'Proxy — unknown',
 };
 
-export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart, onStop,
+export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart, onStop, onEngineRestart, engineCommit,
                                 proxyStatus, proxyHelperBacked, onProxyRestart, proxyCommit, onProxyUpdateRestart, proxyErr, bundle }) {
   const st = engineStatus || 'unknown';
   const clickable = st === 'running' || st === 'stopped';
@@ -73,6 +73,16 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
   function toggle() {
     if (st === 'stopped') onStart();
     else if (st === 'running') { if (window.confirm('Stop the DISCOVERY engine? Research pauses until you start it again. (This does not touch live trading.)')) onStop(); }
+  }
+
+  // Restart RELOADS the discovery engine's code (a stale worker → fresh). The proxy path
+  // is hard-pinned to SignalDeltaDiscovery by construction — this button can never reach
+  // the live trading engine. Amber-guarded to make the "reload the worker" intent explicit.
+  const engStale = !!engineCommit?.stale;
+  function engineRestartClick() {
+    if (window.confirm('Restart the DISCOVERY engine to load the latest code? Research pauses for a few seconds, then resumes. (This does not touch live trading — it can only reach the discovery service.)')) {
+      onEngineRestart && onEngineRestart();
+    }
   }
 
   const ps = proxyStatus || 'unknown';
@@ -124,18 +134,20 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
           ? (stale ? `proxy ${proxyCommit.running_commit} · update ⚠` : `proxy ${proxyCommit.running_commit}`)
           : 'proxy commit unknown — update & restart to populate'}
       </span>
-      {/* ENGINE COMMIT chip — the discovery service's running commit (stamped at start).
-          "Is the engine current" is a chip, never pid-vs-commit-time archaeology. */}
-      {proxyCommit?.engine_commit !== undefined && (
-        <span className={`commit-chip${proxyCommit?.engine_commit ? (proxyCommit.engine_stale ? ' stale' : '') : ' unknown'}`}
-              title={proxyCommit?.engine_commit
-                ? (proxyCommit.engine_stale
-                    ? `Discovery engine running ${proxyCommit.engine_commit}; disk has ${proxyCommit.engine_tree_commit} — reload the engine`
-                    : `Discovery engine running the latest commit (${proxyCommit.engine_commit})`)
-                : 'The engine has not reported its commit yet — reload it to populate'}>
+      {/* ENGINE COMMIT chip — the discovery service's running commit (stamped-on-start,
+          DEF-016 for the engine). "Is the engine current" is a chip, never pid-vs-commit-time
+          archaeology. Undefined until the proxy reports it; then a hash, stale-flagged if the
+          worker predates the disk. */}
+      {engineCommit?.running_commit !== undefined && (
+        <span className={`commit-chip${engineCommit?.running_commit ? (engStale ? ' stale' : '') : ' unknown'}`}
+              title={engineCommit?.running_commit
+                ? (engStale
+                    ? `Discovery engine running ${engineCommit.running_commit}; disk has ${engineCommit.tree_commit} — restart the engine to reload`
+                    : `Discovery engine running the latest commit (${engineCommit.running_commit})`)
+                : 'The engine has not reported its commit yet — restart it to populate'}>
           <span className="dot" />
-          {proxyCommit?.engine_commit
-            ? (proxyCommit.engine_stale ? `engine ${proxyCommit.engine_commit} · reload ⚠` : `engine ${proxyCommit.engine_commit}`)
+          {engineCommit?.running_commit
+            ? (engStale ? `engine ${engineCommit.running_commit} · reload ⚠` : `engine ${engineCommit.running_commit}`)
             : 'engine commit unknown'}
         </span>
       )}
@@ -159,6 +171,14 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
               title={st === 'running' ? 'Click to stop' : st === 'stopped' ? 'Click to start' : LABEL[st]}>
         <span className={`pulse st-${st}`} />{LABEL[st]}
         {st === 'running' && <> · <span className="mono" style={{ color: 'var(--fg-1)' }}>{cellsMapped.toLocaleString()}</span>&nbsp;cells mapped</>}
+      </button>
+      {/* RESTART — reloads the discovery worker's code. Distinct from stop/start; goes
+          through the proxy, which is hard-pinned to SignalDeltaDiscovery. Never trading. */}
+      <button type="button" className={`engine-restart${engStale ? ' stale' : ''}`} onClick={engineRestartClick}
+              disabled={st === 'restarting' || st === 'not-installed'}
+              aria-label="Restart discovery engine"
+              title="Restart the DISCOVERY engine to load the latest code (pauses research a few seconds). Cannot touch live trading.">
+        ⟳ Restart discovery engine{engStale ? ' ⚠' : ''}
       </button>
     </div>
   );

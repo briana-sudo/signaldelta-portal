@@ -168,6 +168,7 @@ function mockContract() {
     },
     async engineStart() { engine.state = 'starting'; engine.since = now(); return { action: 'start', status: engine.state }; },
     async engineStop() { engine.state = 'stopping'; engine.since = now(); return { action: 'stop', status: engine.state }; },
+    async engineRestart() { engine.state = 'starting'; engine.since = now(); return { action: 'restart', status: 'restarting', service: 'SignalDeltaDiscovery' }; },
     // PROXY POWER SWITCH (controls the SignalDeltaProxy service; restart-after-deploy)
     async proxyStatus() {
       if (proxy.state === 'restarting' && now() - proxy.since > 1500) { proxy.state = 'running'; proxy.commit = proxy.tree; }
@@ -443,6 +444,9 @@ function liveContract() {
     async engineStatus() { return get('/sm/engine/status').catch(() => file.engineStatus()); },
     async engineStart() { return post('/sm/engine/start', {}).catch(() => file.engineStart()); },
     async engineStop() { return post('/sm/engine/stop', {}).catch(() => file.engineStop()); },
+    // Restart the DISCOVERY engine (loads current code). Proxy path is hard-pinned to
+    // SignalDeltaDiscovery — it can never touch SignalDeltaEngine (trading).
+    async engineRestart() { return post('/sm/engine/restart', {}).catch(() => file.engineRestart()); },
     // PROXY POWER SWITCH — /sm/proxy/*. During a restart the surface is briefly down,
     // so an unreachable status reads as 'restarting' (the app polls until 'running').
     async proxyStatus() { return get('/sm/proxy/status').catch(() => ({ status: 'unreachable' })); },
