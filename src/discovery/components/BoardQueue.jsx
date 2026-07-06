@@ -57,7 +57,7 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
   const waits = (i) => isWaiting(i, watches, runsByRecipe);   // DEF-018: data-bound → waiting, no Approve
   // FAMILY GROUPING: derived siblings collapse under one family card; only the top 1–2
   // render, the rest fold. Everything else ('loose') renders in the normal buckets.
-  const { families, loose } = groupFamilies(items);
+  const { families, loose } = groupFamilies(items, (i) => needsApproval(i, runsByRecipe, watches));
   const waiting = loose.filter(waits);
   // APPROVABLE = PENDING, OR a runnable re-test the operator still owes a decision on
   // (no successful run yet). An errored run flips the item's status to OPEN, but it

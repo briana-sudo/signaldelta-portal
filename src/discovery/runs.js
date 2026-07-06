@@ -50,10 +50,14 @@ export const startedBy = (x) => ORIGIN_WORDS[originKey(x)] || 'unrecorded';
 // collapse under one family card so the board isn't a wall of near-duplicate probes:
 // only the engine's top-ranked 1–2 (by ev) render as full cards; the rest fold as a
 // ranked list. A lone derived item (no siblings) is NOT a family — it renders normally.
-export function groupFamilies(items = []) {
+export function groupFamilies(items = [], isApprovable = () => false) {
   const byFam = {};
   for (const it of items) {
     if (it.provenance !== 'derived' || !it.derived_from) continue;
+    // DEF-025: an APPROVABLE derived card is a pending gate — it lists in the Decision
+    // queue like any other, and NEVER folds into a family. Only non-approvable
+    // (surfaced / needs-*) derived siblings collapse under the family card.
+    if (isApprovable(it)) continue;
     const key = surfaceOf(it.derived_from);
     (byFam[key] || (byFam[key] = [])).push(it);
   }
@@ -68,6 +72,51 @@ export function groupFamilies(items = []) {
   families.sort((a, b) => (b.top[0]?.ev || 0) - (a.top[0]?.ev || 0));
   const loose = items.filter((i) => !grouped.has(i.item_id));
   return { families, loose };
+}
+
+// ── DEBRIEF-TO-CARD (DEF-026): actionable claims → proposal cards ─────────────
+// A canonical test key so converging asks (same test named by different voices) share
+// ONE button → ONE card (no twins). Also drives the tier hint + a recipe_ref for an
+// owned-data re-test that maps to a real windowed recipe.
+export function askKey(text) {
+  const t = String(text || '').toLowerCase();
+  if (/peak|off-peak|sub-calendar|split/.test(t)) return 'peak-split';
+  if (/placebo|permut|shuffle|randomi[sz]/.test(t)) return 'placebo';
+  if (/window|extend|longer history|more years|full history/.test(t)) return 'window-extend';
+  if (/combin|orthogonal partner|pair with/.test(t)) return 'combination';
+  if (/\bbuy\b|purchase|vendor|subscribe|\$\d/.test(t)) return `purchase-${t.replace(/[^a-z0-9]+/g, '-').slice(0, 20)}`;
+  return `ask-${t.replace(/[^a-z0-9]+/g, '-').slice(0, 32)}`;
+}
+function tierHintFor(key, text) {
+  if (key.startsWith('purchase')) return 'purchase';
+  if (key === 'window-extend') return 'owned-retest';    // maps to a windowed re-test recipe
+  return 'build';                                         // a new construction / tool
+}
+// the actionable claims across the three advising voices → grouped, deduped suggestions,
+// strategist's ask leading. Each carries whether a card was already spawned (board check),
+// so repeat debriefs don't offer a duplicate button.
+export function debriefSuggestions(db, { run = {}, board = [] } = {}) {
+  if (!db) return [];
+  const acts = [];
+  const nc = String(db.strategist || '').match(/NEXT CLICK[:\s]+([^\n.]+)/gi) || [];
+  nc.forEach((m) => acts.push({ voice: 'strategist', text: m.replace(/NEXT CLICK[:\s]+/i, '').trim(), lead: true }));
+  (db.glints || []).forEach((t) => acts.push({ voice: 'prospector', text: t }));
+  (db.sparks || []).forEach((t) => acts.push({ voice: 'skeptic', text: t }));
+  const groups = {};
+  for (const a of acts) { const k = askKey(a.text); (groups[k] || (groups[k] = [])).push(a); }
+  const surface = surfaceOf(run.recipe_id || run.item_id || '');
+  const baseRecipe = String(run.recipe_id || '').replace(/-FULL$|-\d{4}$/, '');   // V-015-TOM
+  return Object.entries(groups).map(([key, asks]) => {
+    const spawned = (board || []).find((b) => b.spawn_key === key && (b.spawned_from === run.item_id
+      || surfaceOf(b.derived_from || '') === surface));
+    return {
+      key, asks, lead: asks.some((a) => a.lead),
+      title: asks[0].text.slice(0, 60),
+      tier_hint: tierHintFor(key, asks[0].text),
+      recipe_ref: key === 'window-extend' && baseRecipe ? `${baseRecipe}-2006` : null,
+      spawnedItemId: spawned ? spawned.item_id : null,
+    };
+  }).sort((a, b) => (b.lead ? 1 : 0) - (a.lead ? 1 : 0) || b.asks.length - a.asks.length);
 }
 
 // ── ONE CANONICAL NAME PER ITEM (§1) ──────────────────────────────────────────

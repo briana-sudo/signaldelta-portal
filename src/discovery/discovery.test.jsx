@@ -237,6 +237,61 @@ describe('board decision → resolve API (gated-write intent)', () => {
     await waitFor(() => expect(screen.queryByText(/proxy unreachable/i)).toBeNull());   // same-source self-clear
   });
 
+  // ── DEF-025: an approvable derived card NEVER folds into a family ──
+  it('groupFamilies never folds an approvable card', async () => {
+    const { groupFamilies } = await import('./runs.js');
+    const items = [
+      { item_id: 'D1', provenance: 'derived', derived_from: 'V-015-TOM', ev: 0.5 },
+      { item_id: 'D2', provenance: 'derived', derived_from: 'V-015-DFC', ev: 0.6 },
+      { item_id: 'D-APPROVABLE', provenance: 'derived', derived_from: 'V-015-TDF', ev: 0.9 },
+    ];
+    const { families, loose } = groupFamilies(items, (i) => i.item_id === 'D-APPROVABLE');
+    expect(loose.map((i) => i.item_id)).toContain('D-APPROVABLE');            // lists in the queue
+    expect(families.some((f) => f.members.some((m) => m.item_id === 'D-APPROVABLE'))).toBe(false);  // never folds
+  });
+
+  // ── DEF-024: RunRoom is keyed/synced per run — a second run shows ITS OWN voices ──
+  it('RunRoom debrief resets to the opened run (no cross-run leak)', () => {
+    const mk = (id, voice) => ({ item_id: id, recipe_id: id.split('#')[0], status: 'done', parent: '',
+      progress: [], result: { t: 0.5, n: 100, gate_pass: false, disposition: 'killed', window: ['a', 'b'], universe: 24 },
+      debrief: { reporter: voice, strategist: '', skeptic: '', prospector: '', sparks: [], glints: [] } });
+    const { rerender } = render(<RunRoom run={mk('A#A', 'VOICE-FOR-A')} slices={{ board: [] }} contract={{}} onClose={vi.fn()} />);
+    expect(screen.getByText('VOICE-FOR-A')).toBeTruthy();
+    rerender(<RunRoom run={mk('B#B', 'VOICE-FOR-B')} slices={{ board: [] }} contract={{}} onClose={vi.fn()} />);
+    expect(screen.getByText('VOICE-FOR-B')).toBeTruthy();
+    expect(screen.queryByText('VOICE-FOR-A')).toBeNull();                     // the prior run's voice is gone
+  });
+
+  // ── DEF-026: debrief-to-card — actionable claims → grouped proposals, no twins ──
+  it('debriefSuggestions groups actionable claims, dedups converging asks, tiers by need', async () => {
+    const { debriefSuggestions } = await import('./runs.js');
+    const db = { strategist: 'NEXT CLICK: extend the window to reach t≥2.',
+      sparks: ['permute the dates as a placebo?'], glints: ['split off-peak days (peak sub-calendar)'] };
+    const sugg = debriefSuggestions(db, { run: { item_id: 'D:V-015-TOM-FULL#x', recipe_id: 'V-015-TOM-FULL' }, board: [] });
+    expect(sugg.length).toBe(3);                                              // window-extend, placebo, peak-split
+    expect(sugg[0].lead).toBe(true);                                         // Strategist leads
+    expect(sugg.find((s) => s.key === 'window-extend').tier_hint).toBe('owned-retest');
+    expect(sugg.find((s) => s.key === 'window-extend').recipe_ref).toBe('V-015-TOM-2006');
+    expect(sugg.find((s) => s.key === 'placebo').tier_hint).toBe('build');
+    // two voices at the SAME test converge to ONE suggestion (no twins)
+    const conv = debriefSuggestions({ sparks: ['run a peak/off-peak split'], glints: ['split off-peak days (sub-calendar)'] },
+      { run: { item_id: 'r', recipe_id: 'V-015-TOM' }, board: [] });
+    expect(conv.length).toBe(1);
+    expect(conv[0].asks.length).toBe(2);
+  });
+
+  it('createCard makes a PROPOSAL card (no enqueue) and is idempotent per target', async () => {
+    const c = makeContract('mock');
+    const r1 = await c.createCard({ run_id: 'D:V-015-TOM-FULL#x', target_key: 'peak-split', title: 'peak split', tier_hint: 'build', asks: [{ voice: 'prospector', text: 'x' }] });
+    expect(r1.created).toBe(true);
+    expect(r1.tier).toBe('needs-build');                                     // tiered by need
+    const made = c._board.find((b) => b.item_id === r1.item_id);
+    expect(made.status).toBe('PENDING');                                     // a PROPOSAL, not enqueued/run
+    expect(made.spawn_key).toBe('peak-split');                              // spawn recorded
+    const r2 = await c.createCard({ run_id: 'D:V-015-TOM-FULL#x', target_key: 'peak-split', title: 'peak split', tier_hint: 'build', asks: [] });
+    expect(r2.duplicate).toBe(true);                                         // no twin
+  });
+
   // ── family grouping: derived siblings collapse; top 1–2 shown, rest fold ──
   it('groupFamilies collapses derived siblings by surface, ranks by ev', async () => {
     const { groupFamilies } = await import('./runs.js');
@@ -352,7 +407,7 @@ describe('operator debrief', () => {
     const onExplore = vi.fn();
     render(<RunRoom run={run} slices={{}} contract={makeContract('mock')} onExplore={onExplore} onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /Debrief this/i }));
-    const spark = await screen.findByText(/permuted the dates/i);
+    const spark = await screen.findByRole('button', { name: /✦.*permuted the dates/i });   // the Explore spark button (the same claim also appears as a Create-card suggestion)
     fireEvent.click(spark);
     expect(onExplore).toHaveBeenCalled();
     expect(onExplore.mock.calls[0][2]).toMatch(/permuted the dates/i);   // spark text handed to analyst

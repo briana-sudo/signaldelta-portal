@@ -245,7 +245,7 @@ export default function DiscoveryApp({ contract }) {
       </div>
       {/* THE RUN ROOM — opens for any run from In-progress / board chips / map drill / timeline */}
       {openRunObj && (
-        <RunRoom run={openRunObj} slices={{ lessons, board, correlations, candidates }} contract={client}
+        <RunRoom key={openRunObj.item_id} run={openRunObj} slices={{ lessons, board, correlations, candidates }} contract={client}
                  onExplore={(sid, surface, q) => { askAssistant(sid, surface, q); setOpenRun(null); }}
                  onClose={() => setOpenRun(null)} onBank={onBankLesson} onUnbank={onUnbankLesson} onReject={onRejectLesson}
                  onReevaluate={(pid) => client.reevaluate?.(pid)} onCancel={onCancelRun} runBusy={!!probe.running} />

@@ -239,6 +239,14 @@
 /* a gate NOT MET is an honest research outcome (amber), NOT a system error (red) */
 .ip-badge.belowgate,.rr-gate.belowgate{color:var(--warning);background:color-mix(in srgb,var(--warning) 12%,transparent);border-color:color-mix(in srgb,var(--warning) 40%,transparent)}
 .ip-badge.errored{color:var(--danger,#e5484d);background:color-mix(in srgb,var(--danger,#e5484d) 12%,transparent)}
+/* DEF-026: debrief-to-card — actionable claims become PROPOSAL cards (never run) */
+.rr-suggest{margin-top:8px;border-top:1px solid var(--line-1);padding-top:6px}
+.rr-sg{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px}
+.rr-sg.lead{font-weight:600}
+.rr-sg-voices{color:var(--accent,#5b8def);font-size:10.5px;min-width:70px}
+.rr-sg-text{flex:1;color:var(--fg-2)}
+.rr-sg-done{color:var(--success);font-size:11px}
+.rr-sg-btn{padding:2px 8px;font-size:11px}
 /* DEF-019 provenance: who pressed go — a recorded fact, rendered plain everywhere */
 .origin-chip{font-size:10px;padding:1px 6px;border-radius:8px;margin-left:6px;white-space:nowrap;
   background:color-mix(in srgb,var(--fg-3) 12%,transparent);color:var(--fg-3)}

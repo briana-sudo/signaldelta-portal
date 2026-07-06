@@ -203,6 +203,18 @@ function mockContract() {
         unavailable: [],
       };
     },
+    // DEBRIEF-TO-CARD (mock): a PROPOSAL card, tiered by need; never enqueues. Idempotent
+    // by target_key against the mock board (no twins).
+    async createCard({ run_id, target_key, title, tier_hint, price }) {
+      const item_id = `D:${(run_id.match(/V-\d+/) || ['X'])[0]}-${target_key}`;
+      const dup = board.find((b) => b.item_id === item_id);
+      if (dup) return { created: false, item_id, duplicate: true, tier: dup.tier };
+      const tier = tier_hint === 'purchase' ? 'needs-data' : tier_hint === 'owned-retest' ? 'runnable-now' : 'needs-build';
+      board.push({ item_id, type: 'debrief-suggestion', status: 'PENDING', kind: 'Needs build',
+        tier, blocker: tier, approve_enabled: tier === 'runnable-now', provenance: 'derived',
+        spawned_from: run_id, spawn_key: target_key, title, ev: 0.4, options: ['approve', 'hold'] });
+      return { created: true, item_id, tier };
+    },
     // INTENT — resolve is the §4.1 gated-write; the frontend NEVER writes the graph
     async resolve({ gate_item_id, decision, gate_item_version }) {
       const it = board.find((b) => b.item_id === gate_item_id);
@@ -384,6 +396,9 @@ function liveContract() {
     // OPERATOR DEBRIEF — four voices composed live by the proxy (7688 grounding + LLM);
     // falls back to the mock voices if the proxy is unreachable.
     async debrief(run_id) { return post('/sm/debrief', { run_id }).catch(() => file.debrief(run_id)); },
+    // DEBRIEF-TO-CARD: a voice's actionable claim → a PROPOSAL card via the constructor
+    // (server-side make_card/persist_card). Never enqueues. Idempotent by (run,target_key).
+    async createCard(payload) { return post('/sm/debrief/card', payload).catch((e) => ({ error: failReason(e, 'create card').reason })); },
     // OPERATOR RULING SHEET — the live proxy serves the committed audit MD.
     async rulingSheet() { return get('/sm/ruling-sheet').catch(() => file.rulingSheet()); },
     async resolve(payload) { return post('/sm/resolve', payload).catch((e) => ({ rejected: true, ...failReason(e, 'gated write') })); },

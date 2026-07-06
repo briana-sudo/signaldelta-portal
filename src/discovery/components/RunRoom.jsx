@@ -2,8 +2,8 @@
 // live stage timeline, and the composed TERMINUS REPORT (the engine's voice). The
 // operator reads the engine's conclusions here; Bank/Reject the lesson inline where
 // the context is. Read + intent only — no graph write.
-import { useState } from 'react';
-import { composeReport, reportToMd, versionDiff, heartbeatAge, subProgress, isStalled, displayName, startedBy, originKey } from '../runs.js';
+import { useState, useEffect } from 'react';
+import { composeReport, reportToMd, versionDiff, heartbeatAge, subProgress, isStalled, displayName, startedBy, originKey, debriefSuggestions } from '../runs.js';
 import { downloadMd } from '../mdExport.js';
 import ActionButton from './ActionButton.jsx';
 
@@ -22,6 +22,13 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
   // the four voices show without a click; the button remains as a manual refresh.
   const [db, setDb] = useState(run.debrief || null);
   const [dbBusy, setDbBusy] = useState(false);
+  // DEF-024: a debrief must quote the run it's attached to. The parent keys RunRoom by
+  // run.item_id (remount per run); this effect is the belt-and-suspenders — if the same
+  // instance is ever reused for a different run, the debrief resets to THAT run's, never
+  // showing a prior run's voices.
+  useEffect(() => { setDb(run.debrief || null); }, [run.item_id]);
+  const [spawned, setSpawned] = useState({});        // ask key -> {item_id, tier} (card this debrief spawned)
+  const [sgBusy, setSgBusy] = useState(null);
   if (!run) return null;
   const isRunning = String(run.status).toLowerCase() === 'running';
   const report = composeReport(run, slices || {});
@@ -288,6 +295,39 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
                         </div>
                       ))}
                       {db.cost && <div className="rr-dbcost mono">{db.cost.passes} passes · ~{db.cost.approx_input_tokens + db.cost.approx_output_tokens} tokens</div>}
+                      {/* DEBRIEF-TO-CARD: each actionable claim → a PROPOSAL card via the constructor.
+                          Converging asks share ONE button (no twins); Strategist's ask leads;
+                          buttons NEVER enqueue — a proposal the operator gates. */}
+                      {(() => {
+                        const sugg = debriefSuggestions(db, { run, board: slices?.board || [] });
+                        if (!sugg.length) return null;
+                        return (
+                          <div className="rr-suggest">
+                            <div className="rr-vhead">Turn a claim into a card <span className="hint">— proposal only, never runs</span></div>
+                            {sugg.map((sg) => {
+                              const st = spawned[sg.key];
+                              const done = st || (sg.spawnedItemId ? { item_id: sg.spawnedItemId } : null);
+                              const voices = [...new Set(sg.asks.map((a) => a.voice))].join('+');
+                              return (
+                                <div key={sg.key} className={`rr-sg${sg.lead ? ' lead' : ''}`}>
+                                  <span className="rr-sg-voices mono">{voices}{sg.lead ? ' · lead' : ''}</span>
+                                  <span className="rr-sg-text">{sg.title}</span>
+                                  {done
+                                    ? <span className="rr-sg-done">✓ card {String(done.item_id).replace(/^D:/, '')}{st?.tier ? ` · ${st.tier}` : ''}</span>
+                                    : <button className="b b-sec rr-sg-btn" disabled={sgBusy === sg.key}
+                                              onClick={async () => {
+                                                setSgBusy(sg.key);
+                                                const r = await contract.createCard?.({ run_id: run.item_id, target_key: sg.key,
+                                                  title: sg.title, asks: sg.asks, tier_hint: sg.tier_hint, recipe_ref: sg.recipe_ref });
+                                                setSgBusy(null);
+                                                if (r && (r.created || r.duplicate)) setSpawned((s) => ({ ...s, [sg.key]: { item_id: r.item_id, tier: r.tier } }));
+                                              }}>{sgBusy === sg.key ? 'Creating…' : '＋ Create card'}</button>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                     </div>)}
               </div>
             )}
