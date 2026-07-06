@@ -190,16 +190,22 @@ function mockContract() {
       return { markdown: '# Operator Ruling Sheet\n\n*(mock — connect the live proxy /sm/ruling-sheet for the audit findings)*\n', words: 12 };
     },
     // OPERATOR DEBRIEF — four voices; the live proxy composes from 7688 + LLM. Mock returns
-    // a representative debrief so the console renders offline (real content from /sm/debrief).
-    async debrief(run_id) {
+    // a representative debrief GROUNDED in THIS run's real numbers (DEF-028) — it never
+    // fabricates a t (the old mock hardcoded t=1.09, which the console then showed under a
+    // real t=0.01 run). grounded={run_id,t,n,edge} lets the render guard prove provenance.
+    async debrief(run_id, run) {
+      const res = (run && run.result) || {};
+      const t = res.t, n = res.n, edge = res.edge_pct_per_day != null ? res.edge_pct_per_day : res.edge;
+      const beat = t == null ? 'the observed value' : t;
       return {
         run_id,
-        reporter: `t=1.09 means results this weak show up by luck often — not convincing evidence either way. The run tested ${run_id} and came back inconclusive (underpowered), not killed.`,
+        grounded: { run_id, t: t == null ? null : t, n: n == null ? null : n, edge: edge == null ? null : edge },
+        reporter: `The run tested ${run_id} and filed ${res.disposition || 'its verdict'}.${t == null ? '' : ` A t=${t} means results this size show up by luck often — read it as weak evidence, not proof either way.`}`,
         strategist: `Ranked: (1) extend the window — cheap, owned data. NEXT CLICK: extend the window to reach t≥2.`,
-        skeptic: `No placebo calendar was run.\n\nSPARKS:\n- If we permuted the dates, how often would t beat 1.09?\n- Is the event calendar real or a filing artifact?`,
-        prospector: `The 0.105 edge is positive, not zero.\n\nGLINTS:\n- Brick in the peak sub-calendar (edge 0.105) — cheapest check: split off-peak days.`,
-        sparks: ['If we permuted the dates, how often would t beat 1.09?', 'Is the event calendar real or a filing artifact?'],
-        glints: ['Brick in the peak sub-calendar (edge 0.105) — cheapest check: split off-peak days.'],
+        skeptic: `No placebo calendar was run.\n\nSPARKS:\n- If we permuted the dates, how often would t beat ${beat}?\n- Is the event calendar real or a filing artifact?`,
+        prospector: `${edge == null ? 'The edge' : `The ${edge} edge`} is the raw material.\n\nGLINTS:\n- Brick in the peak sub-calendar — cheapest check: split off-peak days.`,
+        sparks: [`If we permuted the dates, how often would t beat ${beat}?`, 'Is the event calendar real or a filing artifact?'],
+        glints: ['Brick in the peak sub-calendar — cheapest check: split off-peak days.'],
         cost: { passes: 4, approx_input_tokens: 1800, approx_output_tokens: 3500 },
         unavailable: [],
       };
@@ -361,7 +367,7 @@ function realContract() {
       return (d && d[slice] != null) ? structuredClone(d[slice]) : base.query(slice);
     },
     async exportMd(slice) { return `# ${slice}\n\n(real state export — read-only, no secrets)\n`; },
-    async debrief(run_id) { return base.debrief(run_id); },   // mock voices until live proxy
+    async debrief(run_id, run) { return base.debrief(run_id, run); },   // mock voices until live proxy
     async rulingSheet() { return base.rulingSheet(); },
   };
   rc.analyst = ({ ask, attachment, images }) => (images && images.length   // vision needs live proxy
@@ -396,7 +402,9 @@ function liveContract() {
     async handoff() { return get('/sm/handoff').catch(() => file.handoff()); },
     // OPERATOR DEBRIEF — four voices composed live by the proxy (7688 grounding + LLM);
     // falls back to the mock voices if the proxy is unreachable.
-    async debrief(run_id) { return post('/sm/debrief', { run_id }).catch(() => file.debrief(run_id)); },
+    // live proxy composes grounded from 7688; on any failure fall back to the file mock
+    // GROUNDED in this run's numbers (run threaded through) — never a fabricated t.
+    async debrief(run_id, run) { return post('/sm/debrief', { run_id }).catch(() => file.debrief(run_id, run)); },
     // DEBRIEF-TO-CARD: a voice's actionable claim → a PROPOSAL card via the constructor
     // (server-side make_card/persist_card). Never enqueues. Idempotent by (run,target_key).
     async createCard(payload) { return post('/sm/debrief/card', payload).catch((e) => ({ error: failReason(e, 'create card').reason })); },

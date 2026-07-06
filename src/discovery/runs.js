@@ -92,6 +92,41 @@ function tierHintFor(key, text) {
   if (key === 'window-extend') return 'owned-retest';    // maps to a windowed re-test recipe
   return 'build';                                         // a new construction / tool
 }
+// ── ONE DEBRIEF READER (DEF-028) ──────────────────────────────────────────────
+// A debrief can reach the panel from two writers — the auto-debrief stored on the run
+// node (7688 keeps it as a JSON STRING; the readmodel usually unflats it, but an older
+// proxy or a raw fetch can deliver the raw string) and the on-demand /sm/debrief (a
+// dict). ONE reader normalizes BOTH shapes so the voices never render '(missing)' just
+// because the debrief arrived as text.
+export function readDebrief(raw) {
+  if (!raw) return null;
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw); } catch { return null; }
+  }
+  return typeof raw === 'object' ? raw : null;
+}
+
+// PROVENANCE GUARD (DEF-028): a debrief must not wear a run it doesn't quote. It is flagged
+// FOREIGN when the provenance it CARRIES contradicts the run — a run_id for a different run,
+// or a stamped grounded.t that doesn't equal this run's t (the offline mock's old lie: a
+// fabricated t=1.09 under a t=0.01 run). Absent provenance (legacy debriefs predating the
+// stamp) can't be disproven, so it renders — but every writer now stamps grounded, so the
+// mismatch is caught going forward. Returns {ok, reason}.
+export function debriefBelongsTo(db, run) {
+  if (!db) return { ok: false, reason: 'no debrief' };
+  const rid = String(run?.item_id || '');
+  const dbRid = String(db.run_id || '');
+  if (db.run_id != null && rid && dbRid !== rid) {
+    return { ok: false, reason: `debrief is for ${dbRid || '(unknown run)'}, not ${rid}` };
+  }
+  const res = run?.result || {};
+  const gt = db.grounded == null ? null : db.grounded.t;
+  if (gt != null && res.t != null && Number(gt) !== Number(res.t)) {
+    return { ok: false, reason: `debrief quotes t=${gt}, but this run’s t=${res.t}` };
+  }
+  return { ok: true, reason: 'grounded' };
+}
+
 // the actionable claims across the three advising voices → grouped, deduped suggestions,
 // strategist's ask leading. Each carries whether a card was already spawned (board check),
 // so repeat debriefs don't offer a duplicate button.

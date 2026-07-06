@@ -427,6 +427,52 @@ describe('operator debrief', () => {
     expect(onExplore).toHaveBeenCalled();
     expect(onExplore.mock.calls[0][2]).toMatch(/permuted the dates/i);   // spark text handed to analyst
   });
+
+  // ── DEF-028: one debrief reader (string OR object) + provenance guard ──────────
+  it('readDebrief normalizes a JSON-STRING debrief so voices are not (missing)', async () => {
+    const { readDebrief } = await import('./runs.js');
+    const stored = JSON.stringify({ run_id: 'R', reporter: 'what happened', strategist: '', skeptic: '', prospector: '' });
+    expect(readDebrief(stored).reporter).toBe('what happened');   // string parsed
+    expect(readDebrief({ reporter: 'x' }).reporter).toBe('x');    // object passes through
+    expect(readDebrief(null)).toBeNull();
+    expect(readDebrief('not json')).toBeNull();
+  });
+
+  it('RunRoom renders voices when the debrief arrives as a JSON STRING (bug 1)', () => {
+    const run = { item_id: 'A#A', recipe_id: 'A', status: 'done', parent: '', progress: [],
+      result: { t: 0.49, n: 479, gate_pass: false, disposition: 'killed', window: ['a', 'b'], universe: 24 },
+      debrief: JSON.stringify({ run_id: 'A#A', grounded: { run_id: 'A#A', t: 0.49 },
+        reporter: 'STRING-DEBRIEF-REPORTER', strategist: '', skeptic: '', prospector: '', sparks: [], glints: [] }) };
+    render(<RunRoom run={run} slices={{ board: [] }} contract={{}} onClose={vi.fn()} />);
+    expect(screen.getByText('STRING-DEBRIEF-REPORTER')).toBeTruthy();   // not '(missing)'
+  });
+
+  it('debriefBelongsTo flags a debrief that quotes a foreign t / foreign run (bug 2)', async () => {
+    const { debriefBelongsTo } = await import('./runs.js');
+    const run = { item_id: 'DRILL#x', result: { t: 0.01, n: 71 } };
+    expect(debriefBelongsTo({ run_id: 'DRILL#x', grounded: { t: 0.01 } }, run).ok).toBe(true);
+    expect(debriefBelongsTo({ run_id: 'DRILL#x', grounded: { t: 1.09 } }, run).ok).toBe(false);   // fabricated t
+    expect(debriefBelongsTo({ run_id: 'OTHER#y' }, run).ok).toBe(false);                          // foreign run
+    expect(debriefBelongsTo({ reporter: 'legacy, no provenance' }, run).ok).toBe(true);           // can't disprove
+  });
+
+  it('RunRoom refuses to quote a debrief that fabricates this run’s numbers (bug 2)', () => {
+    const run = { item_id: 'DRILL#x', recipe_id: 'DRILL', status: 'done', parent: '', progress: [],
+      result: { t: 0.01, n: 71, gate_pass: false, disposition: 'killed', window: ['a', 'b'], universe: 24 },
+      debrief: { run_id: 'DRILL#x', grounded: { run_id: 'DRILL#x', t: 1.09 },
+        reporter: 't=1.09 FABRICATED', strategist: '', skeptic: '', prospector: '', sparks: [], glints: [] } };
+    render(<RunRoom run={run} slices={{ board: [] }} contract={{}} onClose={vi.fn()} />);
+    expect(screen.queryByText('t=1.09 FABRICATED')).toBeNull();               // foreign numbers NOT shown
+    expect(screen.getByText(/isn’t grounded in this run/i)).toBeTruthy();     // the guard banner instead
+  });
+
+  it('mock debrief is grounded in the run it is asked about (no fabricated t)', async () => {
+    const c = makeContract('mock');
+    const db = await c.debrief('DRILL#x', { item_id: 'DRILL#x', result: { t: 0.01, n: 71, edge_pct_per_day: 0.0018 } });
+    expect(db.grounded).toEqual({ run_id: 'DRILL#x', t: 0.01, n: 71, edge: 0.0018 });
+    expect(db.reporter).not.toMatch(/1\.09/);                                 // never fabricates the old t
+    expect(db.reporter).toMatch(/0\.01/);                                     // quotes THIS run's t
+  });
 });
 
 // --- ANALYST vision: images go through the proxy, never a key in the client -----

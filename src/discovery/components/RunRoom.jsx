@@ -3,7 +3,7 @@
 // operator reads the engine's conclusions here; Bank/Reject the lesson inline where
 // the context is. Read + intent only — no graph write.
 import { useState, useEffect } from 'react';
-import { composeReport, reportToMd, versionDiff, heartbeatAge, subProgress, isStalled, displayName, startedBy, originKey, debriefSuggestions } from '../runs.js';
+import { composeReport, reportToMd, versionDiff, heartbeatAge, subProgress, isStalled, displayName, startedBy, originKey, debriefSuggestions, readDebrief, debriefBelongsTo } from '../runs.js';
 import { downloadMd } from '../mdExport.js';
 import ActionButton from './ActionButton.jsx';
 
@@ -20,13 +20,13 @@ const stripBlock = (text, marker) => {
 export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReject, onReevaluate, onCancel, runBusy, contract, onExplore }) {
   // DEF-020: the debrief now AUTO-ATTACHES at terminus — initialize from the run node so
   // the four voices show without a click; the button remains as a manual refresh.
-  const [db, setDb] = useState(run.debrief || null);
+  const [db, setDb] = useState(readDebrief(run.debrief));
   const [dbBusy, setDbBusy] = useState(false);
   // DEF-024: a debrief must quote the run it's attached to. The parent keys RunRoom by
   // run.item_id (remount per run); this effect is the belt-and-suspenders — if the same
   // instance is ever reused for a different run, the debrief resets to THAT run's, never
   // showing a prior run's voices.
-  useEffect(() => { setDb(run.debrief || null); }, [run.item_id]);
+  useEffect(() => { setDb(readDebrief(run.debrief)); }, [run.item_id]);
   const [spawned, setSpawned] = useState({});        // ask key -> {item_id, tier} (card this debrief spawned)
   const [sgBusy, setSgBusy] = useState(null);
   if (!run) return null;
@@ -60,7 +60,7 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
   async function genDebrief() {
     if (!contract?.debrief) return;
     setDbBusy(true);
-    try { setDb(await contract.debrief(run.item_id || run.recipe_id)); }
+    try { setDb(readDebrief(await contract.debrief(run.item_id || run.recipe_id, run))); }
     catch { setDb({ unavailable: [{ voice: '*', reason: 'debrief request failed' }] }); }
     finally { setDbBusy(false); }
   }
@@ -278,6 +278,13 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
                 </div>
                 {db && (db.unavailable && db.unavailable.some((u) => u.voice === '*')
                   ? <div className="hint">debrief unavailable — {db.unavailable[0].reason}</div>
+                  : !debriefBelongsTo(db, run).ok
+                  // RENDER ASSERTION (DEF-028): never quote a debrief that can't prove it's
+                  // grounded in THIS run — show why, don't render its (foreign) numbers.
+                  ? <div className="rr-debrief-mismatch" role="alert">
+                      ⚠ This debrief isn’t grounded in this run — {debriefBelongsTo(db, run).reason}.
+                      Not shown. Re-compose it against this run’s numbers.
+                    </div>
                   : <div className="rr-voices">
                       {VOICES.map(([k, label]) => (
                         <div key={k} className={`rr-voice v-${k}`}>
