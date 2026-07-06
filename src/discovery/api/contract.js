@@ -126,6 +126,19 @@ async function get(path) {
   return res.json();
 }
 
+// HONEST failure wording (DEF-023): post/get throw `path → <status>` when the proxy
+// RESPONDED (it is reachable — it returned an error); a genuine network failure throws a
+// TypeError with no status. Never say 'unreachable' for a proxy-side error — that lies to
+// a page the proxy is currently serving. Returns {reason, unreachable} — unreachable is
+// true ONLY for a real network failure, so a self-clear can defer to the live proxy poll.
+function failReason(e, verb) {
+  const m = String((e && e.message) || e || '');
+  const http = m.match(/→\s*(\d{3})/);
+  return http
+    ? { reason: `${verb} failed — the proxy returned ${http[1]} (it IS reachable; check the proxy log)`, unreachable: false }
+    : { reason: `proxy unreachable — ${verb} (no response). It should self-clear when the proxy answers.`, unreachable: true };
+}
+
 export function makeContract(mode = MODE) {
   if (mode === 'mock') return mockContract();
   if (mode === 'live') return liveContract();
@@ -373,13 +386,13 @@ function liveContract() {
     async debrief(run_id) { return post('/sm/debrief', { run_id }).catch(() => file.debrief(run_id)); },
     // OPERATOR RULING SHEET — the live proxy serves the committed audit MD.
     async rulingSheet() { return get('/sm/ruling-sheet').catch(() => file.rulingSheet()); },
-    async resolve(payload) { return post('/sm/resolve', payload).catch(() => ({ rejected: true, reason: 'proxy unreachable — start it to enable gated writes' })); },
+    async resolve(payload) { return post('/sm/resolve', payload).catch((e) => ({ rejected: true, ...failReason(e, 'gated write') })); },
     // RE-EVALUATE (deliberate review): the ENGINE re-judges its own concluded work
     // with the fixed taxonomy + LLM, streaming to In-progress. Intent only — a run-request.
-    async reevaluate(item_id) { return post('/sm/reevaluate', { item_id }).catch(() => ({ error: 'proxy unreachable — start it to re-evaluate' })); },
+    async reevaluate(item_id) { return post('/sm/reevaluate', { item_id }).catch((e) => { const f = failReason(e, 're-evaluate'); return { error: f.reason, unreachable: f.unreachable }; }); },
     // CANCEL — operator abort of a running/queued probe (intent only; the engine's
     // supervisor errors the run 'cancelled by operator' + releases the lock).
-    async cancel(item_id) { return post('/sm/probe/cancel', { item_id }).catch(() => ({ error: 'proxy unreachable — cannot cancel' })); },
+    async cancel(item_id) { return post('/sm/probe/cancel', { item_id }).catch((e) => { const f = failReason(e, 'cancel'); return { error: f.reason, unreachable: f.unreachable }; }); },
     async onboard(payload) { return post('/sm/onboard', payload).catch(() => ({ source_id: payload.source_id, configured: false })); },
     // INTENT — surfaces a costing/research request (never buys); local ack if the
     // proxy has no /sm/research worker yet (results fill the fields when it runs).

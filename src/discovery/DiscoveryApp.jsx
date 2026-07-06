@@ -240,7 +240,7 @@ export default function DiscoveryApp({ contract }) {
         </div>
 
         <div className="rail">
-          <BoardQueue contract={client} items={board} onResolved={onResolved} probe={probe} onOpenRun={onOpenRun} runs={allRuns} lessons={lessons} watches={watches} />
+          <BoardQueue contract={client} items={board} onResolved={onResolved} probe={probe} onOpenRun={onOpenRun} runs={allRuns} lessons={lessons} watches={watches} proxy={proxy} />
         </div>
       </div>
       {/* THE RUN ROOM — opens for any run from In-progress / board chips / map drill / timeline */}

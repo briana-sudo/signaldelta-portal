@@ -6,7 +6,7 @@
 // The queue is sorted by READINESS (time-to-a-real-test), not chronology:
 // RUNNABLE-NOW → NEEDS-DATA → NEEDS-BUILD → NEEDS-BROKER, and within each tier by
 // EV / claim strength. Tier bands make the readiness at a glance.
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { downloadMd, renderMd } from '../mdExport.js';
 import { rejudgeReason, surfaceOf, needsApproval, indexRunsByRecipe, runErrored, erroredReason, isWaiting, waitInfo, displayName, groupFamilies } from '../runs.js';
 
@@ -31,12 +31,26 @@ const CONCLUDED_STATES = ['CLEARED', 'RETAINED'];
 const STATUS_CLASS = { CLEARED: 'st-cleared', RETAINED: 'st-retained', OPEN: 'st-open' };
 const STATUS_WORD = { CLEARED: 'killed — all flows null', RETAINED: 'retained — a flow survived', OPEN: 'open — partially tested' };
 
-export default function BoardQueue({ contract, items, onResolved, probe, onOpenRun, runs = [], lessons = [], watches = [] }) {
+export default function BoardQueue({ contract, items, onResolved, probe, onOpenRun, runs = [], lessons = [], watches = [], proxy }) {
   const [busy, setBusy] = useState(null);
   const openRun = (id) => onOpenRun && onOpenRun(id);
   const [held, setHeld] = useState({});             // item_id -> true (Hold visible feedback)
   const [reevaluating, setReevaluating] = useState({});  // item_id -> true (Re-evaluate queued)
-  const [outcome, setOutcome] = useState({});       // item_id -> {kind, text} — EVERY click's visible result
+  const [outcome, setOutcome] = useState({});       // item_id -> {kind, text, unreachable} — EVERY click's visible result
+  // SAME-SOURCE SELF-CLEAR (DEF-023): a banner that claims the proxy is UNREACHABLE must
+  // defer to the header chip's live poll — the moment that poll shows the proxy running,
+  // the unreachability condition has cleared, so drop the banner WITHOUT a refresh. (A
+  // proxy-side error banner, which names a real HTTP status, is not cleared this way.)
+  useEffect(() => {
+    if (proxy !== 'running') return;
+    setOutcome((o) => {
+      const next = {}; let changed = false;
+      for (const [k, v] of Object.entries(o)) {
+        if (v && v.unreachable) changed = true; else next[k] = v;
+      }
+      return changed ? next : o;
+    });
+  }, [proxy]);
   const [approved, setApproved] = useState({});     // item_id -> canonical name (just-approved trace; never vanish)
   const [openFam, setOpenFam] = useState({});       // family key -> true (folded ranked list expanded)
   const runsByRecipe = indexRunsByRecipe(runs);
@@ -85,7 +99,7 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
     }
     setBusy(null);
     if (res.held) { setHeld((h) => ({ ...h, [item.item_id]: true })); return; }
-    if (res.rejected) { setOutcome((o) => ({ ...o, [item.item_id]: { kind: 'error', text: res.reason || 'resolve rejected' } })); return; }
+    if (res.rejected) { setOutcome((o) => ({ ...o, [item.item_id]: { kind: 'error', text: res.reason || 'resolve rejected', unreachable: res.unreachable } })); return; }
     if (res.enqueued) {                              // a real run was enqueued → running/queued
       // NOTHING VANISHES (§2): the card visibly transitions in place to a one-line trace
       // ("Approved → running as <name> — see In progress") and stays put; the poll then

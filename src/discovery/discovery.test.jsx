@@ -205,6 +205,38 @@ describe('board decision → resolve API (gated-write intent)', () => {
     expect(originKey({})).toBe('origin-unrecorded');
   });
 
+  // ── DEF-023: a lying "proxy unreachable" banner on a proxy-served page ──
+  it('resolve names a proxy ERROR honestly, never "unreachable" for a responded request', async () => {
+    const { makeContract } = await import('./api/contract.js');
+    const c = makeContract('live');
+    const orig = global.fetch;
+    try {
+      // the proxy RESPONDED 500 → it is reachable, it errored — must NOT say unreachable
+      global.fetch = vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) }));
+      const r1 = await c.resolve({ gate_item_id: 'X', decision: 'approve', gate_item_version: 1 });
+      expect(r1.rejected).toBe(true);
+      expect(r1.reason).toMatch(/returned 500/);
+      expect(r1.reason).not.toMatch(/unreachable/i);
+      expect(r1.unreachable).toBe(false);
+      // a genuine network failure (no response) → unreachable, and self-clearable
+      global.fetch = vi.fn(async () => { throw new TypeError('Failed to fetch'); });
+      const r2 = await c.resolve({ gate_item_id: 'X', decision: 'approve', gate_item_version: 1 });
+      expect(r2.reason).toMatch(/unreachable/i);
+      expect(r2.unreachable).toBe(true);
+    } finally { global.fetch = orig; }
+  });
+
+  it('an "unreachable" banner self-clears when the proxy chip shows running (no refresh)', async () => {
+    const resolve = vi.fn(async () => ({ rejected: true, reason: 'proxy unreachable — gated write (no response).', unreachable: true }));
+    const items = [{ item_id: 'V-015-TDF-2006', type: 'probe', status: 'PENDING', kind: 'Runnable now',
+      blocker: 'runnable-now', approve_enabled: true, recipe_id: 'V-015-TDF-2006', title: 't', version: 1, options: ['approve', 'hold'] }];
+    const { rerender } = render(<BoardQueue contract={{ resolve }} items={items} onResolved={vi.fn()} proxy="unknown" />);
+    fireEvent.click(screen.getByRole('button', { name: /^Approve$/i }));
+    await waitFor(() => expect(screen.getByText(/proxy unreachable/i)).toBeTruthy());
+    rerender(<BoardQueue contract={{ resolve }} items={items} onResolved={vi.fn()} proxy="running" />);
+    await waitFor(() => expect(screen.queryByText(/proxy unreachable/i)).toBeNull());   // same-source self-clear
+  });
+
   // ── family grouping: derived siblings collapse; top 1–2 shown, rest fold ──
   it('groupFamilies collapses derived siblings by surface, ranks by ev', async () => {
     const { groupFamilies } = await import('./runs.js');
