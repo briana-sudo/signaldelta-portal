@@ -228,6 +228,12 @@
 .attn-waiting .attn-title{color:var(--fg-3)}
 /* §2 lineage: card → approved → run → disposition → lesson (one glance = "is this what I clicked?") */
 .rr-lineage{color:var(--fg-3);font-size:11px;margin-top:3px;opacity:.85}
+/* DEF-019 provenance: who pressed go — a recorded fact, rendered plain everywhere */
+.origin-chip{font-size:10px;padding:1px 6px;border-radius:8px;margin-left:6px;white-space:nowrap;
+  background:color-mix(in srgb,var(--fg-3) 12%,transparent);color:var(--fg-3)}
+.origin-chip.origin-operator-click{background:color-mix(in srgb,var(--success) 16%,transparent);color:var(--success)}
+.origin-chip.origin-code-shell{background:color-mix(in srgb,var(--warning) 16%,transparent);color:var(--warning)}
+.origin-chip.origin-origin-unrecorded{opacity:.7;font-style:italic}
 /* candidate (survivor) pipeline S1–S6 */
 .rr-pipe-prog{margin-left:8px;color:#5EEAD4}
 .rr-stage-row{display:grid;grid-template-columns:26px 150px 52px 1fr;gap:8px;align-items:baseline;font-size:11px;padding:3px 0;border-top:1px solid var(--line-1)}

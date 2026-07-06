@@ -3,7 +3,7 @@
 // via /sm/probe/status), so a refresh survives. Read-only.
 import { useEffect, useState } from 'react';
 import ActionButton from './ActionButton.jsx';
-import { heartbeatAge, subProgress, isStalled, displayName } from '../runs.js';
+import { heartbeatAge, subProgress, isStalled, displayName, startedBy, originKey } from '../runs.js';
 
 const STAGES = ['queued', 'validating recipe', 'resolving point-in-time universe', 'fetching data', 'building signal', 'computing', 'power-gate', 'result'];
 
@@ -140,6 +140,7 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
           <div className={`ip-run${isStalled(running) ? ' stalled' : ''}`}>
             <div className="ip-head">
               <span className="src">{displayName(running, board)}</span>
+              <span className={`origin-chip origin-${originKey(running)}`} title="who pressed go">Started by: {startedBy(running)}</span>
               {isStalled(running)
                 ? <span className="ip-badge stalled" title="no heartbeat past the stall threshold">STALLED</span>
                 : <span className="ip-badge running">RUNNING</span>}
@@ -194,7 +195,8 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
                 }
                 return (
                   <tr key={d.item_id}>
-                    <td className="src"><button className="ip-link" onClick={() => open(d.item_id)}>{displayName(d, board)}</button></td>
+                    <td className="src"><button className="ip-link" onClick={() => open(d.item_id)}>{displayName(d, board)}</button>
+                      <span className={`origin-chip origin-${originKey(d)}`} title="who pressed go">{startedBy(d)}</span></td>
                     <td className="mono">{r.edge_pct_per_day != null ? `${r.edge_pct_per_day}%` : '—'}</td>
                     <td className="mono">{r.t ?? '—'}</td>
                     <td className="mono">{r.n ?? '—'}</td>

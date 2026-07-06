@@ -31,6 +31,20 @@ export function findRun(runs, id) {
   return (runs || []).find((r) => r.item_id === id) || null;
 }
 
+// PROVENANCE (DEF-019): who pressed go, in plain words. 'operator-click' is the only
+// value the authenticated portal route can produce (from a real Cloudflare-Access
+// identity); a bearer-token caller is 'operator-token'; a script is 'code-shell'; the
+// engine self-queue is 'engine-derived'; a run predating stamps is 'origin-unrecorded'.
+const ORIGIN_WORDS = {
+  'operator-click': 'your click',
+  'operator-token': 'the portal (API token)',
+  'engine-derived': 'the engine',
+  'code-shell': 'a script (Code shell)',
+  'origin-unrecorded': 'unrecorded',
+};
+export const originKey = (x) => (x && x.initiated_by) || 'origin-unrecorded';
+export const startedBy = (x) => ORIGIN_WORDS[originKey(x)] || 'unrecorded';
+
 // ── ONE CANONICAL NAME PER ITEM (§1) ──────────────────────────────────────────
 // The single display name for a card OR a run, rendered by every surface (decision
 // card, queue row, Running now, Recent row, run report title). A run resolves to its
@@ -404,7 +418,7 @@ export function reportToMd(run, report, name) {
   const L = [];
   L.push(`# Terminus report — ${canonical}`);
   L.push('');
-  L.push(`- status: ${run.status || '—'} · triggered: ${run.kind === 'reterminus' ? 'Re-evaluate' : 'Approve'}`);
+  L.push(`- status: ${run.status || '—'} · triggered: ${run.kind === 'reterminus' ? 'Re-evaluate' : 'Approve'} · started by: ${startedBy(run)}`);
   // §2 lineage chain: card → approved → run → disposition → lesson
   const lesson0 = (report.lessons && report.lessons[0]) || null;
   L.push(`- lineage: card “${canonical}” → approved → ran as ${run.recipe_id || run.item_id}`

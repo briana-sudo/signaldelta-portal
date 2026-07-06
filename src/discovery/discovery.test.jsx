@@ -194,6 +194,17 @@ describe('board decision → resolve API (gated-write intent)', () => {
     expect(onResolved).not.toHaveBeenCalled();   // status not flipped to a vanishing bucket
   });
 
+  // ── DEF-019 provenance: who pressed go, rendered plain ──
+  it('startedBy maps initiated_by to plain words; unrecorded when absent', async () => {
+    const { startedBy, originKey } = await import('./runs.js');
+    expect(startedBy({ initiated_by: 'operator-click' })).toBe('your click');
+    expect(startedBy({ initiated_by: 'code-shell' })).toBe('a script (Code shell)');
+    expect(startedBy({ initiated_by: 'engine-derived' })).toBe('the engine');
+    expect(startedBy({ initiated_by: 'operator-token' })).toBe('the portal (API token)');
+    expect(startedBy({})).toBe('unrecorded');                 // a run predating stamps
+    expect(originKey({})).toBe('origin-unrecorded');
+  });
+
   it('a non-enqueued resolve renders a NAMED outcome, never a silent no-op', async () => {
     // backstop: even if a resolve reaches the proxy and comes back not-enqueued, the card
     // shows the reason — it does not vanish.

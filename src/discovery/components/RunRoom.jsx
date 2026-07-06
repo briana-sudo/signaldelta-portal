@@ -3,7 +3,7 @@
 // operator reads the engine's conclusions here; Bank/Reject the lesson inline where
 // the context is. Read + intent only — no graph write.
 import { useState } from 'react';
-import { composeReport, reportToMd, versionDiff, heartbeatAge, subProgress, isStalled, displayName } from '../runs.js';
+import { composeReport, reportToMd, versionDiff, heartbeatAge, subProgress, isStalled, displayName, startedBy, originKey } from '../runs.js';
 import { downloadMd } from '../mdExport.js';
 import ActionButton from './ActionButton.jsx';
 
@@ -18,7 +18,9 @@ const stripBlock = (text, marker) => {
 };
 
 export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReject, onReevaluate, onCancel, runBusy, contract, onExplore }) {
-  const [db, setDb] = useState(null);
+  // DEF-020: the debrief now AUTO-ATTACHES at terminus — initialize from the run node so
+  // the four voices show without a click; the button remains as a manual refresh.
+  const [db, setDb] = useState(run.debrief || null);
   const [dbBusy, setDbBusy] = useState(false);
   if (!run) return null;
   const isRunning = String(run.status).toLowerCase() === 'running';
@@ -62,7 +64,10 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
         <div className="rr-head">
           <div>
             <div className="rr-title mono">{title}</div>
-            <div className="rr-sub">{subtitle}</div>
+            <div className="rr-sub">
+              <span className={`origin-chip origin-${originKey(run)}`} title="who pressed go — a recorded fact (DEF-019)">Started by: {startedBy(run)}</span>
+              {' · '}{subtitle}
+            </div>
             {!isRJ && <div className="rr-lineage mono" title="card → approved → run → disposition → lesson">{lineage}</div>}
           </div>
           <span className={`rr-badge ${errored ? 'error' : isStalled(run) ? 'stalled' : String(run.status).toLowerCase()}`}>{errored ? 'ERROR' : isStalled(run) ? 'STALLED' : STATUS(run.status)}</span>
