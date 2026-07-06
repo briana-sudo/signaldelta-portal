@@ -220,6 +220,12 @@
 .approve-reason.outcome-needs-build,.approve-reason.outcome-needs-data,
 .approve-reason.outcome-needs-broker,.approve-reason.outcome-gated{color:var(--fg-3);
   border-left:3px solid var(--warning);padding:3px 7px;border-radius:3px}
+/* DEF-018: WAITING FOR DATA — a data-bound re-test parked by its watch, never a live Approve */
+.k-wait{color:var(--fg-3);background:color-mix(in srgb,var(--fg-3) 12%,transparent)}
+.tier-band.tb-wait{border-left:3px solid var(--fg-4,#6b7a90)}
+.wait-item{opacity:.92}
+.wait-item .b-pri:disabled{cursor:not-allowed}
+.attn-waiting .attn-title{color:var(--fg-3)}
 /* candidate (survivor) pipeline S1–S6 */
 .rr-pipe-prog{margin-left:8px;color:#5EEAD4}
 .rr-stage-row{display:grid;grid-template-columns:26px 150px 52px 1fr;gap:8px;align-items:baseline;font-size:11px;padding:3px 0;border-top:1px solid var(--line-1)}

@@ -8,7 +8,7 @@
 // EV / claim strength. Tier bands make the readiness at a glance.
 import { useState } from 'react';
 import { downloadMd, renderMd } from '../mdExport.js';
-import { rejudgeReason, surfaceOf, needsApproval, indexRunsByRecipe, runErrored, erroredReason } from '../runs.js';
+import { rejudgeReason, surfaceOf, needsApproval, indexRunsByRecipe, runErrored, erroredReason, isWaiting, waitInfo } from '../runs.js';
 
 const KIND_CLASS = { 'gated-option': 'k-gate', 'revalidation-due': 'k-reval', 'new-search-surface': 'k-new' };
 const PRIMARY_LABEL = {
@@ -31,19 +31,24 @@ const CONCLUDED_STATES = ['CLEARED', 'RETAINED'];
 const STATUS_CLASS = { CLEARED: 'st-cleared', RETAINED: 'st-retained', OPEN: 'st-open' };
 const STATUS_WORD = { CLEARED: 'killed — all flows null', RETAINED: 'retained — a flow survived', OPEN: 'open — partially tested' };
 
-export default function BoardQueue({ contract, items, onResolved, probe, onOpenRun, runs = [], lessons = [] }) {
+export default function BoardQueue({ contract, items, onResolved, probe, onOpenRun, runs = [], lessons = [], watches = [] }) {
   const [busy, setBusy] = useState(null);
   const openRun = (id) => onOpenRun && onOpenRun(id);
   const [held, setHeld] = useState({});             // item_id -> true (Hold visible feedback)
   const [reevaluating, setReevaluating] = useState({});  // item_id -> true (Re-evaluate queued)
   const [outcome, setOutcome] = useState({});       // item_id -> {kind, text} — EVERY click's visible result
   const runsByRecipe = indexRunsByRecipe(runs);
+  const waits = (i) => isWaiting(i, watches, runsByRecipe);   // DEF-018: data-bound → waiting, no Approve
+  // WAITING FOR DATA (DEF-018) — a derived re-test parked by a data-accumulation watch.
+  // Rendered in its own honest section; NEVER a live Approve (re-running owned data can't help).
+  const waiting = items.filter(waits);
   // APPROVABLE = PENDING, OR a runnable re-test the operator still owes a decision on
   // (no successful run yet). An errored run flips the item's status to OPEN, but it
-  // must stay in the approve queue — errors never satisfy a recommendation.
-  const open = items.filter((i) => i.status === 'PENDING' || needsApproval(i, runsByRecipe));
-  const openItems = items.filter((i) => OPEN_STATES.includes(i.status) && !needsApproval(i, runsByRecipe));
-  const concluded = items.filter((i) => CONCLUDED_STATES.includes(i.status));  // fully disposed
+  // must stay in the approve queue — errors never satisfy a recommendation. A data-bound
+  // (waiting) item is excluded — its Approve cannot succeed.
+  const open = items.filter((i) => !waits(i) && (i.status === 'PENDING' || needsApproval(i, runsByRecipe, watches)));
+  const openItems = items.filter((i) => OPEN_STATES.includes(i.status) && !waits(i) && !needsApproval(i, runsByRecipe, watches));
+  const concluded = items.filter((i) => CONCLUDED_STATES.includes(i.status) && !waits(i));  // fully disposed
   const sorted = [...open].sort((a, b) =>
     (RANK[a.kind] ?? 9) - (RANK[b.kind] ?? 9) || evOf(b) - evOf(a));
   const other = sorted.filter((i) => RANK[i.kind] === undefined);
@@ -228,6 +233,29 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
     </div>
   );
 
+  // WAITING FOR DATA (DEF-018): a derived re-test whose paired data-accumulation watch
+  // proves approving is futile — it renders the shortfall + revisit date, NEVER a live
+  // Approve. Revives to approvable only when the watch's trigger fires.
+  const waitCard = (it) => {
+    const { until, reason } = waitInfo(it, watches, runsByRecipe);
+    const when = until ? `revisit ${String(until).slice(0, 10)}` : 'revisit ≈ never on owned data';
+    return (
+      <div key={it.item_id} className="item wait-item">
+        <div className="row1">
+          <span className="kind k-wait">⏳ Waiting for data</span>
+          {typeof it.ev === 'number' && <span className="ev-chip mono" title="claim strength / EV">EV {it.ev.toFixed(2)}</span>}
+          <span className="mono" style={{ color: 'var(--fg-3)', fontSize: 11, marginLeft: 'auto' }}>{it.age}</span>
+        </div>
+        <div className="ttl">{it.title}</div>
+        <div className="approve-reason gate-reason">⏳ {reason} — {when}</div>
+        {it.subsumed_by && <div className="attn-reason">Subsumed by a wider-window run — see its report ({String(it.subsumed_by).replace(/^D:|#.*$/g, '')}).</div>}
+        <div className="acts">
+          <button className="b b-pri" disabled title={reason}>Waiting for data</button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <div className="rail-sec">
@@ -254,6 +282,16 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
           <div className="tier-group">
             <div className="tier-band tb-x"><span className="tb-label">OTHER</span><span className="tb-count mono">{other.length}</span></div>
             {other.map(card)}
+          </div>
+        )}
+        {waiting.length > 0 && (
+          <div className="tier-group">
+            <div className="tier-band tb-wait">
+              <span className="tb-label">WAITING FOR DATA</span>
+              <span className="tb-note">data-bound — approving can't help until more data accrues</span>
+              <span className="tb-count mono">{waiting.length}</span>
+            </div>
+            {waiting.map(waitCard)}
           </div>
         )}
         {openItems.length > 0 && (

@@ -38,6 +38,7 @@ export default function DiscoveryApp({ contract }) {
   const [runs, setRuns] = useState([]);              // every SMRunRequest (Run Room source)
   const [correlations, setCorrelations] = useState([]);  // CORRELATES_WITH edges
   const [candidates, setCandidates] = useState([]);      // survivor S1–S6 pipelines (SMCandidate)
+  const [watches, setWatches] = useState([]);            // revival watches (data-bound → DEF-018 waiting)
   const [openRun, setOpenRun] = useState(null);      // run item_id whose Run Room is open
   const restartingUntil = useRef(0);                 // ms deadline while a restart is in flight
   const prevDone = useRef(0);                         // probe/re-terminus completions seen (→ map reload)
@@ -45,12 +46,12 @@ export default function DiscoveryApp({ contract }) {
   // (re)load the read-model slices — called on mount and again once the proxy
   // comes back after a restart, so the board reflects the now-live 7688 data.
   const reloadData = useCallback(async () => {
-    const [g, ga, b, s, rn, co, cand] = await Promise.all([
+    const [g, ga, b, s, rn, co, cand, wa] = await Promise.all([
       client.query('grid'), client.query('gated'), client.query('board'), client.query('state'),
-      client.query('runs'), client.query('correlations'), client.query('candidates'),
+      client.query('runs'), client.query('correlations'), client.query('candidates'), client.query('watches'),
     ]);
     setGrid(g || []); setGated(ga || []); setBoard(b || []); setState(s || { cells_mapped: 0 });
-    setRuns(rn || []); setCorrelations(co || []); setCandidates(cand || []);
+    setRuns(rn || []); setCorrelations(co || []); setCandidates(cand || []); setWatches(wa || []);
   }, [client]);
 
   useEffect(() => { let live = true; reloadData().catch(() => {}); return () => { live = false; }; }, [reloadData]);
@@ -139,7 +140,7 @@ export default function DiscoveryApp({ contract }) {
   const openRunObj = openRun ? findRun(allRuns, openRun) : null;
 
   // NEEDS YOUR ATTENTION — recommended actions with reasons, from live state
-  const attention = useMemo(() => computeAttention({ runs: allRuns, board, lessons, probe, candidates }), [allRuns, board, lessons, probe, candidates]);
+  const attention = useMemo(() => computeAttention({ runs: allRuns, board, lessons, probe, candidates, watches }), [allRuns, board, lessons, probe, candidates, watches]);
   const onAttentionAction = useCallback(async (a) => {
     if (a.kind === 'reevaluate') await client.reevaluate?.(a.target);
     else if (a.kind === 'approve') await client.resolve?.({ gate_item_id: a.target, decision: 'approve', gate_item_version: a.version || 0 });
@@ -239,7 +240,7 @@ export default function DiscoveryApp({ contract }) {
         </div>
 
         <div className="rail">
-          <BoardQueue contract={client} items={board} onResolved={onResolved} probe={probe} onOpenRun={onOpenRun} runs={allRuns} lessons={lessons} />
+          <BoardQueue contract={client} items={board} onResolved={onResolved} probe={probe} onOpenRun={onOpenRun} runs={allRuns} lessons={lessons} watches={watches} />
         </div>
       </div>
       {/* THE RUN ROOM — opens for any run from In-progress / board chips / map drill / timeline */}

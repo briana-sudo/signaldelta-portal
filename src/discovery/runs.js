@@ -162,13 +162,49 @@ export const runErrored = (r) => !!(r && ((r.result && (r.result.error || r.resu
   || String(r.disposition || '').toLowerCase().startsWith('error')));
 export const runSucceeded = (r) => !!(r && r.result && r.result.t != null && !runErrored(r));
 
+// WATCH-AWARE (DEF-018): a card is DATA-BOUND when a paired data-accumulation watch says
+// the shortfall can only be closed by MORE data over time — re-running the same owned
+// data returns the same underpowered verdict, so approving is futile. The paired watch is
+// keyed by the card's recipe id (watch:<recipe_id> / force_named === recipe_id). It only
+// binds while the item has NO successful run (a success would revive/close the watch).
+export function waitingWatch(item, watches = [], runsByRecipe = {}) {
+  if (!item) return null;
+  const rid = item.recipe_id || '';
+  // the bare recipe key: strip the derived 'D:' prefix and any '#run' suffix so a card
+  // (D:V-015-DFC-FULL / recipe V-015-DFC-FULL) matches its watch (force_named V-015-DFC-FULL).
+  const key = String(rid || item.item_id || '').replace(/^D:/, '').split('#')[0];
+  if (!key) return null;
+  const w = (watches || []).find((x) => x && x.trigger === 'data-accumulation'
+    && String(x.status || '').toUpperCase() !== 'REVIVED'
+    && (x.force_named === key || x.force_named === rid || String(x.id || '').includes(key)));
+  if (!w) return null;
+  // only a real gate PASS closes the wait — an inconclusive/underpowered run (t present
+  // but gate_pass false) is exactly what the data-accumulation watch is tracking.
+  const rs = (rid && runsByRecipe && runsByRecipe[rid]) || [];
+  if (rs.some((r) => r && r.result && r.result.gate_pass === true)) return null;
+  return w;
+}
+// waiting = the engine converted the card (item.waiting) OR a live paired watch binds it.
+export function isWaiting(item, watches, runsByRecipe) {
+  return !!(item && (item.waiting === true || waitingWatch(item, watches, runsByRecipe)));
+}
+// plain-words + date for the wait render: prefer the card's stored fields, else the watch.
+export function waitInfo(item, watches, runsByRecipe) {
+  const w = waitingWatch(item, watches, runsByRecipe);
+  const until = item?.wait_until ?? (w && w.recheck_due) ?? null;
+  const reason = item?.wait_reason || (w && (w.reason || w.condition)) || 'waiting for more data to accumulate';
+  return { until, reason, watch: w };
+}
+
 // A runnable re-test the operator still owes a decision on: runnable-now + derived (or
-// flagged runnable), NOT held, and with NO successful run yet (an errored run does not
-// count — it re-surfaces). This is the single rule the Board and the attention list share.
-export function needsApproval(item, runsByRecipe) {
+// flagged runnable), NOT held, NOT data-bound (a paired data-accumulation watch parks
+// it — see DEF-018), and with NO successful run yet (an errored run does not count — it
+// re-surfaces). This is the single rule the Board and the attention list share.
+export function needsApproval(item, runsByRecipe, watches) {
   const runnable = item.blocker === 'runnable-now' && (item.provenance === 'derived' || item.runnable);
   if (!runnable) return false;
   if (item.held || item.status === 'HELD') return false;
+  if (isWaiting(item, watches, runsByRecipe)) return false;   // data-bound → waiting, not approvable
   const rs = (runsByRecipe && runsByRecipe[item.recipe_id]) || [];
   return !rs.some(runSucceeded);
 }
@@ -233,7 +269,7 @@ function catOf(disp) {
   return '';
 }
 
-export function computeAttention({ runs = [], board = [], lessons = [], probe = null, candidates = [] } = {}) {
+export function computeAttention({ runs = [], board = [], lessons = [], probe = null, candidates = [], watches = [] } = {}) {
   const items = [];
   const flight = inFlightMap(probe);
   // 1. RE-EVALUATE recommended — a concluded surface whose stored disposition the
@@ -260,8 +296,20 @@ export function computeAttention({ runs = [], board = [], lessons = [], probe = 
   //    (errors never satisfy), with the reason updated. NOT gated on status==='PENDING'
   //    — an errored run flips the item to OPEN, and it must still surface here.
   const runsByRecipe = indexRunsByRecipe(runs);
+  // 2a. WAITING FOR DATA (DEF-018) — a derived re-test parked by a paired data-accumulation
+  //     watch. Honestly shaped: shows the shortfall + revisit date, NOT a live Approve.
   for (const b of board) {
-    if (!needsApproval(b, runsByRecipe)) continue;
+    if (b.held || b.status === 'HELD') continue;
+    const derived = b.provenance === 'derived' || b.runnable;
+    // isWaiting is authoritative — it already returns false once a run GATE-PASSES; an
+    // inconclusive-underpowered run keeps the item data-bound (that's the point).
+    if (!derived || !isWaiting(b, watches, runsByRecipe)) continue;
+    const { until, reason } = waitInfo(b, watches, runsByRecipe);
+    items.push({ kind: 'waiting', title: b.recipe_id || b.title, target: b.item_id,
+      reason: `waiting for data — ${reason}${until ? ` (revisit ${String(until).slice(0, 10)})` : ' (revisit ≈ never on owned data)'}` });
+  }
+  for (const b of board) {
+    if (!needsApproval(b, runsByRecipe, watches)) continue;
     // AGREE WITH THE BOARD: if the item is running/queued right now, it is being acted
     // on — show that state, unclickable (no action), never a stale "awaiting Approve".
     const fl = inFlightOf(b, flight);

@@ -123,6 +123,44 @@ describe('board decision → resolve API (gated-write intent)', () => {
     expect(onResolved).toHaveBeenCalledWith('V-015-TDF-2006', 'QUEUED');
   });
 
+  // ── DEF-018: a card whose paired data-accumulation watch says data-bound is WAITING ──
+  it('a data-bound re-test renders Waiting for data (with date), never a live Approve', () => {
+    const items = [{ item_id: 'D:V-015-DFC-FULL', type: 'new-search-surface', status: 'OPEN',
+      kind: 'Needs data', blocker: 'needs-data', provenance: 'derived', recipe_id: 'V-015-DFC-FULL',
+      approve_enabled: false, waiting: true, wait_until: '2035-10-19',
+      wait_reason: 'needs ~183 more obs (n≈380) ≈ 9.3y',
+      title: 'V-015-DFC-FULL powered re-test', version: 0, options: ['approve', 'hold'] }];
+    const runs = [{ recipe_id: 'V-015-DFC-FULL', result: { t: 1.44, n: 197, gate_pass: false, gate: {} },
+      disposition: 'inconclusive (underpowered, as tested)' }];
+    const watches = [{ id: 'watch:V-015-DFC-FULL', force_named: 'V-015-DFC-FULL', trigger: 'data-accumulation',
+      status: 'waiting', recheck_due: '2035-10-19', reason: 'needs ~183 more obs (n≈380) ≈ 9.3y' }];
+    render(<BoardQueue contract={{ resolve: vi.fn() }} items={items} onResolved={vi.fn()} runs={runs} watches={watches} />);
+    expect(screen.getByText('WAITING FOR DATA')).toBeTruthy();
+    expect(screen.getByText(/needs ~183 more obs/)).toBeTruthy();       // plain-words shortfall
+    expect(screen.getByText(/revisit 2035-10-19/)).toBeTruthy();        // the date
+    const waitBtn = screen.getByRole('button', { name: /Waiting for data/i });
+    expect(waitBtn.disabled).toBe(true);                                // never a live Approve
+    // it must NOT appear in the approvable queue nor call resolve
+    expect(screen.queryByRole('button', { name: /^Approve$/i })).toBeNull();
+  });
+
+  it('needsApproval + isWaiting: a data-accumulation watch parks a runnable re-test', async () => {
+    const { needsApproval, isWaiting, waitingWatch, indexRunsByRecipe } = await import('./runs.js');
+    // a derived re-test with NO run yet but a known data-accumulation watch on its mechanism
+    const item = { item_id: 'D:V-015-TDF-FULL', blocker: 'runnable-now', provenance: 'derived', recipe_id: 'V-015-TDF-FULL' };
+    const rbr = indexRunsByRecipe([]);   // no successful run
+    const watches = [{ id: 'watch:V-015-TDF-FULL', force_named: 'V-015-TDF-FULL', trigger: 'data-accumulation', status: 'waiting', recheck_due: '2050-02-18' }];
+    expect(needsApproval(item, rbr)).toBe(true);              // without watch context → approvable
+    expect(needsApproval(item, rbr, watches)).toBe(false);   // watch-aware → parked
+    expect(isWaiting(item, watches, rbr)).toBe(true);
+    expect(waitingWatch(item, watches, rbr).recheck_due).toBe('2050-02-18');   // matches across the D: prefix
+    // a data-accumulation watch on an UNRELATED recipe does not park it
+    expect(needsApproval(item, rbr, [{ force_named: 'OTHER', trigger: 'data-accumulation', status: 'waiting' }])).toBe(true);
+    // a run that GATE-PASSED closes the wait (a real success, not inconclusive)
+    const passed = indexRunsByRecipe([{ recipe_id: 'V-015-TDF-FULL', result: { t: 3.1, n: 400, gate_pass: true } }]);
+    expect(waitingWatch(item, watches, passed)).toBeNull();
+  });
+
   it('a non-enqueued resolve renders a NAMED outcome, never a silent no-op', async () => {
     // backstop: even if a resolve reaches the proxy and comes back not-enqueued, the card
     // shows the reason — it does not vanish.
