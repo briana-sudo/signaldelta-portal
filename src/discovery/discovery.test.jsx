@@ -1012,7 +1012,7 @@ describe('probe run states + queue', () => {
     expect(screen.getAllByText(/V-015/).length).toBeGreaterThan(0);
     expect(screen.getByText('1704 vs 7224')).toBeTruthy();     // live stage detail
     expect(screen.getByText(/Queue/)).toBeTruthy();
-    expect(screen.getByText('FAIL')).toBeTruthy();             // finished result gate outcome
+    expect(screen.getByText('below gate')).toBeTruthy();       // finished result gate outcome (honest wording, not "FAIL")
   });
 
   it('idle In-progress says so plainly', () => {

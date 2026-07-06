@@ -150,7 +150,7 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
               ) : (<>
                 <div className="rr-nums mono">
                   <span>edge {res.edge}%/day</span><span>t {res.t}</span><span>n {res.n}</span>
-                  <span className={`rr-gate ${res.gate_pass ? 'pass' : 'fail'}`}>gate {res.gate_pass ? 'PASS' : 'FAIL'}</span>
+                  <span className={`rr-gate ${res.gate_pass ? 'pass' : 'belowgate'}`}>gate {res.gate_pass ? 'PASS' : 'below gate'}</span>
                 </div>
                 <div className="rr-disp">{res.disposition}</div>
               </>)}

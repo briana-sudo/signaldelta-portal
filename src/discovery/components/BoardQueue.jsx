@@ -187,7 +187,9 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
               ? 'all flows null — surface concluded (killed as tested)'
               : comps.some((c) => (c.disposition || '').startsWith('retained'))
                 ? 'a flow survived — surface stays a candidate'
-                : 'components concluded (mixed / errors — re-approvable)'}</div>}
+                : comps.some(runErrored)
+                  ? 'a component errored (threw) — re-approvable'
+                  : 'concluded inconclusive (underpowered, as tested) — a powered re-test can resolve it'}</div>}
           </div>
         ) : (<>
           <div className="meta">{(it.meta || []).map((m, i) => <span key={i} className={/\$|\d/.test(m) ? 'mono' : ''}>{m}</span>)}</div>
