@@ -3,7 +3,7 @@
 // via /sm/probe/status), so a refresh survives. Read-only.
 import { useEffect, useState } from 'react';
 import ActionButton from './ActionButton.jsx';
-import { heartbeatAge, subProgress, isStalled } from '../runs.js';
+import { heartbeatAge, subProgress, isStalled, displayName } from '../runs.js';
 
 const STAGES = ['queued', 'validating recipe', 'resolving point-in-time universe', 'fetching data', 'building signal', 'computing', 'power-gate', 'result'];
 
@@ -94,7 +94,7 @@ function StageList({ run }) {
   );
 }
 
-export default function InProgress({ probe, lessons = [], onBank, onUnbank, onReject, onOpenRun, onCancel, attention = [], onAttentionAction }) {
+export default function InProgress({ probe, lessons = [], onBank, onUnbank, onReject, onOpenRun, onCancel, attention = [], onAttentionAction, board = [] }) {
   const running = probe?.running || null;
   const queue = probe?.queue || [];
   const done = probe?.done || [];
@@ -139,7 +139,7 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
         {running ? (
           <div className={`ip-run${isStalled(running) ? ' stalled' : ''}`}>
             <div className="ip-head">
-              <span className="src">{running.title || running.recipe_id}</span>
+              <span className="src">{displayName(running, board)}</span>
               {isStalled(running)
                 ? <span className="ip-badge stalled" title="no heartbeat past the stall threshold">STALLED</span>
                 : <span className="ip-badge running">RUNNING</span>}
@@ -165,7 +165,7 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
           <ol className="ip-queue">
             {queue.map((q, i) => (
               <li key={q.item_id}><span className="ip-qn mono">{i + 1}</span>
-                <button className="ip-link" onClick={() => open(q.item_id)}>{q.title || q.recipe_id}</button>
+                <button className="ip-link" onClick={() => open(q.item_id)}>{displayName(q, board)}</button>
                 <span className="ip-badge queued">QUEUED</span></li>
             ))}
           </ol>
@@ -194,7 +194,7 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
                 }
                 return (
                   <tr key={d.item_id}>
-                    <td className="src"><button className="ip-link" onClick={() => open(d.item_id)}>{d.title || d.recipe_id}</button></td>
+                    <td className="src"><button className="ip-link" onClick={() => open(d.item_id)}>{displayName(d, board)}</button></td>
                     <td className="mono">{r.edge_pct_per_day != null ? `${r.edge_pct_per_day}%` : '—'}</td>
                     <td className="mono">{r.t ?? '—'}</td>
                     <td className="mono">{r.n ?? '—'}</td>

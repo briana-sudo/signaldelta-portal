@@ -89,7 +89,7 @@ describe('board decision → resolve API (gated-write intent)', () => {
     const { container } = render(<BoardQueue contract={{ resolve: vi.fn() }} items={items} onResolved={vi.fn()} />);
     expect(container.querySelector('.prov-derived')).toBeTruthy();   // ⌥ derived badge
     expect(container.querySelector('.prov-combo')).toBeTruthy();     // ⋈ combine badge
-    expect(screen.getByText('tail variant of X')).toBeTruthy();  // no crash on absent meta/options
+    expect(screen.getByText(/tail variant of X/)).toBeTruthy();  // canonical name (+ parentage suffix); no crash on absent meta/options
   });
 
   // ── DEF-017: a disabled Approve ALWAYS says WHY inline; no silent/dead button ──
@@ -119,8 +119,7 @@ describe('board decision → resolve API (gated-write intent)', () => {
     fireEvent.click(btn);
     await waitFor(() => expect(resolve).toHaveBeenCalledWith(
       { gate_item_id: 'V-015-TDF-2006', decision: 'approve', gate_item_version: 1 }));
-    await waitFor(() => expect(screen.getByText(/queued — starting/i)).toBeTruthy());  // visible outcome
-    expect(onResolved).toHaveBeenCalledWith('V-015-TDF-2006', 'QUEUED');
+    await waitFor(() => expect(screen.getByText(/Approved → running as/i)).toBeTruthy());  // visible outcome, never silent
   });
 
   // ── DEF-018: a card whose paired data-accumulation watch says data-bound is WAITING ──
@@ -159,6 +158,40 @@ describe('board decision → resolve API (gated-write intent)', () => {
     // a run that GATE-PASSED closes the wait (a real success, not inconclusive)
     const passed = indexRunsByRecipe([{ recipe_id: 'V-015-TDF-FULL', result: { t: 3.1, n: 400, gate_pass: true } }]);
     expect(waitingWatch(item, watches, passed)).toBeNull();
+  });
+
+  // ── §1 canonical name: a run reads the SAME name as the card that was approved ──
+  it('displayName converges card and run onto one canonical name', async () => {
+    const { displayName } = await import('./runs.js');
+    const board = [
+      { item_id: 'V-015-TDF-2006', recipe_id: 'V-015-TDF-2006', title: 'TDF re-test — window 2006→2026' },
+      { item_id: 'new-search-surface:V-015', recipe_id: null, title: 'V-015 payment-cycle flows' },
+      { item_id: 'D:V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL', title: 'V-015-TDF-FULL powered re-test', provenance: 'derived', derived_from: 'V-015-TDF' },
+    ];
+    // the run for the approved single-recipe card reads the card's exact title
+    const run = { item_id: 'V-015-TDF-2006#V-015-TDF-2006', parent: 'V-015-TDF-2006', recipe_id: 'V-015-TDF-2006', title: 're-test on the 2006→now window' };
+    expect(displayName(run, board)).toBe('TDF re-test — window 2006→2026');   // NOT the recipe-name variant
+    // a multi-flow parent suffixes the flow so its sibling runs stay distinct
+    const tom = { item_id: 'new-search-surface:V-015#V-015-TOM', parent: 'new-search-surface:V-015', recipe_id: 'V-015-TOM' };
+    expect(displayName(tom, board)).toBe('V-015 payment-cycle flows · TOM');
+    // a derived item shows its parentage in one consistent format
+    expect(displayName(board[2], board)).toBe('V-015-TDF-FULL powered re-test · derived from V-015-TDF');
+    // an explicit stored display_name always wins
+    expect(displayName({ display_name: 'Canonical X', recipe_id: 'z' }, board)).toBe('Canonical X');
+  });
+
+  it('approving a runnable card does NOT vanish it — shows a running-as trace', async () => {
+    const resolve = vi.fn(async () => ({ resolved: true, enqueued: true, new_status: 'QUEUED' }));
+    const onResolved = vi.fn();
+    const items = [{ item_id: 'V-015-TDF-2006', type: 'probe', status: 'PENDING', kind: 'Runnable now',
+      blocker: 'runnable-now', approve_enabled: true, recipe_id: 'V-015-TDF-2006',
+      title: 'TDF re-test — window 2006→2026', version: 1, options: ['approve', 'hold'] }];
+    render(<BoardQueue contract={{ resolve }} items={items} onResolved={onResolved} runs={[]} watches={[]} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Approve$/i }));
+    // still on screen (never disappears in place), now showing where it went + as what name
+    await waitFor(() => expect(screen.getByText(/Approved → running as .*TDF re-test — window 2006→2026/)).toBeTruthy());
+    expect(screen.getByText('TDF re-test — window 2006→2026')).toBeTruthy();   // the card is still there
+    expect(onResolved).not.toHaveBeenCalled();   // status not flipped to a vanishing bucket
   });
 
   it('a non-enqueued resolve renders a NAMED outcome, never a silent no-op', async () => {

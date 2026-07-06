@@ -31,6 +31,34 @@ export function findRun(runs, id) {
   return (runs || []).find((r) => r.item_id === id) || null;
 }
 
+// ── ONE CANONICAL NAME PER ITEM (§1) ──────────────────────────────────────────
+// The single display name for a card OR a run, rendered by every surface (decision
+// card, queue row, Running now, Recent row, run report title). A run resolves to its
+// SOURCE CARD's name so the thing you approved and the thing that ran read identically;
+// a multi-flow parent suffixes the flow so its sibling runs stay distinct; a derived
+// item shows its parentage in one consistent format. No surface composes its own variant.
+const shortFlow = (rid) => String(rid || '').replace(/^D:/, '').replace(/^V-\d+-/, '') || String(rid || '');
+export function displayName(x, board = []) {
+  if (!x) return '';
+  if (x.display_name) return x.display_name;                     // a stored canonical name wins
+  const iid = String(x.item_id || '');
+  const rid = x.recipe_id || '';
+  const base = iid.split('#')[0];                                // 'D:V-015-TDF-FULL#…' → 'D:V-015-TDF-FULL'
+  const parent = x.parent || '';
+  const card = (board || []).find((b) => b.item_id === parent || b.item_id === base
+    || b.item_id === iid || (rid && b.recipe_id === rid));
+  if (card && card.title) {
+    // single-recipe card → its title IS the run's name; a multi-flow parent (card has a
+    // different/absent recipe_id) → suffix the flow so its runs read distinctly.
+    let name = (!rid || (card.recipe_id && card.recipe_id === rid))
+      ? card.title : `${card.title} · ${shortFlow(rid)}`;
+    if (card.provenance === 'derived' && card.derived_from && !/derived from/i.test(name))
+      name = `${name} · derived from ${card.derived_from}`;
+    return name;
+  }
+  return x.title || rid || base;                                 // fallback: no card found
+}
+
 // runs behind a coverage surface (for the map drill)
 export function runsForSurface(runs, surface) {
   return (runs || []).filter((r) => r.kind !== 'reterminus' && surfaceOf(r.parent || r.item_id) === surface);
@@ -369,13 +397,19 @@ export function rejudgeReason(surface, runs, lessons) {
   return null;
 }
 
-export function reportToMd(run, report) {
+export function reportToMd(run, report, name) {
   const r = report.result;
   const c = report.classification;
+  const canonical = name || run.display_name || run.recipe_id || run.item_id;
   const L = [];
-  L.push(`# Terminus report — ${run.recipe_id || run.item_id}`);
+  L.push(`# Terminus report — ${canonical}`);
   L.push('');
   L.push(`- status: ${run.status || '—'} · triggered: ${run.kind === 'reterminus' ? 'Re-evaluate' : 'Approve'}`);
+  // §2 lineage chain: card → approved → run → disposition → lesson
+  const lesson0 = (report.lessons && report.lessons[0]) || null;
+  L.push(`- lineage: card “${canonical}” → approved → ran as ${run.recipe_id || run.item_id}`
+    + ` → ${r.errored ? 'errored' : (r.disposition || '—')}`
+    + (lesson0 ? ` → lesson [${lesson0.status}]` : ''));
   L.push('');
   L.push('## 1. Result');
   if (r.errored) {

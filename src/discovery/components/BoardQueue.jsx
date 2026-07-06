@@ -8,7 +8,7 @@
 // EV / claim strength. Tier bands make the readiness at a glance.
 import { useState } from 'react';
 import { downloadMd, renderMd } from '../mdExport.js';
-import { rejudgeReason, surfaceOf, needsApproval, indexRunsByRecipe, runErrored, erroredReason, isWaiting, waitInfo } from '../runs.js';
+import { rejudgeReason, surfaceOf, needsApproval, indexRunsByRecipe, runErrored, erroredReason, isWaiting, waitInfo, displayName } from '../runs.js';
 
 const KIND_CLASS = { 'gated-option': 'k-gate', 'revalidation-due': 'k-reval', 'new-search-surface': 'k-new' };
 const PRIMARY_LABEL = {
@@ -37,6 +37,7 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
   const [held, setHeld] = useState({});             // item_id -> true (Hold visible feedback)
   const [reevaluating, setReevaluating] = useState({});  // item_id -> true (Re-evaluate queued)
   const [outcome, setOutcome] = useState({});       // item_id -> {kind, text} — EVERY click's visible result
+  const [approved, setApproved] = useState({});     // item_id -> canonical name (just-approved trace; never vanish)
   const runsByRecipe = indexRunsByRecipe(runs);
   const waits = (i) => isWaiting(i, watches, runsByRecipe);   // DEF-018: data-bound → waiting, no Approve
   // WAITING FOR DATA (DEF-018) — a derived re-test parked by a data-accumulation watch.
@@ -84,8 +85,13 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
     if (res.held) { setHeld((h) => ({ ...h, [item.item_id]: true })); return; }
     if (res.rejected) { setOutcome((o) => ({ ...o, [item.item_id]: { kind: 'error', text: res.reason || 'resolve rejected' } })); return; }
     if (res.enqueued) {                              // a real run was enqueued → running/queued
-      setOutcome((o) => ({ ...o, [item.item_id]: { kind: 'queued', text: 'queued — starting on the engine' } }));
-      onResolved(item.item_id, res.new_status || 'QUEUED');
+      // NOTHING VANISHES (§2): the card visibly transitions in place to a one-line trace
+      // ("Approved → running as <name> — see In progress") and stays put; the poll then
+      // shows it RUNNING via its components. We DELIBERATELY do not change status here
+      // (which would drop it from every bucket and make it disappear).
+      const nm = displayName(item, items);
+      setApproved((a) => ({ ...a, [item.item_id]: nm }));
+      setOutcome((o) => ({ ...o, [item.item_id]: { kind: 'queued', text: `Approved → running as “${nm}” — see In progress` } }));
       return;
     }
     if (res.runnable === false || res.blocker) {     // NOT runnable → a NAMED gate; keep the card VISIBLE (never vanish)
@@ -123,6 +129,8 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
     const gateLabel = { 'needs-data': 'Needs data', 'needs-build': 'Needs build',
       'needs-broker': 'Needs broker' }[it.tier || it.blocker] || 'Not runnable';
     const oc = outcome[it.item_id];
+    const justApproved = approved[it.item_id] && !active && !allDone;   // §2: transitioned, poll not caught up yet
+    const name = displayName(it, items);
     return (
       <div key={it.item_id} className={`item slidein${anyRunning ? ' running' : ''}`}>
         <div className="row1">
@@ -136,11 +144,12 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
             ? <span className="run-badge errored" title="a component run errored — not a completed result">ERRORED</span>
             : <span className="run-badge done">DONE</span>)}
           {isHeld && !active && <span className="run-badge held">HELD</span>}
+          {justApproved && <span className="run-badge queued">QUEUED</span>}
           <span className="mono" style={{ color: 'var(--fg-3)', fontSize: 11, marginLeft: 'auto' }}>{it.age}</span>
           <button className="exp-mini" title="Export this item to MD"
-                  onClick={() => downloadMd(`${it.item_id.replace(/[^a-z0-9]+/gi, '-')}.md`, it.title, renderMd(it))}>⤓ MD</button>
+                  onClick={() => downloadMd(`${it.item_id.replace(/[^a-z0-9]+/gi, '-')}.md`, name, renderMd(it))}>⤓ MD</button>
         </div>
-        <div className="ttl">{it.title}</div>
+        <div className="ttl">{name}</div>
 
         {comps.length > 0 ? (
           <div className="comp-states">
@@ -179,10 +188,10 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
         {/* the outcome of the last click on THIS card — a visible state change every time */}
         {oc && <div className={`approve-reason outcome-${oc.kind}`}>{oc.text}</div>}
         <div className="acts">
-          <button className="b b-pri" disabled={busy === it.item_id || active || isHeld || notRunnable}
+          <button className="b b-pri" disabled={busy === it.item_id || active || isHeld || notRunnable || justApproved}
                   title={notRunnable ? gateReason : undefined}
                   onClick={() => decide(it, 'approve')}>
-            {busy === it.item_id ? 'Working…' : anyRunning ? 'Running…' : anyQueued ? 'Queued'
+            {busy === it.item_id ? 'Working…' : anyRunning ? 'Running…' : anyQueued || justApproved ? 'Queued'
               : notRunnable ? gateLabel : erroredResurface ? 'Approve' : allDone ? 'Re-run' : (PRIMARY_LABEL[it.type] || 'Approve')}</button>
           {(it.options || []).includes('hold') && !active
             && <button className="b b-sec" disabled={isHeld} onClick={() => decide(it, 'reject')}>{isHeld ? 'Held' : 'Hold'}</button>}

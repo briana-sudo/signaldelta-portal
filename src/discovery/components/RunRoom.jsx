@@ -3,7 +3,7 @@
 // operator reads the engine's conclusions here; Bank/Reject the lesson inline where
 // the context is. Read + intent only — no graph write.
 import { useState } from 'react';
-import { composeReport, reportToMd, versionDiff, heartbeatAge, subProgress, isStalled } from '../runs.js';
+import { composeReport, reportToMd, versionDiff, heartbeatAge, subProgress, isStalled, displayName } from '../runs.js';
 import { downloadMd } from '../mdExport.js';
 import ActionButton from './ActionButton.jsx';
 
@@ -32,10 +32,21 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
   const rres = run.result || {};
   const isRJ = run.recipe_id === 'RETERMINUS' || run.kind === 'reterminus';
   const rjTarget = String(rres.target || '').split(':').pop() || String(run.title || '').replace(/^Re-?evaluate\s*/i, '');
-  const title = isRJ ? `Re-judge · ${rjTarget}` : (run.recipe_id || run.item_id);
+  // §1: the run report title is the SAME canonical name as the card that was approved.
+  const canonical = displayName(run, (slices && slices.board) || []);
+  const title = isRJ ? `Re-judge · ${rjTarget}` : canonical;
   const subtitle = isRJ ? 'Re-judge stored results — no data fetched'
     : `${res.window} · ${res.universe} names · triggered by Approve`;
   const concluded = String(run.status).toLowerCase() === 'done' && !isRunning;
+  // §2: the lineage chain — card → approved → run → disposition → lesson — so one glance
+  // answers "is this the thing I clicked?". Read-only (composed from the run + slices).
+  const lineageLesson = (report.lessons && report.lessons[0]) || null;
+  const lineage = [
+    `card: ${canonical}`,
+    `approved → ran as ${run.recipe_id || run.item_id}`,
+    concluded ? `→ ${res.errored ? 'errored' : (res.disposition || '—')}` : '→ in progress',
+    lineageLesson ? `→ lesson [${lineageLesson.status}]` : null,
+  ].filter(Boolean).join('  ');
 
   async function genDebrief() {
     if (!contract?.debrief) return;
@@ -52,6 +63,7 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
           <div>
             <div className="rr-title mono">{title}</div>
             <div className="rr-sub">{subtitle}</div>
+            {!isRJ && <div className="rr-lineage mono" title="card → approved → run → disposition → lesson">{lineage}</div>}
           </div>
           <span className={`rr-badge ${errored ? 'error' : isStalled(run) ? 'stalled' : String(run.status).toLowerCase()}`}>{errored ? 'ERROR' : isStalled(run) ? 'STALLED' : STATUS(run.status)}</span>
           {isRunning && onCancel && (
@@ -94,7 +106,7 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
           <div className="rr-report">
             <div className="rr-report-head">
               <h4>Run report</h4>
-              <button className="exp-mini" onClick={() => downloadMd(`${(run.recipe_id || 'run')}-report.md`, 'Run report', reportToMd(run, report))}>⤓ MD</button>
+              <button className="exp-mini" onClick={() => downloadMd(`${(run.recipe_id || 'run')}-report.md`, 'Run report', reportToMd(run, report, canonical))}>⤓ MD</button>
             </div>
 
             {/* RE-JUDGE report (no gate, no edge/t/n — it re-judged stored numbers) */}

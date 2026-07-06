@@ -224,7 +224,7 @@ export default function DiscoveryApp({ contract }) {
             <div className="stage-head"><div><h1>Board</h1>
               <div className="sub">Every pending gate, with the engine's recommendation and the priced fork. Approve / reject sends intent — the orchestrator resolves.</div></div></div>
           )}
-          {tab === 'In progress' && <InProgress probe={probe} lessons={lessons} onBank={onBankLesson} onUnbank={onUnbankLesson} onReject={onRejectLesson} onOpenRun={onOpenRun} onCancel={onCancelRun} attention={attention} onAttentionAction={onAttentionAction} />}
+          {tab === 'In progress' && <InProgress probe={probe} lessons={lessons} onBank={onBankLesson} onUnbank={onUnbankLesson} onReject={onRejectLesson} onOpenRun={onOpenRun} onCancel={onCancelRun} attention={attention} onAttentionAction={onAttentionAction} board={board} />}
           {tab === 'Timeline' && <TimelineView contract={client} onOpenRun={onOpenRun} />}
           {(tab === 'Coverage' || tab === 'Data needs') && <DataNeeds contract={client} gated={gated} onAskAssistant={askAssistant} resolutions={resolutions} />}
           {tab === 'Board' && (

@@ -226,6 +226,8 @@
 .wait-item{opacity:.92}
 .wait-item .b-pri:disabled{cursor:not-allowed}
 .attn-waiting .attn-title{color:var(--fg-3)}
+/* §2 lineage: card → approved → run → disposition → lesson (one glance = "is this what I clicked?") */
+.rr-lineage{color:var(--fg-3);font-size:11px;margin-top:3px;opacity:.85}
 /* candidate (survivor) pipeline S1–S6 */
 .rr-pipe-prog{margin-left:8px;color:#5EEAD4}
 .rr-stage-row{display:grid;grid-template-columns:26px 150px 52px 1fr;gap:8px;align-items:baseline;font-size:11px;padding:3px 0;border-top:1px solid var(--line-1)}
