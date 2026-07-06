@@ -205,6 +205,40 @@ describe('board decision → resolve API (gated-write intent)', () => {
     expect(originKey({})).toBe('origin-unrecorded');
   });
 
+  // ── family grouping: derived siblings collapse; top 1–2 shown, rest fold ──
+  it('groupFamilies collapses derived siblings by surface, ranks by ev', async () => {
+    const { groupFamilies } = await import('./runs.js');
+    const items = [
+      { item_id: 'plain', provenance: null },
+      { item_id: 'D1', provenance: 'derived', derived_from: 'V-015-TDF-FULL', ev: 0.2 },
+      { item_id: 'D2', provenance: 'derived', derived_from: 'V-015-DFC', ev: 0.9 },
+      { item_id: 'D3', provenance: 'derived', derived_from: 'V-015-TOM', ev: 0.5 },
+      { item_id: 'LONE', provenance: 'derived', derived_from: 'V-099-X', ev: 0.3 },   // no sibling
+    ];
+    const { families, loose } = groupFamilies(items);
+    expect(families.length).toBe(1);                       // all V-015-* → one family
+    const fam = families[0];
+    expect(fam.from).toBe('V-015');
+    expect(fam.members.map((m) => m.item_id)).toEqual(['D2', 'D3', 'D1']);   // ranked by ev
+    expect(fam.top.length).toBe(2);
+    expect(fam.rest.map((m) => m.item_id)).toEqual(['D1']);
+    expect(loose.map((i) => i.item_id).sort()).toEqual(['LONE', 'plain']);   // lone derived stays loose
+  });
+
+  it("'Needs your attention' shows a family line, not each waiting sibling", async () => {
+    const { computeAttention } = await import('./runs.js');
+    const board = [
+      { item_id: 'D:V-015-TDF-FULL', provenance: 'derived', derived_from: 'V-015-TDF', recipe_id: 'V-015-TDF-FULL', waiting: true, wait_until: '2050-02-18', wait_reason: 'r' },
+      { item_id: 'D:V-015-DFC-FULL', provenance: 'derived', derived_from: 'V-015-DFC', recipe_id: 'V-015-DFC-FULL', waiting: true, wait_until: '2035-10-19', wait_reason: 'r' },
+    ];
+    const attn = computeAttention({ board, watches: [] });
+    const waiting = attn.filter((a) => a.kind === 'waiting');
+    expect(waiting.length).toBe(1);                        // collapsed to ONE family line
+    expect(waiting[0].title).toBe('V-015 derivations');
+    expect(waiting[0].reason).toMatch(/2 data-bound re-tests waiting/);
+    expect(waiting[0].reason).toMatch(/soonest revisit 2035-10-19/);   // earliest of the two
+  });
+
   it('a non-enqueued resolve renders a NAMED outcome, never a silent no-op', async () => {
     // backstop: even if a resolve reaches the proxy and comes back not-enqueued, the card
     // shows the reason — it does not vanish.

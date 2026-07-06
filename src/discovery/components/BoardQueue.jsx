@@ -8,7 +8,7 @@
 // EV / claim strength. Tier bands make the readiness at a glance.
 import { useState } from 'react';
 import { downloadMd, renderMd } from '../mdExport.js';
-import { rejudgeReason, surfaceOf, needsApproval, indexRunsByRecipe, runErrored, erroredReason, isWaiting, waitInfo, displayName } from '../runs.js';
+import { rejudgeReason, surfaceOf, needsApproval, indexRunsByRecipe, runErrored, erroredReason, isWaiting, waitInfo, displayName, groupFamilies } from '../runs.js';
 
 const KIND_CLASS = { 'gated-option': 'k-gate', 'revalidation-due': 'k-reval', 'new-search-surface': 'k-new' };
 const PRIMARY_LABEL = {
@@ -38,18 +38,20 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
   const [reevaluating, setReevaluating] = useState({});  // item_id -> true (Re-evaluate queued)
   const [outcome, setOutcome] = useState({});       // item_id -> {kind, text} — EVERY click's visible result
   const [approved, setApproved] = useState({});     // item_id -> canonical name (just-approved trace; never vanish)
+  const [openFam, setOpenFam] = useState({});       // family key -> true (folded ranked list expanded)
   const runsByRecipe = indexRunsByRecipe(runs);
   const waits = (i) => isWaiting(i, watches, runsByRecipe);   // DEF-018: data-bound → waiting, no Approve
-  // WAITING FOR DATA (DEF-018) — a derived re-test parked by a data-accumulation watch.
-  // Rendered in its own honest section; NEVER a live Approve (re-running owned data can't help).
-  const waiting = items.filter(waits);
+  // FAMILY GROUPING: derived siblings collapse under one family card; only the top 1–2
+  // render, the rest fold. Everything else ('loose') renders in the normal buckets.
+  const { families, loose } = groupFamilies(items);
+  const waiting = loose.filter(waits);
   // APPROVABLE = PENDING, OR a runnable re-test the operator still owes a decision on
   // (no successful run yet). An errored run flips the item's status to OPEN, but it
   // must stay in the approve queue — errors never satisfy a recommendation. A data-bound
   // (waiting) item is excluded — its Approve cannot succeed.
-  const open = items.filter((i) => !waits(i) && (i.status === 'PENDING' || needsApproval(i, runsByRecipe, watches)));
-  const openItems = items.filter((i) => OPEN_STATES.includes(i.status) && !waits(i) && !needsApproval(i, runsByRecipe, watches));
-  const concluded = items.filter((i) => CONCLUDED_STATES.includes(i.status) && !waits(i));  // fully disposed
+  const open = loose.filter((i) => !waits(i) && (i.status === 'PENDING' || needsApproval(i, runsByRecipe, watches)));
+  const openItems = loose.filter((i) => OPEN_STATES.includes(i.status) && !waits(i) && !needsApproval(i, runsByRecipe, watches));
+  const concluded = loose.filter((i) => CONCLUDED_STATES.includes(i.status) && !waits(i));  // fully disposed
   const sorted = [...open].sort((a, b) =>
     (RANK[a.kind] ?? 9) - (RANK[b.kind] ?? 9) || evOf(b) - evOf(a));
   const other = sorted.filter((i) => RANK[i.kind] === undefined);
@@ -265,6 +267,39 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
     );
   };
 
+  // dispatch a single item to the right renderer by its live state
+  const renderOne = (it) => (waits(it) ? waitCard(it)
+    : (OPEN_STATES.includes(it.status) || CONCLUDED_STATES.includes(it.status)) && !needsApproval(it, runsByRecipe, watches)
+      ? disposedCard(it) : card(it));
+
+  // FAMILY CARD: derived siblings under one header — the top 1–2 render in full, the rest
+  // fold as a ranked list (name · ev · state). Declutters a wall of near-duplicate probes.
+  const famStateWord = (m) => (waits(m) ? '⏳ waiting'
+    : CONCLUDED_STATES.includes(m.status) || m.disposition ? 'concluded'
+      : m.approve_enabled ? 'runnable' : (m.tier || 'surfaced'));
+  const familyCard = (fam) => (
+    <div key={`fam-${fam.key}`} className="tier-group family-group">
+      <div className="tier-band tb-family">
+        <span className="tb-label">⛓ {fam.from} DERIVATIONS</span>
+        <span className="tb-note">derived siblings — top {fam.top.length} shown, {fam.rest.length} folded</span>
+        <span className="tb-count mono">{fam.members.length}</span>
+      </div>
+      {fam.top.map(renderOne)}
+      {fam.rest.length > 0 && (
+        <div className="fam-rest">
+          <button className="b b-ghost fam-toggle" onClick={() => setOpenFam((o) => ({ ...o, [fam.key]: !o[fam.key] }))}>
+            {openFam[fam.key] ? '▾ hide' : `▸ ${fam.rest.length} more (ranked)`}</button>
+          {openFam[fam.key]
+            ? fam.rest.map(renderOne)
+            : <ol className="fam-ranked">{fam.rest.map((m) => (
+                <li key={m.item_id}><button className="ip-link" onClick={() => openRun(m.item_id)}>{displayName(m, items)}</button>
+                  <span className="ev-chip mono">EV {typeof m.ev === 'number' ? m.ev.toFixed(2) : '—'}</span>
+                  <span className="fam-state">{famStateWord(m)}</span></li>))}</ol>}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <>
       <div className="rail-sec">
@@ -293,6 +328,7 @@ export default function BoardQueue({ contract, items, onResolved, probe, onOpenR
             {other.map(card)}
           </div>
         )}
+        {families.map(familyCard)}
         {waiting.length > 0 && (
           <div className="tier-group">
             <div className="tier-band tb-wait">

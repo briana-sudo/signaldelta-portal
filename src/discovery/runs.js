@@ -45,6 +45,31 @@ const ORIGIN_WORDS = {
 export const originKey = (x) => (x && x.initiated_by) || 'origin-unrecorded';
 export const startedBy = (x) => ORIGIN_WORDS[originKey(x)] || 'unrecorded';
 
+// ── FAMILY GROUPING: derived siblings collapse under one family card ──────────
+// Derived items that share a surface (surfaceOf(derived_from)) are SIBLINGS. They
+// collapse under one family card so the board isn't a wall of near-duplicate probes:
+// only the engine's top-ranked 1–2 (by ev) render as full cards; the rest fold as a
+// ranked list. A lone derived item (no siblings) is NOT a family — it renders normally.
+export function groupFamilies(items = []) {
+  const byFam = {};
+  for (const it of items) {
+    if (it.provenance !== 'derived' || !it.derived_from) continue;
+    const key = surfaceOf(it.derived_from);
+    (byFam[key] || (byFam[key] = [])).push(it);
+  }
+  const families = [];
+  const grouped = new Set();
+  for (const [key, members] of Object.entries(byFam)) {
+    if (members.length < 2) continue;                          // needs ≥2 to be a family
+    members.sort((a, b) => (b.ev || 0) - (a.ev || 0));         // the engine's rank
+    members.forEach((m) => grouped.add(m.item_id));
+    families.push({ key, from: key, members, top: members.slice(0, 2), rest: members.slice(2) });
+  }
+  families.sort((a, b) => (b.top[0]?.ev || 0) - (a.top[0]?.ev || 0));
+  const loose = items.filter((i) => !grouped.has(i.item_id));
+  return { families, loose };
+}
+
 // ── ONE CANONICAL NAME PER ITEM (§1) ──────────────────────────────────────────
 // The single display name for a card OR a run, rendered by every surface (decision
 // card, queue row, Running now, Recent row, run report title). A run resolves to its
@@ -339,16 +364,28 @@ export function computeAttention({ runs = [], board = [], lessons = [], probe = 
   //    — an errored run flips the item to OPEN, and it must still surface here.
   const runsByRecipe = indexRunsByRecipe(runs);
   // 2a. WAITING FOR DATA (DEF-018) — a derived re-test parked by a paired data-accumulation
-  //     watch. Honestly shaped: shows the shortfall + revisit date, NOT a live Approve.
-  for (const b of board) {
-    if (b.held || b.status === 'HELD') continue;
-    const derived = b.provenance === 'derived' || b.runnable;
-    // isWaiting is authoritative — it already returns false once a run GATE-PASSES; an
-    // inconclusive-underpowered run keeps the item data-bound (that's the point).
-    if (!derived || !isWaiting(b, watches, runsByRecipe)) continue;
-    const { until, reason } = waitInfo(b, watches, runsByRecipe);
-    items.push({ kind: 'waiting', title: b.recipe_id || b.title, target: b.item_id,
-      reason: `waiting for data — ${reason}${until ? ` (revisit ${String(until).slice(0, 10)})` : ' (revisit ≈ never on owned data)'}` });
+  //     watch. Honestly shaped: shortfall + revisit date, NOT a live Approve. Derived
+  //     SIBLINGS collapse into ONE family line (attention shows families, not siblings).
+  const waitingItems = board.filter((b) => !(b.held || b.status === 'HELD')
+    && (b.provenance === 'derived' || b.runnable)
+    && isWaiting(b, watches, runsByRecipe));   // isWaiting: false once a run GATE-PASSES
+  const waitFams = {};
+  for (const b of waitingItems) {
+    const fam = (b.provenance === 'derived' && b.derived_from) ? surfaceOf(b.derived_from) : b.item_id;
+    (waitFams[fam] || (waitFams[fam] = [])).push(b);
+  }
+  for (const [fam, members] of Object.entries(waitFams)) {
+    if (members.length === 1) {
+      const b = members[0];
+      const { until, reason } = waitInfo(b, watches, runsByRecipe);
+      items.push({ kind: 'waiting', title: b.recipe_id || b.title, target: b.item_id,
+        reason: `waiting for data — ${reason}${until ? ` (revisit ${String(until).slice(0, 10)})` : ' (revisit ≈ never on owned data)'}` });
+    } else {
+      const dated = members.map((b) => waitInfo(b, watches, runsByRecipe)).filter((w) => w.until)
+        .sort((a, b) => String(a.until).localeCompare(String(b.until)));
+      items.push({ kind: 'waiting', title: `${fam} derivations`, target: members[0].item_id,
+        reason: `${members.length} data-bound re-tests waiting${dated[0] ? ` — soonest revisit ${String(dated[0].until).slice(0, 10)}` : ' — revisit ≈ never on owned data'}` });
+    }
   }
   for (const b of board) {
     if (!needsApproval(b, runsByRecipe, watches)) continue;
