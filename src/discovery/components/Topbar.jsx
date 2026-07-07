@@ -9,6 +9,7 @@
 // Both control the SERVICE only; the research firewall is unchanged.
 import { useState } from 'react';
 import logoMark from '../assets/logo-mark.svg';
+import { smTrace } from '../api/contract.js';   // DEF-030 freeze: read-only hop trace
 
 const TABS = ['Coverage', 'Board', 'In progress', 'Timeline', 'Data needs'];
 
@@ -80,7 +81,10 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
   // the live trading engine. Amber-guarded to make the "reload the worker" intent explicit.
   const engStale = !!engineCommit?.stale;
   function engineRestartClick() {
-    if (window.confirm('Restart the DISCOVERY engine to load the latest code? Research pauses for a few seconds, then resumes. (This does not touch live trading — it can only reach the discovery service.)')) {
+    smTrace(`engine-restart:click:status=${st}`);       // hop 1 — the click reached the handler
+    const ok = window.confirm('Restart the DISCOVERY engine to load the latest code? Research pauses for a few seconds, then resumes. (This does not touch live trading — it can only reach the discovery service.)');
+    smTrace(`engine-restart:confirm=${ok}`);             // hop 2 — did confirm return true (or get swallowed)?
+    if (ok) {
       onEngineRestart && onEngineRestart();
     }
   }

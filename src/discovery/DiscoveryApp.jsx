@@ -4,7 +4,7 @@
 // READS and SENDS INTENT; it never writes the graph, holds a credential, or
 // references the trading engine.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { makeContract } from './api/contract.js';
+import { makeContract, smTrace } from './api/contract.js';
 import Topbar from './components/Topbar.jsx';
 import CoverageMap from './components/CoverageMap.jsx';
 import BoardQueue from './components/BoardQueue.jsx';
@@ -159,12 +159,15 @@ export default function DiscoveryApp({ contract }) {
   // DEF-030 verify-or-refuse: the server confirms the worker re-spawned + advanced to HEAD.
   // If it didn't (ok:false), render a PERSISTENT named refusal — never a silent no-op.
   async function onEngineRestart() {
+    smTrace('engine-restart:handler-entry');        // hop 3 — onEngineRestart actually ran
     setEngineErr(null); setEngine('restarting');
     let r;
     try { r = await client.engineRestart(); } catch (e) { r = { ok: false, reason: String(e && e.message || e) }; }
+    smTrace(`engine-restart:result:ok=${r && r.ok}:hop=${r && r.hop}`);   // hop 6 — what came back
     if (r && r.ok === false) {
       setEngineErr(`${r.hop ? `[${r.hop}] ` : ''}${r.reason || r.error || 'restart did not verify'}`);
       setEngine('unknown');                       // the poll re-reads the real status
+      smTrace('engine-restart:refusal-rendered');   // hop 7 — the persistent refusal was set
     }
     // ok:true → the commit chip poll confirms the worker advanced; no error to show
   }

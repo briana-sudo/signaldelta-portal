@@ -126,6 +126,22 @@ async function get(path) {
   return res.json();
 }
 
+// ── DEF-030 FREEZE INSTRUMENTATION — read-only, non-behavioral ────────────────────────────
+// Beacons each browser hop of the restart chain to an EXISTING GET endpoint with a ?smtrace=
+// marker, so the sequence lands in the proxy access log via the KNOWN-WORKING GET lane. This
+// isolates a POST-path fault (if the beacons arrive but POST /sm/engine/restart doesn't) from
+// a handler-never-ran fault (if no beacon arrives at all). Mirrors to the console for devtools.
+// It must NEVER change behavior — every path is guarded and the beacon is fire-and-forget.
+export function smTrace(event) {
+  try {
+    // eslint-disable-next-line no-console
+    console.log('[SM-TRACE]', new Date().toISOString(), event);
+    if (!PROXY) return;
+    fetch(`${PROXY}/sm/engine/status?smtrace=${encodeURIComponent(event)}`,
+          { headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}, keepalive: true }).catch(() => {});
+  } catch { /* trace is inert — never affects the click path */ }
+}
+
 // HONEST failure wording (DEF-023): post/get throw `path → <status>` when the proxy
 // RESPONDED (it is reachable — it returned an error); a genuine network failure throws a
 // TypeError with no status. Never say 'unreachable' for a proxy-side error — that lies to
@@ -459,7 +475,12 @@ function liveContract() {
     // Restart the DISCOVERY engine (loads current code). Proxy path is hard-pinned to
     // SignalDeltaDiscovery — it can never touch SignalDeltaEngine (trading). The server
     // returns {ok, hop, reason, old_pid→new_pid}; a transport failure is a named refusal.
-    async engineRestart() { return post('/sm/engine/restart', {}).catch((e) => { const f = failReason(e, 'restart the discovery engine'); return { ok: false, hop: 'transport', reason: f.reason, error: f.reason, unreachable: f.unreachable }; }); },
+    async engineRestart() {
+      smTrace('engine-restart:fetch-send');
+      return post('/sm/engine/restart', {})
+        .then((r) => { smTrace(`engine-restart:fetch-resolved:ok=${r && r.ok}:hop=${r && r.hop}`); return r; })
+        .catch((e) => { const f = failReason(e, 'restart the discovery engine'); smTrace(`engine-restart:fetch-throw:${String(e && e.message || e).slice(0, 60)}`); return { ok: false, hop: 'transport', reason: f.reason, error: f.reason, unreachable: f.unreachable }; });
+    },
     // PROXY POWER SWITCH — /sm/proxy/*. The proxy can't verify its OWN return-to-running
     // (it dies mid-restart), so the server reports DISPATCH; the commit chip poll verifies
     // completion. A transport failure is 'dispatch-failed' with the named hop, never a fake.
