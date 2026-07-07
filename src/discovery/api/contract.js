@@ -168,7 +168,9 @@ function mockContract() {
     },
     async engineStart() { engine.state = 'starting'; engine.since = now(); return { action: 'start', status: engine.state }; },
     async engineStop() { engine.state = 'stopping'; engine.since = now(); return { action: 'stop', status: engine.state }; },
-    async engineRestart() { engine.state = 'starting'; engine.since = now(); return { action: 'restart', status: 'restarting', service: 'SignalDeltaDiscovery' }; },
+    // mock simulates a VERIFIED cycle (ok:true + a new pid) — the same shape the live
+    // server returns, so the frontend's ok-check works identically in mock mode.
+    async engineRestart() { engine.state = 'running'; engine.since = now(); return { ok: true, action: 'restart', status: 'running', service: 'SignalDeltaDiscovery', old_pid: 1000, new_pid: 1001 }; },
     // PROXY POWER SWITCH (controls the SignalDeltaProxy service; restart-after-deploy)
     async proxyStatus() {
       if (proxy.state === 'restarting' && now() - proxy.since > 1500) { proxy.state = 'running'; proxy.commit = proxy.tree; }
@@ -448,23 +450,27 @@ function liveContract() {
     async unbankLesson(id) { return post('/sm/lesson/unbank', { lesson_id: id }).catch(() => ({ status: 'error' })); },
     async rejectLesson(id) { return post('/sm/lesson/reject', { lesson_id: id }).catch(() => ({ status: 'error' })); },
     async proposeLesson(text, source) { return post('/sm/lesson/propose', { text, source }).catch(() => ({ status: 'error' })); },
-    // ENGINE POWER SWITCH -> /sm/engine/* (falls back to the mock state machine)
-    async engineStatus() { return get('/sm/engine/status').catch(() => file.engineStatus()); },
-    async engineStart() { return post('/sm/engine/start', {}).catch(() => file.engineStart()); },
-    async engineStop() { return post('/sm/engine/stop', {}).catch(() => file.engineStop()); },
+    // ENGINE POWER SWITCH -> /sm/engine/*. DEF-030 verify-or-refuse: a LIVE state-changing
+    // call NEVER falls back to the mock (that would masquerade a failure as success). On a
+    // transport failure it surfaces the named hop; the server already verifies the effect.
+    async engineStatus() { return get('/sm/engine/status').catch(() => ({ status: 'unreachable' })); },
+    async engineStart() { return post('/sm/engine/start', {}).catch((e) => ({ ok: false, status: 'unreachable', ...failReason(e, 'start the discovery engine') })); },
+    async engineStop() { return post('/sm/engine/stop', {}).catch((e) => ({ ok: false, status: 'unreachable', ...failReason(e, 'stop the discovery engine') })); },
     // Restart the DISCOVERY engine (loads current code). Proxy path is hard-pinned to
-    // SignalDeltaDiscovery — it can never touch SignalDeltaEngine (trading).
-    async engineRestart() { return post('/sm/engine/restart', {}).catch(() => file.engineRestart()); },
-    // PROXY POWER SWITCH — /sm/proxy/*. During a restart the surface is briefly down,
-    // so an unreachable status reads as 'restarting' (the app polls until 'running').
+    // SignalDeltaDiscovery — it can never touch SignalDeltaEngine (trading). The server
+    // returns {ok, hop, reason, old_pid→new_pid}; a transport failure is a named refusal.
+    async engineRestart() { return post('/sm/engine/restart', {}).catch((e) => { const f = failReason(e, 'restart the discovery engine'); return { ok: false, hop: 'transport', reason: f.reason, error: f.reason, unreachable: f.unreachable }; }); },
+    // PROXY POWER SWITCH — /sm/proxy/*. The proxy can't verify its OWN return-to-running
+    // (it dies mid-restart), so the server reports DISPATCH; the commit chip poll verifies
+    // completion. A transport failure is 'dispatch-failed' with the named hop, never a fake.
     async proxyStatus() { return get('/sm/proxy/status').catch(() => ({ status: 'unreachable' })); },
-    async proxyRestart() { return post('/sm/proxy/restart', {}).catch(() => ({ action: 'restart', status: 'restarting' })); },
-    // Update & restart; if the running proxy predates this endpoint (404), fall back
-    // to a plain restart — which still picks up the committed local tree, after which
-    // update-restart exists. Either way the running_commit reflects the new code.
+    async proxyRestart() { return post('/sm/proxy/restart', {}).catch((e) => ({ status: 'dispatch-failed', ...failReason(e, 'restart the proxy') })); },
+    // Update & restart; if the running proxy predates this endpoint (404) fall back to a
+    // REAL plain restart (not a fabricated success). If THAT also fails, refuse by hop.
     async proxyUpdateRestart() {
       const r = await post('/sm/proxy/update-restart', {}).catch(() => null);
-      return r || post('/sm/proxy/restart', {}).catch(() => ({ action: 'restart', status: 'restarting' }));
+      if (r) return r;
+      return post('/sm/proxy/restart', {}).catch((e) => ({ status: 'dispatch-failed', ...failReason(e, 'update & restart the proxy') }));
     },
   };
 }

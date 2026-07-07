@@ -656,11 +656,38 @@ describe('engine power switch button', () => {
               engineCommit={{ running_commit: 'abc1234', tree_commit: 'def5678', stale: true }} />);
     expect(screen.getByText(/engine abc1234 · reload/i)).toBeTruthy();
   });
-  it('contract engineRestart hits /sm/engine/restart (mock returns restarting)', async () => {
+  it('contract engineRestart returns a VERIFIED shape (ok + new pid), pinned to discovery', async () => {
     const c = makeContract('mock');
     const r = await c.engineRestart();
-    expect(r.status).toBe('restarting');
+    expect(r.ok).toBe(true);                          // DEF-030: verify shape, not bare 'restarting'
+    expect(r.new_pid).toBeTruthy();
     expect(r.service).toBe('SignalDeltaDiscovery');   // pinned to discovery, never trading
+  });
+
+  it('a restart that did not verify renders a PERSISTENT named refusal (DEF-030)', () => {
+    render(<Topbar tab="Coverage" setTab={noop} cellsMapped={0} engineStatus="running" onStart={noop} onStop={noop}
+                   engineErr="[cycle] service reports RUNNING but the worker pid is still 42096 — it did not re-spawn" />);
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toMatch(/restart failed/i);
+    expect(alert.textContent).toMatch(/did not re-spawn/i);   // the named hop/reason, persistent
+  });
+});
+
+// ── DEF-030: the standing rule enforced statically — no live state-change masks as success ──
+describe('verify-or-refuse standing rule', () => {
+  it('the LIVE adapter never falls back to the mock (or fabricates success) on a state change', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync('src/discovery/api/contract.js', 'utf8');   // cwd = portal root
+    const live = src.slice(src.indexOf('function liveContract'));
+    // no live state-changing call may .catch into the mock/file adapter…
+    for (const m of ['file.engineStart', 'file.engineStop', 'file.engineRestart']) {
+      expect(live.includes(m)).toBe(false);
+    }
+    // …and none may fabricate a 'restarting'/success inside a catch
+    expect(/catch\([^)]*\)\s*=>\s*\(\{[^}]*status:\s*['"]restarting['"]/.test(live)).toBe(false);
+    // the honest replacements are present (dispatch-failed + failReason surfacing)
+    expect(live.includes('dispatch-failed')).toBe(true);
+    expect(live.includes('failReason')).toBe(true);
   });
 });
 
@@ -1012,11 +1039,13 @@ describe('proxy control button', () => {
     expect((await c.proxyStatus()).status).toBe('restarting');
   });
 
-  it('live contract: proxy control degrades gracefully when unreachable', async () => {
+  it('live contract: proxy control REFUSES honestly when unreachable (DEF-030)', async () => {
     const c = makeContract('live');                     // fetch fails in jsdom
     const r = await c.proxyStatus();
     expect(typeof r.status).toBe('string');              // never throws — 'unreachable' fallback
-    expect((await c.proxyRestart()).status).toBe('restarting');
+    const rr = await c.proxyRestart();
+    expect(rr.status).toBe('dispatch-failed');           // NOT a fabricated 'restarting'
+    expect(rr.reason).toBeTruthy();                      // names the failing hop
   });
 });
 

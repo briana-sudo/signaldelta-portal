@@ -530,7 +530,7 @@
 .rr-dbcost{margin-top:8px;font-size:10px;color:var(--fg-3)}
 
 /* LOUD update-step failure — a silent no-op update is forbidden (DEF-016) */
-.proxy-update-err{color:#f7768e;font-size:11px;max-width:340px;overflow:hidden;
+.proxy-update-err,.engine-restart-err{color:#f7768e;font-size:11px;max-width:340px;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap;border:1px solid #f7768e;border-radius:5px;
   padding:3px 7px;background:rgba(247,118,142,.08)}
 

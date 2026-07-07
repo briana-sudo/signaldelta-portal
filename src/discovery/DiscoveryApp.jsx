@@ -31,6 +31,7 @@ export default function DiscoveryApp({ contract }) {
   const [proxyCommit, setProxyCommit] = useState({});     // {running_commit, tree_commit, stale}
   const [engineCommit, setEngineCommit] = useState({});   // {running_commit, tree_commit, stale} — the DISCOVERY worker
   const [proxyErr, setProxyErr] = useState(null);         // loud update-step failure (never silent)
+  const [engineErr, setEngineErr] = useState(null);       // DEF-030: persistent named refusal if a restart didn't verify
   const [bundle, setBundle] = useState({ id: BUILD_ID, stale: false });  // served vs latest Pages deploy
   const [costingQ, setCostingQ] = useState(null);    // a costing question handed to the assistant
   const [resolutions, setResolutions] = useState({}); // surface_id -> operator's recorded answer
@@ -155,7 +156,18 @@ export default function DiscoveryApp({ contract }) {
   }
   async function onStart() { const r = await client.engineStart(); setEngine(r.status); }
   async function onStop() { const r = await client.engineStop(); setEngine(r.status); }
-  async function onEngineRestart() { setEngine('restarting'); try { await client.engineRestart(); } catch { /* poll tracks recovery */ } }
+  // DEF-030 verify-or-refuse: the server confirms the worker re-spawned + advanced to HEAD.
+  // If it didn't (ok:false), render a PERSISTENT named refusal — never a silent no-op.
+  async function onEngineRestart() {
+    setEngineErr(null); setEngine('restarting');
+    let r;
+    try { r = await client.engineRestart(); } catch (e) { r = { ok: false, reason: String(e && e.message || e) }; }
+    if (r && r.ok === false) {
+      setEngineErr(`${r.hop ? `[${r.hop}] ` : ''}${r.reason || r.error || 'restart did not verify'}`);
+      setEngine('unknown');                       // the poll re-reads the real status
+    }
+    // ok:true → the commit chip poll confirms the worker advanced; no error to show
+  }
   // Part C — the worker hands a judgment call to the assistant panel; the operator's
   // answer is recorded back to the card. No spend at any point.
   const askAssistant = (surface_id, surface, question) => setCostingQ({ surface_id, surface, question });
@@ -195,7 +207,7 @@ export default function DiscoveryApp({ contract }) {
   return (
     <div className="app">
       <Topbar tab={tab} setTab={setTab} cellsMapped={state.cells_mapped || 0}
-              engineStatus={engine} onStart={onStart} onStop={onStop} onEngineRestart={onEngineRestart} engineCommit={engineCommit}
+              engineStatus={engine} onStart={onStart} onStop={onStop} onEngineRestart={onEngineRestart} engineCommit={engineCommit} engineErr={engineErr}
               proxyStatus={proxy} proxyHelperBacked={proxyHelper} onProxyRestart={onProxyRestart}
               proxyCommit={proxyCommit} onProxyUpdateRestart={onProxyUpdateRestart} proxyErr={proxyErr} bundle={bundle} />
       <div className="main">

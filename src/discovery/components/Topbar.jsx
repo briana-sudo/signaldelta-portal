@@ -64,7 +64,7 @@ const PLABEL = {
   unreachable: 'Proxy — unreachable', unknown: 'Proxy — unknown',
 };
 
-export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart, onStop, onEngineRestart, engineCommit,
+export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart, onStop, onEngineRestart, engineCommit, engineErr,
                                 proxyStatus, proxyHelperBacked, onProxyRestart, proxyCommit, onProxyUpdateRestart, proxyErr, bundle }) {
   const st = engineStatus || 'unknown';
   const clickable = st === 'running' || st === 'stopped';
@@ -180,6 +180,11 @@ export default function Topbar({ tab, setTab, cellsMapped, engineStatus, onStart
               title="Restart the DISCOVERY engine to load the latest code (pauses research a few seconds). Cannot touch live trading.">
         ⟳ Restart discovery engine{engStale ? ' ⚠' : ''}
       </button>
+      {/* DEF-030: a restart that did not verify shows a PERSISTENT named reason — never a
+          silent no-op. It stays until the next press clears it. */}
+      {engineErr && (
+        <span className="engine-restart-err" role="alert" title={engineErr}>⚠ restart failed — {engineErr}</span>
+      )}
     </div>
   );
 }
