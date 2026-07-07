@@ -80,9 +80,15 @@ export function groupFamilies(items = [], isApprovable = () => false) {
 // owned-data re-test that maps to a real windowed recipe.
 export function askKey(text) {
   const t = String(text || '').toLowerCase();
-  if (/peak|off-peak|sub-calendar|split/.test(t)) return 'peak-split';
+  // DEF-029: no spurious keyword matches. A pooling/composite ask is its OWN class (a build,
+  // never a window re-test) — checked FIRST so a phrase like "payment-cycle windows are
+  // stacked into one combined run" can no longer fall through to 'window-extend'.
+  if (/\bpool\b|composite|\bcombine\b|\bstack(ed|ing)?\b|\bmerge\b/.test(t)) return 'composite';
+  if (/off-peak|\bpeak\b|sub-calendar/.test(t)) return 'peak-split';       // calendar split only — NOT a bare 'split'
   if (/placebo|permut|shuffle|randomi[sz]/.test(t)) return 'placebo';
-  if (/window|extend|longer history|more years|full history/.test(t)) return 'window-extend';
+  // window-extend requires an EXPLICIT extension of the window/history — not the bare word
+  // 'window(s)'. So only a genuine "extend the window / longer history / back to 2006" binds.
+  if (/\bextend\b|longer history|more years|full history|window to|back to \d{4}|to (19|20)\d\d/.test(t)) return 'window-extend';
   if (/combin|orthogonal partner|pair with/.test(t)) return 'combination';
   if (/\bbuy\b|purchase|vendor|subscribe|\$\d/.test(t)) return `purchase-${t.replace(/[^a-z0-9]+/g, '-').slice(0, 20)}`;
   return `ask-${t.replace(/[^a-z0-9]+/g, '-').slice(0, 32)}`;

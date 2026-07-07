@@ -247,6 +247,9 @@
 .rr-sg-text{flex:1;color:var(--fg-2)}
 .rr-sg-done{color:var(--success);font-size:11px}
 .rr-sg-btn{padding:2px 8px;font-size:11px}
+/* DEF-029: a blocked Create-card renders a PERSISTENT named reason inline — never a toast */
+.rr-sg-err{flex-basis:100%;color:var(--danger,#e5484d);font-size:11px;padding:2px 0 4px 70px;line-height:1.4}
+.rr-debrief-mismatch{color:var(--danger,#e5484d);font-size:12px;padding:6px 0;line-height:1.5}
 /* DEF-019 provenance: who pressed go — a recorded fact, rendered plain everywhere */
 .origin-chip{font-size:10px;padding:1px 6px;border-radius:8px;margin-left:6px;white-space:nowrap;
   background:color-mix(in srgb,var(--fg-3) 12%,transparent);color:var(--fg-3)}

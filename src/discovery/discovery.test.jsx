@@ -473,6 +473,34 @@ describe('operator debrief', () => {
     expect(db.reporter).not.toMatch(/1\.09/);                                 // never fabricates the old t
     expect(db.reporter).toMatch(/0\.01/);                                     // quotes THIS run's t
   });
+
+  // ── DEF-029: no spurious recipe binding + persistent refusal ──────────────────
+  it('Glint 2’s pooled/composite ask can no longer bind the window-extension recipe', async () => {
+    const { askKey, debriefSuggestions } = await import('./runs.js');
+    const g2 = 'pool TOM + TDF quarter-end events into one combined V-015-COMPOSITE run; all '
+             + 'payment-cycle windows are stacked into a single event series; no new data.';
+    expect(askKey(g2)).toBe('composite');                                     // NOT 'window-extend'
+    const sugg = debriefSuggestions({ glints: [g2] }, { run: { item_id: 'r', recipe_id: 'V-015-TOM-FULL' }, board: [] });
+    const s = sugg.find((x) => x.asks.some((a) => /composite|pool/i.test(a.text)));
+    expect(s.recipe_ref).toBeNull();                                         // no recipe binding
+    expect(s.tier_hint).toBe('build');                                       // tiers as a build proposal
+    // a GENUINE window-extension ask still binds (the faithful case is unharmed)
+    expect(askKey('extend the window back to 2006 for power')).toBe('window-extend');
+  });
+
+  it('a blocked Create-card renders a PERSISTENT named reason, not a vanishing toast', async () => {
+    const run = { item_id: 'V-015-TOM-FULL#x', recipe_id: 'V-015-TOM-FULL', status: 'done', parent: 'V-015-TOM-FULL',
+      progress: [], result: { t: 0.49, n: 479, edge_pct_per_day: 0.0342, gate_pass: false, disposition: 'killed', window: ['a', 'b'], universe: 24 },
+      debrief: { run_id: 'V-015-TOM-FULL#x', grounded: { run_id: 'V-015-TOM-FULL#x', t: 0.49 },
+        reporter: 'r', strategist: '', skeptic: '', prospector: 'GLINTS:\n- split off-peak days (sub-calendar)',
+        sparks: [], glints: ['split off-peak days (sub-calendar)'] } };
+    const createCard = vi.fn().mockResolvedValue({ error: 'create card failed — the proxy returned 500 (it IS reachable; check the proxy log)' });
+    render(<RunRoom run={run} slices={{ board: [] }} contract={{ createCard }} onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Create card/i }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toMatch(/proxy returned 500/);                  // the NAMED reason
+    expect(screen.getByRole('alert')).toBeTruthy();                          // persists — not a toast
+  });
 });
 
 // --- ANALYST vision: images go through the proxy, never a key in the client -----

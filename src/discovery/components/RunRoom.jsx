@@ -29,6 +29,7 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
   useEffect(() => { setDb(readDebrief(run.debrief)); }, [run.item_id]);
   const [spawned, setSpawned] = useState({});        // ask key -> {item_id, tier} (card this debrief spawned)
   const [sgBusy, setSgBusy] = useState(null);
+  const [sgErr, setSgErr] = useState({});            // ask key -> PERSISTENT named refusal (DEF-029, never a toast)
   if (!run) return null;
   const isRunning = String(run.status).toLowerCase() === 'running';
   const report = composeReport(run, slices || {});
@@ -324,11 +325,18 @@ export default function RunRoom({ run, slices, onClose, onBank, onUnbank, onReje
                                     : <button className="b b-sec rr-sg-btn" disabled={sgBusy === sg.key}
                                               onClick={async () => {
                                                 setSgBusy(sg.key);
+                                                setSgErr((e) => { const n = { ...e }; delete n[sg.key]; return n; });   // clear a prior refusal on retry
                                                 const r = await contract.createCard?.({ run_id: run.item_id, target_key: sg.key,
                                                   title: sg.title, asks: sg.asks, tier_hint: sg.tier_hint, recipe_ref: sg.recipe_ref });
                                                 setSgBusy(null);
                                                 if (r && (r.created || r.duplicate)) setSpawned((s) => ({ ...s, [sg.key]: { item_id: r.item_id, tier: r.tier } }));
+                                                // DEF-029: a refusal renders a PERSISTENT named reason inline — never a toast
+                                                // that vanishes. If the create neither created nor duplicated, it failed; say why.
+                                                else setSgErr((e) => ({ ...e, [sg.key]: (r && (r.error || r.reason)) || 'create card failed — no reason returned' }));
                                               }}>{sgBusy === sg.key ? 'Creating…' : '＋ Create card'}</button>}
+                                  {sgErr[sg.key] && !done && (
+                                    <div className="rr-sg-err" role="alert" title={sgErr[sg.key]}>⚠ {sgErr[sg.key]}</div>
+                                  )}
                                 </div>
                               );
                             })}
