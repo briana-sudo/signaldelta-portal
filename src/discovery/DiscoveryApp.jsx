@@ -192,14 +192,14 @@ export default function DiscoveryApp({ contract }) {
   async function onProxyRestart() {
     restartingUntil.current = Date.now() + 60000;    // expect it back within ~60s
     setProxy('restarting');
-    try { await client.proxyRestart(); } catch { /* fire-and-forget; the poll tracks recovery */ }
+    try { await client.proxyRestart('manual'); } catch { /* fire-and-forget; the poll tracks recovery */ }
   }
   async function onProxyUpdateRestart() {
     restartingUntil.current = Date.now() + 90000;    // ff + restart — a bit longer
     setProxy('restarting');
     setProxyErr(null);
     try {
-      const res = await client.proxyUpdateRestart();
+      const res = await client.proxyUpdateRestart('manual');
       // LOUD: a silent no-op update is forbidden — if the ff/update step failed, show why.
       if (res?.update && res.update.ok === false) {
         setProxyErr(res.update.detail || `update failed${res.update.exit_code != null ? ` (exit ${res.update.exit_code})` : ''}`);

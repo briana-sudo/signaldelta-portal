@@ -485,13 +485,16 @@ function liveContract() {
     // (it dies mid-restart), so the server reports DISPATCH; the commit chip poll verifies
     // completion. A transport failure is 'dispatch-failed' with the named hop, never a fake.
     async proxyStatus() { return get('/sm/proxy/status').catch(() => ({ status: 'unreachable' })); },
-    async proxyRestart() { return post('/sm/proxy/restart', {}).catch((e) => ({ status: 'dispatch-failed', ...failReason(e, 'restart the proxy') })); },
+    // trigger is recorded in the 7688 restart ledger (actor + manual/auto). A click
+    // passes 'manual'; the server defaults absent/unknown so a non-click path is never
+    // silently labelled manual.
+    async proxyRestart(trigger = 'manual') { return post('/sm/proxy/restart', { trigger }).catch((e) => ({ status: 'dispatch-failed', ...failReason(e, 'restart the proxy') })); },
     // Update & restart; if the running proxy predates this endpoint (404) fall back to a
     // REAL plain restart (not a fabricated success). If THAT also fails, refuse by hop.
-    async proxyUpdateRestart() {
-      const r = await post('/sm/proxy/update-restart', {}).catch(() => null);
+    async proxyUpdateRestart(trigger = 'manual') {
+      const r = await post('/sm/proxy/update-restart', { trigger }).catch(() => null);
       if (r) return r;
-      return post('/sm/proxy/restart', {}).catch((e) => ({ status: 'dispatch-failed', ...failReason(e, 'update & restart the proxy') }));
+      return post('/sm/proxy/restart', { trigger }).catch((e) => ({ status: 'dispatch-failed', ...failReason(e, 'update & restart the proxy') }));
     },
   };
 }
