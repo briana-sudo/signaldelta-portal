@@ -11,6 +11,7 @@ const fmtTs = (ts) => (ts ? String(ts).replace('T', ' ').replace(/(\+00:00|Z)$/,
 
 export default function TimelineView({ contract }) {
   const [watches, setWatches] = useState([]);
+  const [monitors, setMonitors] = useState([]);  // class monitors (one row per revival class)
   const [scans, setScans] = useState([]);
   const [gated, setGated] = useState([]);
   const [board, setBoard] = useState([]);
@@ -19,12 +20,14 @@ export default function TimelineView({ contract }) {
   useEffect(() => {
     let live = true;
     (async () => {
-      const [w, s, g, b, rf] = await Promise.all([
+      const [w, s, g, b, rf, mon] = await Promise.all([
         contract.query('watches'), contract.query('scan_history'),
         contract.query('gated'), contract.query('board'), contract.query('refiled'),
+        contract.query('monitors'),
       ]);
       if (!live) return;
       setWatches(w || []); setScans(s || []); setGated(g || []); setBoard(b || []); setRefiled(rf || []);
+      setMonitors(mon || []);
     })();
     return () => { live = false; };
   }, [contract]);
@@ -52,8 +55,8 @@ export default function TimelineView({ contract }) {
 
   const lastScan = scans[0];
   const exportTimeline = () => downloadMd('timeline.md', 'SignalDelta — Timeline / Watches',
-    `## Revival watches\n${renderMd(revival)}\n\n## Data-pull queue\n${renderMd(dataPull)}`
-    + `\n\n## Recheck history\n${renderMd(scans)}`);
+    `## Class monitors\n${renderMd(monitors)}\n\n## Revival watches\n${renderMd(revival)}`
+    + `\n\n## Data-pull queue\n${renderMd(dataPull)}\n\n## Recheck history\n${renderMd(scans)}`);
 
   return (
     <div className="timeline">
@@ -61,6 +64,32 @@ export default function TimelineView({ contract }) {
         <div><h1>Timeline · watches</h1>
           <div className="sub">The engine's revival + data-pull schedule and the recheck-scan history — what's watched, when it's rechecked, and whether a scan ran.</div></div>
         <button className="b b-sec exp-mini" onClick={exportTimeline}>⤓ Export timeline</button>
+      </div>
+
+      {/* CLASS MONITORS — one watcher per revival class (the ruling-sheet axis).
+          Honesty law: an unwired feed renders 'no live feed' (never a faked reading);
+          every row shows last-checked. */}
+      <div className="datastrip">
+        <h3>Class monitors <span className="count mono">{monitors.length}</span></h3>
+        <div className="cap">One watcher per revival class. The sweep + monitors PROPOSE rechecks — nothing revives without your Approve. A reading the feed can't supply shows <i>no live feed</i>, honestly.</div>
+        <table className="dtable">
+          <thead><tr><th>Class</th><th>Metric</th><th>Cadence</th><th>Kills</th><th>Current reading</th><th>Last checked</th></tr></thead>
+          <tbody>
+            {monitors.map((m) => (
+              <tr key={m.revival_class}>
+                <td className="src">{m.revival_class}</td>
+                <td style={{ color: 'var(--fg-3)' }}>{m.metric}</td>
+                <td className="mono">{m.cadence}</td>
+                <td className="mono">{m.kills_count ?? (m.kills_covered || []).length}{m.proposals > 0 ? <span className="tl-pill st-REVIVED" style={{ marginLeft: 6 }}>{m.proposals} proposed</span> : null}</td>
+                <td className={m.reading_live ? '' : 'tl-nofeed'} style={m.reading_live ? {} : { color: 'var(--fg-3)', fontStyle: 'italic' }}>
+                  {m.reading_live ? m.reading : <><span className="tl-pill st-waiting">no live feed</span> {m.reading}</>}
+                </td>
+                <td className="mono">{fmtTs(m.last_checked)}</td>
+              </tr>
+            ))}
+            {monitors.length === 0 && <tr><td colSpan="6" style={{ color: 'var(--fg-3)' }}>No class monitors yet — start the engine to run a monitor cycle.</td></tr>}
+          </tbody>
+        </table>
       </div>
 
       {/* REVIVAL WATCHES */}
