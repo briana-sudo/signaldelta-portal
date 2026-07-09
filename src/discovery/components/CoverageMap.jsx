@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { statusColor, isHot, layoutSpans, tooltipForSurface, tooltipForCell } from '../coverage.js';
 import { runsForSurface, deriveCellStatuses } from '../runs.js';
 
-export default function CoverageMap({ grid, runs = [], onOpenRun }) {
+export default function CoverageMap({ grid, runs = [], onOpenRun, isMobile }) {
   const canvasRef = useRef(null);
   const [tip, setTip] = useState(null);           // {x,y,lines}
   const [drill, setDrill] = useState(null);       // a surface object (drilled)
@@ -15,6 +15,39 @@ export default function CoverageMap({ grid, runs = [], onOpenRun }) {
   // MAP LIVENESS — cell status DERIVED from run results at render time, not the
   // stored (stale) SMGridCell.status. Correct on cold load; no repaint event needed.
   const dgrid = useMemo(() => deriveCellStatuses(grid, runs), [grid, runs]);
+
+  // MOBILE: the packed canvas field-map is unreadable on a phone — render the same
+  // surfaces as a stacked card list (name · discovery score · status · dot strip),
+  // tap a card to open the surface's runs. Same DATA, compacted (not censored).
+  if (isMobile) {
+    const cards = [...(dgrid || [])].sort((a, b) => (b.discovery_potential || 0) - (a.discovery_potential || 0));
+    return (
+      <div className="map-mobile">
+        {cards.map((s) => {
+          const rs = runsForSurface(runs, s.surface);
+          return (
+            <div key={s.surface} className="mcard" onClick={() => rs[0] && onOpenRun && onOpenRun(rs[0].item_id)}>
+              <div className="mcard-top">
+                <span className="mcard-name">{s.name || s.surface}</span>
+                <span className="mcard-score mono">{(s.discovery_potential || 0).toFixed(2)}</span>
+              </div>
+              <div className="mcard-dots">
+                {(s.cells || []).map((c, i) => (
+                  <i key={i} className="mdot" style={{ background: statusColor(c.status) }} title={c.status} />
+                ))}
+              </div>
+              <div className="mcard-meta">
+                <span className="mcard-status" style={{ color: statusColor(s.status) }}>{s.status}</span>
+                {s.family && <span className="mcard-fam">{s.family}</span>}
+                {rs.length > 0 && <span className="mcard-runs">{rs.length} run{rs.length !== 1 ? 's' : ''} ›</span>}
+              </div>
+            </div>
+          );
+        })}
+        {cards.length === 0 && <div className="mcard-empty">No surfaces in the current state.</div>}
+      </div>
+    );
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current;

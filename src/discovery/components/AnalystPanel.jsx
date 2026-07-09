@@ -52,7 +52,7 @@ function persist(box) {
   try { localStorage.setItem(KEY, JSON.stringify(box)); } catch { /* ignore */ }
 }
 
-export default function AnalystPanel({ contract, costingQuestion, onCostingResolved }) {
+export default function AnalystPanel({ contract, costingQuestion, onCostingResolved, isMobile }) {
   const [box, setBox] = useState(loadBox);
   const [messages, setMessages] = useState([]);
   const [ask, setAsk] = useState('');
@@ -122,11 +122,13 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
   }, []);
 
   const startMove = (e) => {
+    if (isMobile) return;                               // mobile: full-screen overlay, no drag
     if (e.target.closest('button')) return;             // don't drag when clicking a header button
     drag.current = { mode: 'move', sx: e.clientX, sy: e.clientY, ox: box.x, oy: box.y };
     e.preventDefault();
   };
   const startResize = (e, dir) => {
+    if (isMobile) return;                               // mobile: resize disabled
     // resolve the current on-screen origin even if the panel is corner-docked (x/y null)
     const r = panelRef.current ? panelRef.current.getBoundingClientRect() : { left: box.x || 0, top: box.y || 0 };
     drag.current = { mode: 'resize', dir, sx: e.clientX, sy: e.clientY,
@@ -235,7 +237,8 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
     );
   }
 
-  const style = { width: box.w, height: box.h,
+  // mobile: no inline geometry — CSS full-screens the overlay (resize/drag are disabled)
+  const style = isMobile ? undefined : { width: box.w, height: box.h,
     left: box.x != null ? box.x : undefined, top: box.y != null ? box.y : undefined,
     right: box.x == null ? 24 : undefined, bottom: box.y == null ? 24 : undefined };
 
@@ -303,8 +306,8 @@ export default function AnalystPanel({ contract, costingQuestion, onCostingResol
         <button type="submit" disabled={busy}>Ask</button>
       </form>
 
-      {/* draggable edges + corners — resize like any window (n/s/e/w + 4 corners) */}
-      {['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].map((dir) => (
+      {/* draggable edges + corners — resize like any window (desktop only) */}
+      {!isMobile && ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].map((dir) => (
         <div key={dir} className={`ap-rz ap-rz-${dir}`} aria-hidden="true"
              onMouseDown={(e) => startResize(e, dir)} />
       ))}

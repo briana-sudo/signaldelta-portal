@@ -542,6 +542,43 @@ describe('analyst image input + vision transport', () => {
   });
 });
 
+// --- MOBILE: view-only read-only guard + stacked coverage cards ----------------
+import { readOnlyContract } from './useIsMobile.js';
+import CoverageMap from './components/CoverageMap.jsx';
+
+describe('mobile view-only', () => {
+  it('the read-only guard neutralizes EVERY state-changing call to a zero-network no-op', async () => {
+    const calls = [];
+    const raw = {
+      resolve: (...a) => { calls.push('resolve'); return Promise.resolve({ ok: true }); },
+      bankLesson: () => { calls.push('bank'); return Promise.resolve({}); },
+      proxyUpdateRestart: () => { calls.push('update'); return Promise.resolve({}); },
+      engineStop: () => { calls.push('stop'); return Promise.resolve({}); },
+      query: (s) => Promise.resolve(`read:${s}`),      // reads must pass through
+    };
+    let blocked = 0;
+    const g = readOnlyContract(raw, () => { blocked++; });
+    for (const m of ['resolve', 'bankLesson', 'proxyUpdateRestart', 'engineStop']) {
+      const r = await g[m]('x');
+      expect(r.desktop_only).toBe(true);               // neutralized, honest
+    }
+    expect(calls).toEqual([]);                          // ZERO underlying (network) calls fired
+    expect(blocked).toBe(4);                            // each showed the view-only toast
+    expect(await g.query('board')).toBe('read:board');  // reads still work (live demo)
+  });
+  it('coverage map renders stacked cards on mobile (canvas replaced, data intact)', () => {
+    const grid = [
+      { surface: 'price', name: 'Price', discovery_potential: 0.82, status: 'whitespace', cells: [{ status: 'whitespace' }, { status: 'killed' }] },
+      { surface: 'fund', name: 'Fundamental', discovery_potential: 0.4, status: 'occupied', cells: [{ status: 'occupied' }] },
+    ];
+    const { container } = render(<CoverageMap grid={grid} runs={[]} isMobile />);
+    expect(container.querySelector('canvas')).toBeNull();          // no canvas on mobile
+    expect(container.querySelectorAll('.mcard').length).toBe(2);   // one card per surface
+    expect(screen.getByText('Price')).toBeTruthy();
+    expect(screen.getByText('0.82')).toBeTruthy();                 // discovery score shown, not censored
+  });
+});
+
 // --- firewall: no 7687 / trading-engine reference anywhere in the console ------
 describe('UI firewall', () => {
   it('no 7687 / trading-engine identifier in the discovery source', () => {

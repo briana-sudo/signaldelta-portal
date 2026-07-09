@@ -16,10 +16,23 @@ import RunRoom from './components/RunRoom.jsx';
 import { mergeRuns, findRun, computeAttention } from './runs.js';
 import { BUILD_ID } from '../buildInfo.js';
 import { downloadMd, downloadText, renderMd } from './mdExport.js';
+import { useIsMobile, readOnlyContract } from './useIsMobile.js';
 import './discovery.css';
 
 export default function DiscoveryApp({ contract }) {
-  const client = useMemo(() => contract || makeContract(), [contract]);
+  const base = useMemo(() => contract || makeContract(), [contract]);
+  const isMobile = useIsMobile();
+  const [blockedMsg, setBlockedMsg] = useState(null);   // transient 'actions are desktop-only' toast
+  // MOBILE = view-only: wrap the client so every state-changing call is a zero-network
+  // no-op that shows the toast. Desktop uses the raw client, pixel-for-pixel unchanged.
+  const client = useMemo(
+    () => (isMobile ? readOnlyContract(base, () => setBlockedMsg('Actions are desktop-only — this is a view-only mobile console.')) : base),
+    [isMobile, base]);
+  useEffect(() => {
+    if (!blockedMsg) return undefined;
+    const t = setTimeout(() => setBlockedMsg(null), 2600);
+    return () => clearTimeout(t);
+  }, [blockedMsg]);
   const [tab, setTab] = useState('Coverage');
   const [grid, setGrid] = useState([]);
   const [gated, setGated] = useState([]);
@@ -208,8 +221,10 @@ export default function DiscoveryApp({ contract }) {
   }
 
   return (
-    <div className="app">
-      <Topbar tab={tab} setTab={setTab} cellsMapped={state.cells_mapped || 0}
+    <div className={`app${isMobile ? ' mobile' : ''}`}>
+      {isMobile && <div className="mobile-lock" role="status">🔒 view-only</div>}
+      {blockedMsg && <div className="mobile-toast" role="alert">{blockedMsg}</div>}
+      <Topbar tab={tab} setTab={setTab} cellsMapped={state.cells_mapped || 0} isMobile={isMobile}
               engineStatus={engine} onStart={onStart} onStop={onStop} onEngineRestart={onEngineRestart} engineCommit={engineCommit} engineErr={engineErr}
               proxyStatus={proxy} proxyHelperBacked={proxyHelper} onProxyRestart={onProxyRestart}
               proxyCommit={proxyCommit} onProxyUpdateRestart={onProxyUpdateRestart} proxyErr={proxyErr} bundle={bundle} />
@@ -237,7 +252,7 @@ export default function DiscoveryApp({ contract }) {
                           onClick={onRulingSheet}>⤓ Ruling sheet</button>
                 </div>
               </div>
-              <CoverageMap grid={grid} runs={allRuns} onOpenRun={onOpenRun} />
+              <CoverageMap grid={grid} runs={allRuns} onOpenRun={onOpenRun} isMobile={isMobile} />
             </>
           )}
           {tab === 'Board' && (
@@ -265,13 +280,13 @@ export default function DiscoveryApp({ contract }) {
       </div>
       {/* THE RUN ROOM — opens for any run from In-progress / board chips / map drill / timeline */}
       {openRunObj && (
-        <RunRoom key={openRunObj.item_id} run={openRunObj} slices={{ lessons, board, correlations, candidates }} contract={client}
+        <RunRoom key={openRunObj.item_id} run={openRunObj} slices={{ lessons, board, correlations, candidates }} contract={client} isMobile={isMobile}
                  onExplore={(sid, surface, q) => { askAssistant(sid, surface, q); setOpenRun(null); }}
                  onClose={() => setOpenRun(null)} onBank={onBankLesson} onUnbank={onUnbankLesson} onReject={onRejectLesson}
                  onReevaluate={(pid) => client.reevaluate?.(pid)} onCancel={onCancelRun} runBusy={!!probe.running} />
       )}
       {/* FLOATING analyst — draggable/resizable/minimizable, at app root (not the rail) */}
-      <AnalystPanel contract={client} costingQuestion={costingQ} onCostingResolved={onCostingResolved} />
+      <AnalystPanel contract={client} costingQuestion={costingQ} onCostingResolved={onCostingResolved} isMobile={isMobile} />
       <div className="watermark">SIGNALDELTA DISCOVERY · {{ real: 'REAL STATE · generated read model', mock: 'MOCK · representative data', live: 'LIVE' }[client.mode] || client.mode} · read-only + gated-write</div>
     </div>
   );

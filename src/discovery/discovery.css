@@ -543,3 +543,66 @@
 .ap-msg-imgs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:5px}
 .ap-msg-img{max-width:180px;max-height:150px;border-radius:6px;border:1px solid var(--line-2);cursor:zoom-in}
 .analyst-panel.dragover,.ap-body.dragover{outline:2px dashed var(--accent);outline-offset:-4px}
+
+/* ============================================================================
+   MOBILE SHOWCASE LANE (<=640px) — view-only. Desktop above the breakpoint is
+   pixel-unchanged (all rules are scoped to .app.mobile inside this query).
+   ============================================================================ */
+.mobile-lock{position:fixed;top:6px;right:8px;z-index:60;background:rgba(0,0,0,.62);
+  color:#e0af68;border:1px solid #e0af68;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600}
+.mobile-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:70;
+  background:rgba(20,20,26,.96);color:var(--fg-1);border:1px solid var(--line-2);border-radius:8px;
+  padding:10px 14px;font-size:13px;max-width:88vw;text-align:center;box-shadow:var(--shadow-2)}
+
+@media (max-width:640px){
+  .app.mobile{grid-template-rows:auto 1fr;height:100dvh}
+  /* topbar: wrap to compact rows; tabs get their own scrollable row */
+  .app.mobile .topbar{gap:8px;padding:8px 10px 6px;flex-wrap:wrap;height:auto}
+  .app.mobile .tabs{order:5;width:100%;margin:2px 0 0;gap:5px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
+  .app.mobile .tab{flex:0 0 auto;min-height:40px;padding:9px 13px;font-size:13px}
+  .app.mobile .commit-chip{font-size:10px;padding:3px 7px}
+  /* desktop-only ops controls: hidden on mobile (state stays visible via the chips) */
+  .app.mobile .proxy-update,.app.mobile .engine-switch,
+  .app.mobile .proxy-update-err,.app.mobile .engine-err{display:none}
+  /* single column; the 340px rail stacks under the stage */
+  .app.mobile .main{grid-template-columns:1fr;overflow:visible}
+  .app.mobile .stage{padding:12px 12px 90px;overflow:visible}
+  .app.mobile .rail{width:auto;border-left:none;border-top:1px solid var(--line-1);overflow:visible}
+  .app.mobile .stage-head{gap:8px}
+  .app.mobile .stage-head h1{font-size:18px}
+  .app.mobile .stage-head .sub{max-width:none;font-size:12px}
+  .app.mobile .legend{gap:8px;font-size:11px}
+  /* finger targets */
+  .app.mobile button,.app.mobile .tab,.app.mobile .item .b{min-height:40px}
+  .app.mobile .item{padding:12px}
+  /* COVERAGE — stacked cards (canvas map is replaced by .map-mobile) */
+  .map-mobile{display:flex;flex-direction:column;gap:8px}
+  .mcard{background:var(--bg-panel);border:1px solid var(--line-1);border-radius:8px;padding:11px 12px;cursor:pointer}
+  .mcard-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .mcard-name{font-weight:600;font-size:14px}
+  .mcard-score{color:var(--fg-3);font-size:12px}
+  .mcard-dots{display:flex;flex-wrap:wrap;gap:3px;margin:7px 0}
+  .mdot{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .mcard-meta{display:flex;gap:10px;font-size:11px;color:var(--fg-3);align-items:center}
+  .mcard-runs{margin-left:auto;color:var(--accent,#5b8def)}
+  .mcard-empty{color:var(--fg-3);padding:16px;text-align:center}
+  /* RUN ROOM — full-screen sheet */
+  .app.mobile .rr-backdrop{padding:0}
+  .app.mobile .rr{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;border-radius:0}
+  .app.mobile .rr-body{grid-template-columns:1fr}
+  /* ANALYST — full-screen overlay (resize/drag disabled in JS on mobile) */
+  .app.mobile .analyst-panel{position:fixed;inset:0;width:100vw;height:100dvh;border-radius:0;z-index:55}
+  .app.mobile .ap-rz{display:none}
+  .app.mobile .analyst-bubble{bottom:14px;right:14px}
+}
+
+@media (max-width:640px){
+  /* wide tables scroll INSIDE their card — never the page (no horizontal body scroll) */
+  .app.mobile .datastrip{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .app.mobile .dtable{min-width:520px}
+  .app.mobile .timeline,.app.mobile .ip-wrap,.app.mobile .board-wrap{max-width:100%}
+  /* run-report close target finger-sized */
+  .app.mobile .rr-x{width:40px;height:40px;font-size:20px}
+  /* watermark out of the way on a phone */
+  .app.mobile .watermark{display:none}
+}
