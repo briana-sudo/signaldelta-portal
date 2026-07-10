@@ -12,6 +12,7 @@ const fmtTs = (ts) => (ts ? String(ts).replace('T', ' ').replace(/(\+00:00|Z)$/,
 export default function TimelineView({ contract }) {
   const [watches, setWatches] = useState([]);
   const [monitors, setMonitors] = useState([]);  // class monitors (one row per revival class)
+  const [proposals, setProposals] = useState([]);  // durable SMProposal records (badge count DERIVES from these)
   const [scans, setScans] = useState([]);
   const [gated, setGated] = useState([]);
   const [board, setBoard] = useState([]);
@@ -20,17 +21,24 @@ export default function TimelineView({ contract }) {
   useEffect(() => {
     let live = true;
     (async () => {
-      const [w, s, g, b, rf, mon] = await Promise.all([
+      const [w, s, g, b, rf, mon, pr] = await Promise.all([
         contract.query('watches'), contract.query('scan_history'),
         contract.query('gated'), contract.query('board'), contract.query('refiled'),
-        contract.query('monitors'),
+        contract.query('monitors'), contract.query('proposals'),
       ]);
       if (!live) return;
       setWatches(w || []); setScans(s || []); setGated(g || []); setBoard(b || []); setRefiled(rf || []);
-      setMonitors(mon || []);
+      setMonitors(mon || []); setProposals(pr || []);
     })();
     return () => { live = false; };
   }, [contract]);
+
+  // PENDING proposal count per class — DERIVED from the SMProposal records, never a stored
+  // field on the monitor row (that stored count was the badge-vs-reality bug).
+  const pendingByClass = {};
+  for (const p of proposals || []) {
+    if ((p.status || 'PENDING') === 'PENDING') pendingByClass[p.revival_class] = (pendingByClass[p.revival_class] || 0) + 1;
+  }
 
   // B-AG / the seed's named watches to the top, then dated reviews, then event-driven
   const revival = [...(watches || [])].sort(
@@ -80,7 +88,7 @@ export default function TimelineView({ contract }) {
                 <td className="src">{m.revival_class}</td>
                 <td style={{ color: 'var(--fg-3)' }}>{m.metric}</td>
                 <td className="mono">{m.cadence}</td>
-                <td className="mono">{m.kills_count ?? (m.kills_covered || []).length}{m.proposals > 0 ? <span className="tl-pill st-REVIVED" style={{ marginLeft: 6 }}>{m.proposals} proposed</span> : null}</td>
+                <td className="mono">{m.kills_count ?? (m.kills_covered || []).length}{pendingByClass[m.revival_class] > 0 ? <span className="tl-pill st-REVIVED" style={{ marginLeft: 6 }}>{pendingByClass[m.revival_class]} proposed</span> : null}</td>
                 <td className={m.reading_live ? '' : 'tl-nofeed'} style={m.reading_live ? {} : { color: 'var(--fg-3)', fontStyle: 'italic' }}>
                   {m.reading_live ? m.reading : <><span className="tl-pill st-waiting">no live feed</span> {m.reading}</>}
                 </td>

@@ -116,21 +116,42 @@ export default function InProgress({ probe, lessons = [], onBank, onUnbank, onRe
 
       {/* NEEDS YOUR ATTENTION — every recommended action WITH its reason from live state */}
       <div className="datastrip attention">
-        <h3>Needs your attention <span className="count mono">{attention.filter((a) => a.action).length}</span></h3>
+        <h3>Needs your attention <span className="count mono">{attention.filter((a) => a.action || a.actionable).length}</span></h3>
         {attention.length === 0 && <div className="attn-empty">Nothing needs you.</div>}
         {attention.map((a, i) => (
-          <div key={i} className={`attn attn-${a.kind}${a.state ? ' attn-inflight' : ''}`}>
-            <div className="attn-main">
-              <span className="attn-title">{a.title}</span>
-              <span className="attn-reason">{a.reason}</span>
-            </div>
-            {/* in-flight → agree with the board: show the state, unclickable */}
-            {a.state && <span className={`run-badge ${a.state}`}>{a.state === 'running' ? 'RUNNING' : 'QUEUED'}</span>}
-            {a.action && (
+          a.kind === 'proposal' ? (
+            // MONITOR/SWEEP RECHECK PROPOSAL — the full operator-readable case + Approve/Dismiss.
+            // The single authority is the SMProposal record; this is where it surfaces.
+            <div key={i} className="attn attn-proposal">
+              <div className="attn-main">
+                <span className="attn-title">{a.title}</span>
+                <span className="attn-reason">{a.reason}</span>
+                <div className="attn-case mono">
+                  <span>factor: {a.proposal.factor}</span>
+                  {a.proposal.after && <span> · now: {a.proposal.after}</span>}
+                  {a.proposal.proposed_recheck && <span> · recheck: {a.proposal.proposed_recheck}</span>}
+                  {a.proposal.cost && <span> · cost: {a.proposal.cost}</span>}
+                </div>
+              </div>
               <ActionButton className="b b-pri" busyLabel="Approving…"
-                            onAct={() => onAttentionAction && onAttentionAction(a)}>{a.action}</ActionButton>
-            )}
-          </div>
+                            onAct={() => onAttentionAction && onAttentionAction(a, 'approve')}>Approve</ActionButton>
+              <ActionButton className="b b-sec" busyLabel="Dismissing…"
+                            onAct={() => onAttentionAction && onAttentionAction(a, 'dismiss')}>Dismiss</ActionButton>
+            </div>
+          ) : (
+            <div key={i} className={`attn attn-${a.kind}${a.state ? ' attn-inflight' : ''}`}>
+              <div className="attn-main">
+                <span className="attn-title">{a.title}</span>
+                <span className="attn-reason">{a.reason}</span>
+              </div>
+              {/* in-flight → agree with the board: show the state, unclickable */}
+              {a.state && <span className={`run-badge ${a.state}`}>{a.state === 'running' ? 'RUNNING' : 'QUEUED'}</span>}
+              {a.action && (
+                <ActionButton className="b b-pri" busyLabel="Approving…"
+                              onAct={() => onAttentionAction && onAttentionAction(a)}>{a.action}</ActionButton>
+              )}
+            </div>
+          )
         ))}
       </div>
 

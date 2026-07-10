@@ -434,7 +434,7 @@ function catOf(disp) {
   return '';
 }
 
-export function computeAttention({ runs = [], board = [], lessons = [], probe = null, candidates = [], watches = [] } = {}) {
+export function computeAttention({ runs = [], board = [], lessons = [], probe = null, candidates = [], watches = [], proposals = [] } = {}) {
   const items = [];
   const flight = inFlightMap(probe);
   // 1. RE-EVALUATE recommended — a concluded surface whose stored disposition the
@@ -524,6 +524,16 @@ export function computeAttention({ runs = [], board = [], lessons = [], probe = 
   if (provL.length) {
     items.push({ kind: 'note', title: `${provL.length} provisional lesson${provL.length > 1 ? 's' : ''}`,
       reason: 'heuristic-drafted — will supersede with LLM drafts on Re-evaluate' });
+  }
+  // 3d. MONITOR/SWEEP RECHECK PROPOSALS — a class monitor or the all-kills sweep found a
+  //     trigger (a spanning factor decayed, a regime reverted, a sweep flag). The durable
+  //     SMProposal record is the SINGLE authority; every PENDING one surfaces here with its
+  //     full case + Approve/Dismiss. Propose-only: the decision is recorded; a recheck RUN
+  //     is a separate gated step.
+  for (const p of proposals || []) {
+    if ((p.status || 'PENDING') !== 'PENDING') continue;
+    items.push({ kind: 'proposal', title: `${p.kill} · recheck`, target: p.id, proposal: p,
+      actionable: true, reason: p.reason || `${p.factor} decayed — recheck ${p.kill} proposed` });
   }
   return items;
 }

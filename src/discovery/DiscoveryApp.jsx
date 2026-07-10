@@ -54,6 +54,7 @@ export default function DiscoveryApp({ contract }) {
   const [correlations, setCorrelations] = useState([]);  // CORRELATES_WITH edges
   const [candidates, setCandidates] = useState([]);      // survivor S1–S6 pipelines (SMCandidate)
   const [watches, setWatches] = useState([]);            // revival watches (data-bound → DEF-018 waiting)
+  const [proposals, setProposals] = useState([]);        // monitor/sweep recheck proposals (SMProposal)
   const [openRun, setOpenRun] = useState(null);      // run item_id whose Run Room is open
   const restartingUntil = useRef(0);                 // ms deadline while a restart is in flight
   const prevDone = useRef(0);                         // probe/re-terminus completions seen (→ map reload)
@@ -61,12 +62,14 @@ export default function DiscoveryApp({ contract }) {
   // (re)load the read-model slices — called on mount and again once the proxy
   // comes back after a restart, so the board reflects the now-live 7688 data.
   const reloadData = useCallback(async () => {
-    const [g, ga, b, s, rn, co, cand, wa] = await Promise.all([
+    const [g, ga, b, s, rn, co, cand, wa, pr] = await Promise.all([
       client.query('grid'), client.query('gated'), client.query('board'), client.query('state'),
       client.query('runs'), client.query('correlations'), client.query('candidates'), client.query('watches'),
+      client.query('proposals'),
     ]);
     setGrid(g || []); setGated(ga || []); setBoard(b || []); setState(s || { cells_mapped: 0 });
     setRuns(rn || []); setCorrelations(co || []); setCandidates(cand || []); setWatches(wa || []);
+    setProposals(pr || []);
   }, [client]);
 
   useEffect(() => { let live = true; reloadData().catch(() => {}); return () => { live = false; }; }, [reloadData]);
@@ -158,11 +161,12 @@ export default function DiscoveryApp({ contract }) {
   const openRunObj = openRun ? findRun(allRuns, openRun) : null;
 
   // NEEDS YOUR ATTENTION — recommended actions with reasons, from live state
-  const attention = useMemo(() => computeAttention({ runs: allRuns, board, lessons, probe, candidates, watches }), [allRuns, board, lessons, probe, candidates, watches]);
-  const onAttentionAction = useCallback(async (a) => {
+  const attention = useMemo(() => computeAttention({ runs: allRuns, board, lessons, probe, candidates, watches, proposals }), [allRuns, board, lessons, probe, candidates, watches, proposals]);
+  const onAttentionAction = useCallback(async (a, decision) => {
     if (a.kind === 'reevaluate') await client.reevaluate?.(a.target);
     else if (a.kind === 'approve') await client.resolve?.({ gate_item_id: a.target, decision: 'approve', gate_item_version: a.version || 0 });
-  }, [client]);
+    else if (a.kind === 'proposal') { await client.proposalResolve?.(a.target, decision || 'approve'); reloadData().catch(() => {}); }
+  }, [client, reloadData]);
 
   function onResolved(itemId, newStatus) {
     setBoard((prev) => prev.map((i) => (i.item_id === itemId ? { ...i, status: newStatus } : i)));

@@ -1427,6 +1427,20 @@ describe('Run Room + terminus report', () => {
     expect(computeAttention({ runs: [], board: [], lessons: [] })).toHaveLength(0);
   });
 
+  it('a PENDING monitor proposal surfaces in Needs-your-attention with its full case; a resolved one does not', () => {
+    const proposals = [
+      { id: 'SPANNED-BY-X:B1xlow-vol', kill: 'B1xlow-vol', revival_class: 'SPANNED-BY-X', status: 'PENDING',
+        factor: 'low-vol (BAB)', after: '-0.053%/day, t=-0.29, n=84', reason: 'the spanning factor low-vol (BAB) is decayed', proposed_recheck: 'faithful recheck of B1xlow-vol' },
+      { id: 'SPANNED-BY-X:B-NI', kill: 'B-NI', revival_class: 'SPANNED-BY-X', status: 'DISMISSED' },
+    ];
+    const a = computeAttention({ runs: [], board: [], lessons: [], proposals });
+    const p = a.filter((x) => x.kind === 'proposal');
+    expect(p).toHaveLength(1);                                 // only the PENDING one
+    expect(p[0].target).toBe('SPANNED-BY-X:B1xlow-vol');
+    expect(p[0].actionable).toBe(true);
+    expect(p[0].proposal.after).toMatch(/t=-0.29/);            // full case carried through
+  });
+
   it('FALSE-IDLE FIX: an errored re-test (status OPEN, no successful run) surfaces as Approve with the errored reason', () => {
     // the FULL errored → the engine flipped the item to OPEN; it must NOT read as idle
     const runs = [{ parent: 'D:V-015-TDF-FULL', recipe_id: 'V-015-TDF-FULL', disposition: 'error',

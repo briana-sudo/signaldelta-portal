@@ -349,6 +349,7 @@ function mockContract() {
     async unbankLesson(id) { const l = mlessons.find((x) => x.id === id); if (l && l.status === 'BANKED') l.status = 'RETRACTED'; return { id, status: l?.status }; },
     async rejectLesson(id) { const l = mlessons.find((x) => x.id === id); if (l) l.status = 'REJECTED'; return { id, status: l?.status }; },
     async proposeLesson(text, source) { const id = `lesson-${mlessons.length}`; mlessons.unshift({ id, text, source, status: 'PROPOSED' }); return { id, status: 'PROPOSED' }; },
+    async proposalResolve(id, decision) { return { id, status: decision === 'approve' ? 'APPROVED' : 'DISMISSED' }; },
     _board: board,
   };
 }
@@ -466,6 +467,9 @@ function liveContract() {
     async unbankLesson(id) { return post('/sm/lesson/unbank', { lesson_id: id }).catch(() => ({ status: 'error' })); },
     async rejectLesson(id) { return post('/sm/lesson/reject', { lesson_id: id }).catch(() => ({ status: 'error' })); },
     async proposeLesson(text, source) { return post('/sm/lesson/propose', { text, source }).catch(() => ({ status: 'error' })); },
+    // MONITOR/SWEEP PROPOSALS — the operator's Approve/Dismiss gate on a recheck proposal.
+    // Records the decision (APPROVED|DISMISSED); it does NOT run a recheck (a gated step).
+    async proposalResolve(proposal_id, decision) { return post('/sm/proposal/resolve', { proposal_id, decision }).catch((e) => ({ status: 'error', ...failReason(e, 'resolve proposal') })); },
     // ENGINE POWER SWITCH -> /sm/engine/*. DEF-030 verify-or-refuse: a LIVE state-changing
     // call NEVER falls back to the mock (that would masquerade a failure as success). On a
     // transport failure it surfaces the named hop; the server already verifies the effect.
