@@ -47,13 +47,14 @@ export default function TimelineView({ contract }) {
   const seen = new Set();
   const dataPull = [];
   for (const g of gated || []) {
+    if (!(g.surface || g.id)) continue;              // no identity → skip the ghost all-dash row
     const key = (g.surface || g.id || '').toLowerCase();
     if (seen.has(key)) continue; seen.add(key);
     dataPull.push({ id: g.id, what: g.surface || g.id, source: g.vendor || '—',
       blocker: g.price || '—', unlocks: g.unlocks || '—', status: 'awaiting decision' });
   }
   for (const b of board || []) {
-    if (!['Needs data', 'Needs broker'].includes(b.kind)) continue;
+    if (!['Needs data', 'Needs broker'].includes(b.kind) || !b.title) continue;
     const key = (b.title || '').toLowerCase().slice(0, 18);
     if ([...seen].some((s) => key.includes(s) || s.includes(key.split(' ')[0]))) continue;
     dataPull.push({ id: b.item_id, what: b.title, source: (b.meta || [])[1] || '—',
@@ -112,7 +113,7 @@ export default function TimelineView({ contract }) {
                 <td className="src">{w.id}</td>
                 <td>{w.disposition}</td>
                 <td>{w.trigger}</td>
-                <td className="mono">{w.recheck_due}</td>
+                <td className="mono">{w.recheck_due || '≈ never'}</td>
                 <td className="mono">{fmtTs(w.last_checked)}</td>
                 <td><span className={`tl-pill st-${w.status}`}>{STATUS_LABEL[w.status] || w.status}</span></td>
               </tr>
